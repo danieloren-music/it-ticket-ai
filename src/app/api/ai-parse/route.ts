@@ -13,30 +13,30 @@ export async function POST(req: Request) {
     const ai = new GoogleGenAI({ apiKey });
 
     const systemInstruction = `
-אתה סוכן AI מומחה לניהול קריאות IT ותמיכה טכנית (Service Desk Intelligent Agent).
-תפקידך:
-1. לנתח את השיחה עם המשתמש ולחלץ נתונים מובנים לטופס פתיחת קריאת מחשוב.
-2. לזהות האם חסרים פרטים מהותיים:
-   - פרטי מדווח (שם מלא / אימייל)
-   - תיאור מספיק של הבעיה או הודעת השגיאה
-   - המערכת/חומרה הספציפית
-3. אם חסר מידע חשוב (במיוחד שם המשתמש או מידע טכני מהותי), החזר ב-follow_up_question שאלה מנומסת, תמציתית וממוקדת בעברית. אם הכל ברור ומלא, החזר null בשדה זה.
-4. קבע את הצוות המטפל (assigned_team) באופן אוטומטי מתוך:
-   - 'Helpdesk Tier 1' (תקלות משתמש קצה, עמדות, ציוד היקפי)
-   - 'System & Cloud Team' (תשתיות, ענן, שרתים, גיבויים)
-   - 'Network & Security' (רשת, VPN, חומות אש, אבטחת מידע)
-   - 'IT Applications & BI' (תוכנות ארגוניות, מערכות מידע, מסדי נתונים)
+את סוכנת AI מומחית וחכמה בשם Rebecca לניהול ופתיחת קריאות IT ומחשוב (SmartDesk AI Copilot).
+המטרה שלך היא לפשט למשתמש את החיים ולמלא עבורו את כל הטופס בשיחה קצרה ונעימה.
+
+הנחיות פעולה:
+1. נתחי את השיחה עם המשתמש וחלצי נתונים מובנים ומדויקים.
+2. זהי האם חסרים פרטים מהותיים:
+   - שם המדווח / אימייל לחזרה
+   - פירוט בסיסי המאפשר טיפול (מה התקלה או הבקשה הספציפית)
+3. אם חסר פרט מהותי (למשל: לא צוין שם, או התקלה כללית מדי כמו "המחשב לא עובד"), החזירי ב-follow_up_question שאלת המשך קצרה, אנושית, מנומסת וממוקדת בעברית (למשל: "היי! רשמתי את התקלה. מה שמך המלא ואימייל כדי שנשייך את הקריאה?").
+4. ברגע שיש לך את כל המידע הנדרש לפתיחת הקריאה, החזירי follow_up_question: null כדי שהמערכת תעביר את המשתמש מיד לטופס המלא.
+5. קבעי את הצוות המטפל (assigned_team) מתוך:
+   - 'Helpdesk Tier 1' (חומרה, עמדות, מסכים, מקלדות, ציוד קצה)
+   - 'System & Cloud Team' (שרתים, ענן, גיבויים, תשתיות)
+   - 'Network & Security' (VPN, תקשורת, חומות אש, איטיות רשת)
+   - 'IT Applications & BI' (מערכות מידע, ERP, CRM, בסיסי נתונים)
    - 'Identity & Access' (הרשאות, Active Directory, איפוס סיסמאות, SSO)
 `;
 
     const promptContext = `
-הנתונים הקיימים בטופס עד כה:
+נתוני טופס קיימים:
 ${JSON.stringify(currentFormData || {})}
 
-היסטוריית השיחה עם המשתמש:
+היסטוריית השיחה:
 ${JSON.stringify(messages || [])}
-
-חלץ את הנתונים המעודכנים ביותר ובדוק אם נדרשת שאלת המשך.
 `;
 
     const response = await ai.models.generateContent({
@@ -49,7 +49,7 @@ ${JSON.stringify(messages || [])}
           type: Type.OBJECT,
           properties: {
             title: { type: Type.STRING, description: 'כותרת תמציתית ומקצועית' },
-            description: { type: Type.STRING, description: 'תיאור מפורט ומסודר' },
+            description: { type: Type.STRING, description: 'תיאור מפורט ומסודר של התקלה' },
             category: {
               type: Type.STRING,
               enum: [
@@ -79,11 +79,11 @@ ${JSON.stringify(messages || [])}
                 'Identity & Access'
               ],
             },
-            reporter_name: { type: Type.STRING, description: 'שם המדווח אם זוהה, או מחרוזת ריקה' },
-            reporter_email: { type: Type.STRING, description: 'אימייל המדווח אם זוהה, או מחרוזת ריקה' },
+            reporter_name: { type: Type.STRING, description: 'שם המדווח' },
+            reporter_email: { type: Type.STRING, description: 'אימייל המדווח' },
             follow_up_question: { 
               type: Type.STRING, 
-              description: 'שאלת הבהרה אם חסר מידע קריטי כגון שם המשתמש או פרטים טכניים, אחרת null',
+              description: 'שאלת הבהרה אם חסר מידע. אם הכל מוכן, החזירי null',
               nullable: true 
             },
           },

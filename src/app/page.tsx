@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { 
-  Sparkles, 
   Send, 
   RefreshCw, 
   CheckCircle2, 
@@ -14,9 +13,7 @@ import {
   Check, 
   SlidersHorizontal,
   Zap,
-  ArrowDown,
-  MessageSquare,
-  Bot
+  ArrowDown
 } from 'lucide-react';
 
 function SmartDeskLogo({ className = "w-9 h-9" }: { className?: string }) {
@@ -99,7 +96,7 @@ export default function Home() {
     { 
       id: 'init-msg',
       role: 'assistant', 
-      content: 'היי, אני Rebecca – סוכנת ה-IT שלך! תספר לי מה הבעיה או מה אתה צריך, ואדאג למלא עבורך את כל פרטי הקריאה.',
+      content: 'היי, אני Rebecca. ספר לי מה התקלה או הבקשה שלך ואדאג למלא את כל פרטי הקריאה.',
       isStreaming: true
     }
   ]);
@@ -123,11 +120,15 @@ export default function Home() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(true);
 
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  // רפרנס לגלילה פנימית בלבד בתוך תיבת השיחה
+  const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
   const formSectionRef = useRef<HTMLDivElement>(null);
 
+  // גלילה בתוך חלון הצאט בלבד ללא השפעה על הדף
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatMessagesContainerRef.current) {
+      chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
+    }
   }, [messages, isAiLoading]);
 
   const fetchTickets = async () => {
@@ -192,21 +193,21 @@ export default function Home() {
           }
         ]);
       } else {
-        // המידע הושלם במלואו - מעבר אוטומטי לטופס למטה!
         setIsReadyForReview(true);
         setMessages((prev) => [
           ...prev, 
           { 
             id: 'ai-' + Date.now(), 
             role: 'assistant', 
-            content: 'מעולה! מילאתי עבורך את כל פרטי הקריאה והצוות המטפל. גוללת אותך למטה לבדיקה אחרונה ושיגור.',
+            content: 'מילאתי את כל פרטי הקריאה בטופס. גוללת אותך לבדיקה ואישור.',
             isStreaming: true 
           }
         ]);
 
+        // גלילה למטה אך ורק בסיום מילוי כל הפרטים
         setTimeout(() => {
           formSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 1200);
+        }, 1000);
       }
     } catch (err: any) {
       setFeedbackMsg({ text: err.message || 'שגיאה בפענוח הנתונים', type: 'error' });
@@ -244,11 +245,9 @@ export default function Home() {
       setIsReadyForReview(false);
       setMessages((prev) => [
         ...prev,
-        { id: 'done-' + Date.now(), role: 'assistant', content: 'הקריאה שוגרה בהצלחה! אני כאן אם יש תקלה נוספת.', isStreaming: true }
+        { id: 'done-' + Date.now(), role: 'assistant', content: 'הקריאה נשמרה בהצלחה. יש משהו נוסף שאוכל לעזור בו?', isStreaming: true }
       ]);
       fetchTickets();
-
-      // גלילה חזרה לחלק העליון
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       setFeedbackMsg({ text: 'שגיאה בשמירת הקריאה: ' + err.message, type: 'error' });
@@ -270,18 +269,17 @@ export default function Home() {
     <main dir="rtl" className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans antialiased">
       
       {/* Top Navbar */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 shadow-2xs animate-[fadeIn_0.5s_ease-out]">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 shadow-2xs">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <SmartDeskLogo className="w-9 h-9" />
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-lg font-black tracking-tight text-slate-900">SmartDesk</span>
-                <span className="px-2 py-0.5 text-[10px] font-extrabold text-white bg-gradient-to-r from-sky-500 to-sky-600 rounded-md shadow-2xs uppercase">
+                <span className="px-2 py-0.5 text-[10px] font-extrabold text-white bg-gradient-to-r from-sky-500 to-sky-600 rounded-md uppercase">
                   AI
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium">מוקד שירות מחשוב חכם</p>
             </div>
           </div>
 
@@ -301,31 +299,17 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Hero / AI Chat Section (The Core Stage) */}
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 pt-8 pb-12 space-y-6 animate-[fadeIn_0.7s_ease-out]">
+      {/* Main Container */}
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-12 space-y-6">
         
-        {/* Simple & Clear Intro */}
-        <div className="text-center space-y-2 max-w-xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200/80 text-orange-600 text-xs font-bold shadow-2xs">
-            <Sparkles className="w-3.5 h-3.5 fill-orange-500" />
-            אין צורך למלא טפסים ידנית!
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            ספר ל-Rebecca מה קרה והיא תעשה הכל
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
-            תאר את התקלה או הבקשה בצ'אט חופשי – Rebecca תאבחן, תסווג ותמלא את כל הטופס עבורך.
-          </p>
-        </div>
-
-        {/* Quick Click Prompts */}
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+        {/* Quick Prompts */}
+        <div className="flex flex-wrap items-center justify-center gap-2">
           {QUICK_PROMPTS.map((prompt, i) => (
             <button
               key={i}
               type="button"
               onClick={() => handleSendMessage(prompt)}
-              className="text-[11px] font-medium px-3.5 py-2 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-700 hover:text-sky-700 transition shadow-2xs flex items-center gap-1.5"
+              className="text-[11px] font-medium px-3.5 py-1.5 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-700 hover:text-sky-700 transition shadow-2xs flex items-center gap-1.5"
             >
               <Zap className="w-3 h-3 text-orange-500" />
               {prompt}
@@ -333,21 +317,17 @@ export default function Home() {
           ))}
         </div>
 
-        {/* The Central Chat Interface */}
-        <div className="bg-white rounded-2xl border-2 border-sky-400/40 shadow-xl overflow-hidden flex flex-col h-[520px]">
+        {/* Rebecca Chat Interface */}
+        <div className="bg-white rounded-2xl border-2 border-sky-400/40 shadow-xl overflow-hidden flex flex-col h-[480px]">
           
-          {/* Rebecca Chat Header */}
           <div className="px-5 py-3.5 bg-gradient-to-r from-sky-50 via-sky-50/50 to-white border-b border-sky-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-sky-600 to-sky-400 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold text-sm">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-600 to-sky-400 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold text-xs">
                 R
               </div>
-              <div>
-                <h3 className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                  Rebecca – סוכנת IT אישית
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
-                </h3>
-                <p className="text-[10px] text-slate-400">אבחון וסיווג חכם של קריאות שירות</p>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 text-sm">Rebecca</h3>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
               </div>
             </div>
 
@@ -355,24 +335,24 @@ export default function Home() {
               <button
                 type="button"
                 onClick={() => formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                className="flex items-center gap-1 text-[11px] font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1 rounded-lg transition animate-bounce"
+                className="flex items-center gap-1 text-[11px] font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1 rounded-lg transition"
               >
-                <span>הפרטים מוכנים – גלול לבדיקה</span>
+                <span>הפרטים מוכנים – עבור לטופס</span>
                 <ArrowDown className="w-3 h-3" />
               </button>
             )}
           </div>
 
           {/* Messages Flow */}
-          <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/30">
+          <div ref={chatMessagesContainerRef} className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/30">
             {messages.map((m) => (
               <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'justify-start flex-row-reverse' : 'justify-start'}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold shadow-2xs ${
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold shadow-2xs ${
                   m.role === 'user' ? 'bg-orange-500 text-white' : 'bg-gradient-to-tr from-sky-600 to-sky-400 text-white'
                 }`}>
-                  {m.role === 'user' ? <User className="w-4 h-4" /> : 'R'}
+                  {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : 'R'}
                 </div>
-                <div className={`p-4 rounded-2xl text-xs sm:text-sm leading-relaxed max-w-[85%] shadow-2xs ${
+                <div className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed max-w-[85%] shadow-2xs ${
                   m.role === 'user' 
                     ? 'bg-orange-500 text-white rounded-br-none' 
                     : 'bg-white text-slate-800 rounded-bl-none border border-slate-200/90'
@@ -394,16 +374,15 @@ export default function Home() {
             ))}
             
             {isAiLoading && (
-              <div className="flex items-center gap-3 text-xs text-sky-700 bg-sky-50 border border-sky-100 p-3 rounded-2xl w-fit">
+              <div className="flex items-center gap-3 text-xs text-sky-700 bg-sky-50 border border-sky-100 p-2.5 rounded-2xl w-fit">
                 <div className="flex gap-1">
-                  <span className="w-2 h-2 bg-sky-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-2 h-2 bg-sky-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-2 h-2 bg-sky-500 rounded-full animate-bounce" />
+                  <span className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-bounce" />
                 </div>
-                <span>Rebecca מעבדת את הבקשה ומעדכנת את הטופס...</span>
+                <span>Rebecca מעדכנת את הטופס...</span>
               </div>
             )}
-            <div ref={chatEndRef} />
           </div>
 
           {/* Chat Input */}
@@ -412,24 +391,24 @@ export default function Home() {
               type="text"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              placeholder="כתוב ל-Rebecca מה התקלה או ענה לשאלתה..."
-              className="flex-1 px-4 py-3 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-none transition"
+              placeholder="כתוב כאן ל-Rebecca..."
+              className="flex-1 px-4 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-none transition"
             />
             <button
               type="submit"
               disabled={isAiLoading || !userInput.trim()}
-              className="px-5 py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 disabled:from-slate-200 disabled:to-slate-200 text-white rounded-xl font-semibold text-xs sm:text-sm transition shadow-md shadow-sky-500/20 flex items-center justify-center gap-1.5"
+              className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 disabled:from-slate-200 disabled:to-slate-200 text-white rounded-xl font-semibold text-xs sm:text-sm transition shadow-sm flex items-center justify-center gap-1.5"
             >
               <span>שלח</span>
-              <Send className="w-4 h-4" />
+              <Send className="w-3.5 h-3.5" />
             </button>
           </form>
         </div>
 
       </div>
 
-      {/* Form Review Section (Target of Auto-Scroll) */}
-      <div ref={formSectionRef} className="max-w-4xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+      {/* Form Review Section */}
+      <div ref={formSectionRef} className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
         
         {feedbackMsg && (
           <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-semibold shadow-2xs ${
@@ -443,18 +422,13 @@ export default function Home() {
         )}
 
         <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/90 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 bg-sky-50 text-sky-600 rounded-xl">
-                <SlidersHorizontal className="w-4 h-4" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900">פרטי הקריאה המאובחנים</h2>
-                <p className="text-xs text-slate-400">הנתונים שלמטה מולאו ע״י Rebecca. ניתן לערוך במידת הצורך ולשגר.</p>
-              </div>
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 text-sky-600" />
+              <h2 className="text-sm font-bold text-slate-900">פרטי הקריאה שנאספו</h2>
             </div>
-            <span className="text-[11px] font-bold text-sky-700 bg-sky-50 border border-sky-100 px-3 py-1 rounded-full self-start sm:self-auto">
-              Auto-Filled by Rebecca
+            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-100 px-2.5 py-0.5 rounded-full">
+              סונכרן ע״י Rebecca
             </span>
           </div>
 
@@ -466,8 +440,8 @@ export default function Home() {
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="הכותרת תתמלא כאן..."
-                className="w-full px-3.5 py-2.5 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-none transition"
+                placeholder="נושא הפנייה..."
+                className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition"
               />
             </div>
 
@@ -477,7 +451,7 @@ export default function Home() {
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-3 py-2.5 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className="w-full px-3 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:border-sky-500 focus:outline-none transition"
                 >
                   <option value="Hardware">חומרה (Hardware)</option>
                   <option value="Software & SaaS">תוכנה וענן (Software)</option>
@@ -496,7 +470,7 @@ export default function Home() {
                 <select
                   value={formData.urgency}
                   onChange={(e) => setFormData({ ...formData, urgency: e.target.value })}
-                  className="w-full px-3 py-2.5 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className="w-full px-3 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:border-sky-500 focus:outline-none transition"
                 >
                   <option value="Low">Low (נמוכה)</option>
                   <option value="Medium">Medium (בינונית)</option>
@@ -508,22 +482,22 @@ export default function Home() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">רכיב / אפליקציה מושפעת</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">רכיב / אפליקציה</label>
                 <input
                   type="text"
                   value={formData.system_impacted}
                   onChange={(e) => setFormData({ ...formData, system_impacted: e.target.value })}
-                  placeholder="לדוגמה: VPN, Dell XPS, Outlook"
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  placeholder="לדוגמה: VPN, מחשב נייד"
+                  className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">צוות מטפל מוקצה</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">צוות מטפל</label>
                 <select
                   value={formData.assigned_team}
                   onChange={(e) => setFormData({ ...formData, assigned_team: e.target.value })}
-                  className="w-full px-3 py-2.5 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-sky-800 font-semibold focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className="w-full px-3 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-sky-800 font-semibold focus:bg-white focus:border-sky-500 focus:outline-none transition"
                 >
                   <option value="Helpdesk Tier 1">Helpdesk Tier 1</option>
                   <option value="System & Cloud Team">System & Cloud Team</option>
@@ -535,14 +509,14 @@ export default function Home() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">תיאור מפורט של הפנייה *</label>
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">פירוט הפנייה *</label>
               <textarea
                 required
                 rows={3}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="התיאור המלא יופיע כאן..."
-                className="w-full px-3.5 py-2.5 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-none transition leading-relaxed"
+                placeholder="פירוט הבקשה..."
+                className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition leading-relaxed"
               />
             </div>
 
@@ -554,7 +528,7 @@ export default function Home() {
                   value={formData.reporter_name}
                   onChange={(e) => setFormData({ ...formData, reporter_name: e.target.value })}
                   placeholder="שם מלא"
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition"
                 />
               </div>
               <div>
@@ -564,19 +538,19 @@ export default function Home() {
                   value={formData.reporter_email}
                   onChange={(e) => setFormData({ ...formData, reporter_email: e.target.value })}
                   placeholder="name@company.com"
-                  className="w-full px-3.5 py-2.5 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition"
                 />
               </div>
             </div>
 
-            <div className="pt-3">
+            <div className="pt-2">
               <button
                 type="submit"
                 disabled={isSubmitting || !formData.title.trim()}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-slate-200 disabled:to-slate-200 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-orange-500/20 transition duration-150"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-slate-200 disabled:to-slate-200 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-orange-500/20 transition"
               >
                 <Check className="w-4 h-4" />
-                {isSubmitting ? 'משגר קריאה למערכת...' : 'אשר ופתח קריאה ב-SmartDesk'}
+                {isSubmitting ? 'שומר קריאה...' : 'אשר ופתח קריאה ב-SmartDesk'}
               </button>
             </div>
           </form>
@@ -587,13 +561,13 @@ export default function Home() {
           <div className="flex items-center justify-between border-b border-slate-100 pb-3">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-sky-600" />
-              <h2 className="text-sm font-bold text-slate-800">קריאות פעילות במערכת ({tickets.length})</h2>
+              <h2 className="text-sm font-bold text-slate-800">קריאות פתוחות במערכת ({tickets.length})</h2>
             </div>
-            <span className="text-xs text-slate-400 font-medium">מעקב וסטטוס טיפול</span>
+            <span className="text-xs text-slate-400 font-medium">מעקב וסטטוס</span>
           </div>
 
           {isLoadingTickets ? (
-            <div className="flex items-center justify-center py-8 text-slate-400 text-xs gap-2">
+            <div className="flex items-center justify-center py-6 text-slate-400 text-xs gap-2">
               <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
               טוען קריאות...
             </div>
@@ -602,9 +576,9 @@ export default function Home() {
               אין כרגע קריאות פתוחות.
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {tickets.map((t) => (
-                <div key={t.id} className="p-4 bg-slate-50/60 hover:bg-slate-50 border border-slate-200/70 rounded-xl space-y-2 transition">
+                <div key={t.id} className="p-3.5 bg-slate-50/60 hover:bg-slate-50 border border-slate-200/70 rounded-xl space-y-2 transition">
                   <div className="flex items-start justify-between gap-2">
                     <h3 className="text-xs font-bold text-slate-800 line-clamp-1">{t.title}</h3>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getUrgencyBadge(t.urgency)}`}>

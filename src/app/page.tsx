@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { 
   Send, 
@@ -13,7 +14,9 @@ import {
   Check, 
   SlidersHorizontal,
   Zap,
-  ArrowDown
+  ArrowDown,
+  LogIn,
+  ShieldCheck
 } from 'lucide-react';
 
 function SmartDeskLogo({ className = "w-9 h-9" }: { className?: string }) {
@@ -91,7 +94,14 @@ const QUICK_PROMPTS = [
   'המסך החיצוני מהבהב ומציג קווים'
 ];
 
-export default function Home() {
+function DeskContent() {
+  const searchParams = useSearchParams();
+  const ssoName = searchParams.get('name') || '';
+  const ssoEmail = searchParams.get('email') || '';
+  const ssoDept = searchParams.get('dept') || '';
+
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; dept: string } | null>(null);
+
   const [messages, setMessages] = useState<Message[]>([
     { 
       id: 'init-msg',
@@ -120,11 +130,28 @@ export default function Home() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(true);
 
-  // רפרנס לגלילה פנימית בלבד בתוך תיבת השיחה
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
   const formSectionRef = useRef<HTMLDivElement>(null);
 
-  // גלילה בתוך חלון הצאט בלבד ללא השפעה על הדף
+  useEffect(() => {
+    if (ssoName || ssoEmail) {
+      setCurrentUser({ name: ssoName, email: ssoEmail, dept: ssoDept });
+      setFormData((prev) => ({
+        ...prev,
+        reporter_name: ssoName || prev.reporter_name,
+        reporter_email: ssoEmail || prev.reporter_email,
+      }));
+      setMessages([
+        {
+          id: 'welcome-sso',
+          role: 'assistant',
+          content: `שלום ${ssoName}! זיהיתי שהתחברת מחשבון הארגון${ssoDept ? ` (${ssoDept})` : ''}. ספר לי מה התקלה ואשייך אותה ישירות לחשבונך.`,
+          isStreaming: true
+        }
+      ]);
+    }
+  }, [ssoName, ssoEmail, ssoDept]);
+
   useEffect(() => {
     if (chatMessagesContainerRef.current) {
       chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
@@ -178,8 +205,8 @@ export default function Home() {
         urgency: data.urgency || prev.urgency,
         system_impacted: data.system_impacted || prev.system_impacted,
         assigned_team: data.assigned_team || prev.assigned_team,
-        reporter_name: data.reporter_name || prev.reporter_name,
-        reporter_email: data.reporter_email || prev.reporter_email,
+        reporter_name: currentUser?.name || data.reporter_name || prev.reporter_name,
+        reporter_email: currentUser?.email || data.reporter_email || prev.reporter_email,
       }));
 
       if (data.follow_up_question) {
@@ -204,7 +231,6 @@ export default function Home() {
           }
         ]);
 
-        // גלילה למטה אך ורק בסיום מילוי כל הפרטים
         setTimeout(() => {
           formSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 1000);
@@ -225,6 +251,8 @@ export default function Home() {
       const { error } = await supabase.from('tickets').insert([
         {
           ...formData,
+          reporter_name: currentUser?.name || formData.reporter_name,
+          reporter_email: currentUser?.email || formData.reporter_email,
           status: 'Open',
         },
       ]);
@@ -239,8 +267,8 @@ export default function Home() {
         urgency: 'Medium',
         system_impacted: '',
         assigned_team: 'Helpdesk Tier 1',
-        reporter_name: '',
-        reporter_email: '',
+        reporter_name: currentUser?.name || '',
+        reporter_email: currentUser?.email || '',
       });
       setIsReadyForReview(false);
       setMessages((prev) => [
@@ -267,7 +295,6 @@ export default function Home() {
 
   return (
     <main dir="rtl" className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans antialiased">
-      
       {/* Top Navbar */}
       <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 shadow-2xs">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
@@ -284,10 +311,21 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1 bg-sky-50 border border-sky-100 rounded-full text-sky-700 text-xs font-semibold">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              Rebecca Online
-            </div>
+            {currentUser ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200/80 rounded-full text-emerald-800 text-xs font-semibold">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{currentUser.name}</span>
+              </div>
+            ) : (
+              <a
+                href="/api/auth/saml/login"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 rounded-xl transition"
+              >
+                <LogIn className="w-3.5 h-3.5 text-sky-600" />
+                <span>התחבר עם Entra ID</span>
+              </a>
+            )}
+
             <button 
               onClick={fetchTickets}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-lg transition"
@@ -301,7 +339,6 @@ export default function Home() {
 
       {/* Main Container */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-12 space-y-6">
-        
         {/* Quick Prompts */}
         <div className="flex flex-wrap items-center justify-center gap-2">
           {QUICK_PROMPTS.map((prompt, i) => (
@@ -319,7 +356,6 @@ export default function Home() {
 
         {/* Rebecca Chat Interface */}
         <div className="bg-white rounded-2xl border-2 border-sky-400/40 shadow-xl overflow-hidden flex flex-col h-[480px]">
-          
           <div className="px-5 py-3.5 bg-gradient-to-r from-sky-50 via-sky-50/50 to-white border-b border-sky-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-600 to-sky-400 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold text-xs">
@@ -404,12 +440,10 @@ export default function Home() {
             </button>
           </form>
         </div>
-
       </div>
 
       {/* Form Review Section */}
       <div ref={formSectionRef} className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        
         {feedbackMsg && (
           <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-semibold shadow-2xs ${
             feedbackMsg.type === 'success' 
@@ -604,8 +638,15 @@ export default function Home() {
             </div>
           )}
         </section>
-
       </div>
     </main>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
+      <DeskContent />
+    </Suspense>
   );
 }

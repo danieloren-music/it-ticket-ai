@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import { 
   Send, 
   RefreshCw, 
@@ -160,13 +159,18 @@ function DeskContent() {
 
   const fetchTickets = async () => {
     setIsLoadingTickets(true);
-    const { data, error } = await supabase
-      .from('tickets')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) setTickets(data);
-    setIsLoadingTickets(false);
+    try {
+      const res = await fetch('/api/tickets');
+      if (!res.ok) {
+        throw new Error('שגיאה בטעינת הקריאות');
+      }
+      const data = await res.json();
+      setTickets(Array.isArray(data) ? data : []);
+    } catch (err: any) {
+      console.error('Error fetching tickets:', err);
+    } finally {
+      setIsLoadingTickets(false);
+    }
   };
 
   useEffect(() => {
@@ -248,16 +252,23 @@ function DeskContent() {
     setFeedbackMsg(null);
 
     try {
-      const { error } = await supabase.from('tickets').insert([
-        {
+      const res = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           ...formData,
           reporter_name: currentUser?.name || formData.reporter_name,
           reporter_email: currentUser?.email || formData.reporter_email,
           status: 'Open',
-        },
-      ]);
+        }),
+      });
 
-      if (error) throw error;
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'שגיאה ביצירת הקריאה');
+      }
 
       setFeedbackMsg({ text: 'הקריאה נשלחה בהצלחה לצוות המטפל!', type: 'success' });
       setFormData({

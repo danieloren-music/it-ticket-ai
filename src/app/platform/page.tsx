@@ -212,29 +212,29 @@ export default function SuperAdminPlatform() {
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
-  // Theme Styles Definition
+  // Explicit High-Contrast Theme Colors
   const themeBg = {
-    light: 'bg-[#F8FAFC] text-slate-800',
+    light: 'bg-[#F8FAFC] text-slate-900',
     dark: 'bg-[#0B0F19] text-slate-100',
     ai: 'bg-radial-at-t from-[#160B2E] via-[#090D1A] to-[#04060B] text-slate-100'
   };
 
   const sidebarBg = {
-    light: 'bg-white border-slate-200',
+    light: 'bg-white border-slate-200 shadow-sm',
     dark: 'bg-[#0E1424] border-slate-800',
     ai: 'bg-[#0F0A24]/90 border-indigo-500/30 backdrop-blur-xl'
   };
 
   const cardBg = {
-    light: 'bg-white border-slate-200 shadow-sm',
-    dark: 'bg-[#111827] border-slate-800 shadow-lg',
-    ai: 'bg-[#130D2C]/80 border-indigo-500/40 shadow-xl shadow-indigo-500/10 backdrop-blur-xl'
+    light: 'bg-white border-slate-200 shadow-sm text-slate-900',
+    dark: 'bg-[#111827] border-slate-800 shadow-lg text-slate-100',
+    ai: 'bg-[#130D2C]/80 border-indigo-500/40 shadow-xl shadow-indigo-500/10 backdrop-blur-xl text-slate-100'
   };
 
   const inputBg = {
-    light: 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-indigo-500',
-    dark: 'bg-[#1F2937] border-slate-700 text-slate-100 focus:border-indigo-400',
-    ai: 'bg-[#1B1439] border-indigo-500/40 text-indigo-100 focus:border-cyan-400'
+    light: 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-600',
+    dark: 'bg-[#1F2937] border-slate-700 text-slate-100 placeholder-slate-500 focus:border-indigo-400',
+    ai: 'bg-[#1B1439] border-indigo-500/40 text-indigo-100 placeholder-indigo-300/40 focus:border-cyan-400'
   };
 
   return (
@@ -256,7 +256,9 @@ export default function SuperAdminPlatform() {
                 SUPER ADMIN
               </span>
             </div>
-            <p className="text-[11px] text-slate-400">פלטפורמת ניהול סביבות לקוחות, API ו-Multi-Tenancy</p>
+            <p className={`text-[11px] ${theme === 'light' ? 'text-slate-500 font-medium' : 'text-slate-400'}`}>
+              פלטפורמת ניהול סביבות לקוחות, API ו-Multi-Tenancy
+            </p>
           </div>
         </div>
 
@@ -319,14 +321,18 @@ export default function SuperAdminPlatform() {
         <aside className={`w-64 border-l p-4 flex flex-col justify-between shrink-0 hidden md:flex transition-colors duration-300 ${sidebarBg[theme]}`}>
           <div className="space-y-6">
             <div>
-              <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2 px-3">תפריט ניהול ראשי</p>
+              <p className={`text-[10px] font-extrabold uppercase tracking-wider mb-2 px-3 ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>
+                תפריט ניהול ראשי
+              </p>
               <nav className="space-y-1">
                 <button
                   onClick={() => setActiveTab('overview')}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
                     activeTab === 'overview'
-                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/50'
+                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 font-bold'
+                      : theme === 'light'
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -339,15 +345,19 @@ export default function SuperAdminPlatform() {
                   onClick={() => setActiveTab('tenants')}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
                     activeTab === 'tenants'
-                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/50'
+                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 font-bold'
+                      : theme === 'light'
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <Building2 className="w-4 h-4" />
                     <span>לקוחות וארגונים</span>
                   </div>
-                  <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-600 dark:text-slate-300">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-slate-800 text-slate-300'
+                  }`}>
                     {tenants.length}
                   </span>
                 </button>
@@ -356,15 +366,19 @@ export default function SuperAdminPlatform() {
                   onClick={() => setActiveTab('api-keys')}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
                     activeTab === 'api-keys'
-                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/50'
+                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 font-bold'
+                      : theme === 'light'
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <Key className="w-4 h-4" />
                     <span>מפתחות API</span>
                   </div>
-                  <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full text-slate-600 dark:text-slate-300">
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    theme === 'light' ? 'bg-slate-100 text-slate-700' : 'bg-slate-800 text-slate-300'
+                  }`}>
                     {apiKeys.length}
                   </span>
                 </button>
@@ -373,8 +387,10 @@ export default function SuperAdminPlatform() {
                   onClick={() => setActiveTab('analytics')}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
                     activeTab === 'analytics'
-                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/50'
+                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 font-bold'
+                      : theme === 'light'
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                   }`}
                 >
                   <BarChart3 className="w-4 h-4" />
@@ -385,8 +401,10 @@ export default function SuperAdminPlatform() {
                   onClick={() => setActiveTab('security')}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition ${
                     activeTab === 'security'
-                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-white dark:hover:bg-slate-800/50'
+                      ? 'bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 font-bold'
+                      : theme === 'light'
+                        ? 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
                   }`}
                 >
                   <ShieldCheck className="w-4 h-4" />
@@ -402,7 +420,7 @@ export default function SuperAdminPlatform() {
               <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">מערכת פעילה 100%</span>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </div>
-            <p className="text-[10px] text-slate-500">Supabase & Gemini API אונליין</p>
+            <p className="text-[10px] text-slate-500 font-medium">Supabase & Zack AI אונליין</p>
           </div>
         </aside>
 
@@ -425,90 +443,98 @@ export default function SuperAdminPlatform() {
               {/* KPIs Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className={`p-5 rounded-2xl border ${cardBg[theme]}`}>
-                  <div className="flex items-center justify-between text-slate-400 mb-2">
-                    <span className="text-xs font-semibold">ארגונים מחוברים</span>
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                    <span className="text-xs font-bold">ארגונים מחוברים</span>
                     <Building2 className="w-5 h-5 text-indigo-500" />
                   </div>
                   <p className={`text-3xl font-black ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{tenants.length}</p>
-                  <span className="text-[11px] text-slate-400">סביבות מבודדות ב-Multi-Tenant</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">סביבות מבודדות ב-Multi-Tenant</span>
                 </div>
 
                 <div className={`p-5 rounded-2xl border ${cardBg[theme]}`}>
-                  <div className="flex items-center justify-between text-slate-400 mb-2">
-                    <span className="text-xs font-semibold">סך קריאות בכלל הלקוחות</span>
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                    <span className="text-xs font-bold">סך קריאות בכלל הלקוחות</span>
                     <Layers className="w-5 h-5 text-purple-500" />
                   </div>
                   <p className="text-3xl font-black text-purple-600 dark:text-purple-400">{tickets.length}</p>
-                  <span className="text-[11px] text-slate-400">טופלו וסונכרנו ע״י Rebecca</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">טופלו וסונכרנו ע״י Zack AI</span>
                 </div>
 
                 <div className={`p-5 rounded-2xl border ${cardBg[theme]}`}>
-                  <div className="flex items-center justify-between text-slate-400 mb-2">
-                    <span className="text-xs font-semibold">קריאות פתוחות כעת</span>
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                    <span className="text-xs font-bold">קריאות פתוחות כעת</span>
                     <TrendingUp className="w-5 h-5 text-orange-500" />
                   </div>
                   <p className="text-3xl font-black text-orange-600 dark:text-orange-400">
                     {tickets.filter((t) => t.status === 'Open' || !t.status).length}
                   </p>
-                  <span className="text-[11px] text-slate-400">ממתינות למענה IT</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">ממתינות למענה IT</span>
                 </div>
 
                 <div className={`p-5 rounded-2xl border ${cardBg[theme]}`}>
-                  <div className="flex items-center justify-between text-slate-400 mb-2">
-                    <span className="text-xs font-semibold">אינטגרציות API פעילות</span>
+                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
+                    <span className="text-xs font-bold">אינטגרציות API פעילות</span>
                     <Key className="w-5 h-5 text-emerald-500" />
                   </div>
                   <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{apiKeys.length}</p>
-                  <span className="text-[11px] text-slate-400">Service Integrations</span>
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Service Integrations</span>
                 </div>
               </div>
 
               {/* Recent Global Tickets Activity */}
               <div className={`p-6 rounded-2xl border space-y-4 ${cardBg[theme]}`}>
-                <div className="flex items-center justify-between border-b pb-3 dark:border-slate-800">
+                <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
                   <div className="flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-indigo-500" />
+                    <Activity className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                       פעילות קריאות גלובלית אחרונה
                     </h2>
                   </div>
-                  <span className="text-xs text-slate-400">זמן אמת מכל הארגונים</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">זמן אמת מכל הארגונים</span>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full text-right text-xs">
                     <thead>
-                      <tr className="text-slate-400 border-b dark:border-slate-800">
-                        <th className="py-2.5 px-3">ארגון (Tenant)</th>
-                        <th className="py-2.5 px-3">נושא הקריאה</th>
-                        <th className="py-2.5 px-3">קטגוריה</th>
-                        <th className="py-2.5 px-3">דחיפות</th>
-                        <th className="py-2.5 px-3">סטטוס</th>
-                        <th className="py-2.5 px-3">תאריך</th>
+                      <tr className={`border-b ${theme === 'light' ? 'text-slate-700 bg-slate-50/80 border-slate-200 font-bold' : 'text-slate-400 border-slate-800'}`}>
+                        <th className="py-3 px-3">ארגון (Tenant)</th>
+                        <th className="py-3 px-3">נושא הקריאה</th>
+                        <th className="py-3 px-3">קטגוריה</th>
+                        <th className="py-3 px-3">דחיפות</th>
+                        <th className="py-3 px-3">סטטוס</th>
+                        <th className="py-3 px-3">תאריך</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y dark:divide-slate-800">
-                      {tickets.slice(0, 6).map((ticket) => (
-                        <tr key={ticket.id} className="hover:bg-slate-500/5 transition">
-                          <td className="py-3 px-3">
-                            <span className="font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                    <tbody className={`divide-y ${theme === 'light' ? 'divide-slate-200 text-slate-800' : 'divide-slate-800 text-slate-200'}`}>
+                      {tickets.slice(0, 8).map((ticket) => (
+                        <tr key={ticket.id} className="hover:bg-indigo-50/40 dark:hover:bg-slate-800/40 transition">
+                          <td className="py-3.5 px-3">
+                            <span className="font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
                               /{ticket.tenant_id || 'demo'}
                             </span>
                           </td>
-                          <td className="py-3 px-3 font-semibold text-slate-900 dark:text-slate-100">{ticket.title}</td>
-                          <td className="py-3 px-3 text-slate-500">{ticket.category}</td>
-                          <td className="py-3 px-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              ticket.urgency === 'Critical' ? 'bg-rose-100 text-rose-700' :
-                              ticket.urgency === 'High' ? 'bg-orange-100 text-orange-700' :
-                              'bg-indigo-100 text-indigo-700'
+                          <td className="py-3.5 px-3 font-semibold text-slate-900 dark:text-slate-100">{ticket.title}</td>
+                          <td className="py-3.5 px-3 text-slate-600 dark:text-slate-400">{ticket.category}</td>
+                          <td className="py-3.5 px-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                              ticket.urgency === 'Critical' ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800' :
+                              ticket.urgency === 'High' ? 'bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800' :
+                              'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800'
                             }`}>
                               {ticket.urgency}
                             </span>
                           </td>
-                          <td className="py-3 px-3 font-medium text-slate-600 dark:text-slate-300">{ticket.status || 'Open'}</td>
-                          <td className="py-3 px-3 text-slate-400">
-                            {new Date(ticket.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                          <td className="py-3.5 px-3 font-semibold">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] ${
+                              ticket.status === 'Resolved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400' :
+                              ticket.status === 'In Progress' ? 'bg-sky-50 text-sky-700 border border-sky-200 dark:bg-sky-950/40 dark:text-sky-400' :
+                              'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300'
+                            }`}>
+                              {ticket.status || 'Open'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-3 text-slate-500 dark:text-slate-400 font-medium text-[11px]">
+                            {new Date(ticket.created_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                           </td>
                         </tr>
                       ))}
@@ -524,7 +550,7 @@ export default function SuperAdminPlatform() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Onboarding Form */}
               <div className={`lg:col-span-1 p-6 rounded-2xl border space-y-5 h-fit ${cardBg[theme]}`}>
-                <div className="flex items-center gap-2 border-b pb-3 dark:border-slate-800">
+                <div className="flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
                   <Plus className="w-4 h-4 text-indigo-500" />
                   <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                     הקמת ארגון חדש (Onboarding)
@@ -533,7 +559,7 @@ export default function SuperAdminPlatform() {
 
                 <form onSubmit={handleCreateTenant} className="space-y-4 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1">שם הארגון *</label>
+                    <label className="block font-bold mb-1 text-slate-800 dark:text-slate-200">שם הארגון *</label>
                     <input
                       type="text"
                       required
@@ -545,7 +571,7 @@ export default function SuperAdminPlatform() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1">מזהה נתיב (Slug באנגלית) *</label>
+                    <label className="block font-bold mb-1 text-slate-800 dark:text-slate-200">מזהה נתיב (Slug באנגלית) *</label>
                     <input
                       type="text"
                       required
@@ -554,11 +580,11 @@ export default function SuperAdminPlatform() {
                       placeholder="לדוגמה: rafael"
                       className={`w-full px-3.5 py-2.5 rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
                     />
-                    <span className="text-[10px] text-slate-400 mt-1 block">הנתיב יהיה: /{newTenant.id || 'slug'}</span>
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 block">הנתיב יהיה: /{newTenant.id || 'slug'}</span>
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1">דומיין אימייל ראשי</label>
+                    <label className="block font-bold mb-1 text-slate-800 dark:text-slate-200">דומיין אימייל ראשי</label>
                     <input
                       type="text"
                       value={newTenant.domain}
@@ -569,7 +595,7 @@ export default function SuperAdminPlatform() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1">אימייל מנהל ה-IT</label>
+                    <label className="block font-bold mb-1 text-slate-800 dark:text-slate-200">אימייל מנהל ה-IT</label>
                     <input
                       type="email"
                       value={newTenant.admin_email}
@@ -580,7 +606,7 @@ export default function SuperAdminPlatform() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1">כתובת SAML SSO (אופציונלי)</label>
+                    <label className="block font-bold mb-1 text-slate-800 dark:text-slate-200">כתובת SAML SSO (אופציונלי)</label>
                     <input
                       type="url"
                       value={newTenant.saml_login_url}
@@ -603,7 +629,7 @@ export default function SuperAdminPlatform() {
 
               {/* Tenants Directory Grid */}
               <div className="lg:col-span-2 space-y-4">
-                <div className="flex items-center justify-between border-b pb-3 dark:border-slate-800">
+                <div className="flex items-center justify-between border-b pb-3 border-slate-200 dark:border-slate-800">
                   <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                     סביבות ארגונים פעילות ({tenants.length})
                   </h2>
@@ -626,7 +652,7 @@ export default function SuperAdminPlatform() {
 
                         <div>
                           <h3 className={`font-bold text-sm ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>{t.name}</h3>
-                          <div className="flex items-center gap-2 text-slate-400 text-xs mt-1">
+                          <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 text-xs mt-1">
                             <Globe className="w-3 h-3 text-slate-400" />
                             <span>{t.domain || 'ללא דומיין מוגדר'}</span>
                           </div>
@@ -635,23 +661,23 @@ export default function SuperAdminPlatform() {
                         <div className={`p-3 rounded-xl border space-y-1.5 text-xs ${
                           theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/60 border-slate-800'
                         }`}>
-                          <div className="flex items-center justify-between text-slate-500">
+                          <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                             <span>קריאות בארגון:</span>
-                            <strong className="font-semibold text-slate-900 dark:text-white">{tenantTicketCount}</strong>
+                            <strong className="font-bold text-slate-900 dark:text-white">{tenantTicketCount}</strong>
                           </div>
-                          <div className="flex items-center justify-between text-slate-500">
+                          <div className="flex items-center justify-between text-slate-600 dark:text-slate-400">
                             <span>נתיב URL:</span>
-                            <code className="text-indigo-600 dark:text-indigo-400 font-mono text-[11px]">/{t.id}</code>
+                            <code className="text-indigo-600 dark:text-indigo-400 font-mono font-bold text-[11px]">/{t.id}</code>
                           </div>
                         </div>
 
                         {/* Direct Action Links */}
-                        <div className="pt-2 border-t flex items-center gap-2 dark:border-slate-800">
+                        <div className="pt-2 border-t flex items-center gap-2 border-slate-200 dark:border-slate-800">
                           <a
                             href={`/${t.id}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex-1 text-center py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-[11px] font-semibold transition"
+                            className="flex-1 text-center py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-[11px] font-bold transition border border-slate-200 dark:border-slate-700"
                           >
                             פורטל עובדים
                           </a>
@@ -659,7 +685,7 @@ export default function SuperAdminPlatform() {
                             href={`/${t.id}/admin`}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex-1 text-center py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-[11px] font-semibold transition"
+                            className="flex-1 text-center py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 rounded-xl text-[11px] font-bold transition"
                           >
                             דשבורד IT
                           </a>
@@ -677,7 +703,7 @@ export default function SuperAdminPlatform() {
             <div className="space-y-6">
               {/* Generate New API Key Card */}
               <div className={`p-6 rounded-2xl border space-y-4 ${cardBg[theme]}`}>
-                <div className="flex items-center gap-2 border-b pb-3 dark:border-slate-800">
+                <div className="flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
                   <Key className="w-4 h-4 text-indigo-500" />
                   <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                     מחולל מפתחות API לאינטגרציות חיצוניות
@@ -686,7 +712,7 @@ export default function SuperAdminPlatform() {
 
                 <form onSubmit={handleGenerateApiKey} className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div>
-                    <label className="block font-semibold mb-1">שם המפתח / תיאור</label>
+                    <label className="block font-bold mb-1 text-slate-800 dark:text-slate-200">שם המפתח / תיאור</label>
                     <input
                       type="text"
                       required
@@ -698,7 +724,7 @@ export default function SuperAdminPlatform() {
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1">שיוך לארגון (Tenant)</label>
+                    <label className="block font-bold mb-1 text-slate-800 dark:text-slate-200">שיוך לארגון (Tenant)</label>
                     <select
                       required
                       value={newKeyTenant}
@@ -726,11 +752,11 @@ export default function SuperAdminPlatform() {
 
                 {generatedPlainKey && (
                   <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 space-y-2">
-                    <p className="text-xs font-bold text-indigo-700 dark:text-indigo-300">
+                    <p className="text-xs font-bold text-indigo-800 dark:text-indigo-300">
                       המפתח נוצר בהצלחה! שמור אותו עכשיו, הוא לא יוצג שוב:
                     </p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 bg-white dark:bg-slate-900 px-3 py-2 rounded-lg text-xs font-mono text-indigo-600 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                      <code className="flex-1 bg-white dark:bg-slate-900 px-3 py-2 rounded-lg text-xs font-mono font-bold text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                         {generatedPlainKey}
                       </code>
                       <button
@@ -753,7 +779,7 @@ export default function SuperAdminPlatform() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-right text-xs">
                     <thead>
-                      <tr className="text-slate-400 border-b dark:border-slate-800">
+                      <tr className={`border-b ${theme === 'light' ? 'text-slate-700 bg-slate-50/80 border-slate-200 font-bold' : 'text-slate-400 border-slate-800'}`}>
                         <th className="py-2.5 px-3">שם המפתח</th>
                         <th className="py-2.5 px-3">ארגון משויך</th>
                         <th className="py-2.5 px-3">Key Prefix</th>
@@ -761,19 +787,19 @@ export default function SuperAdminPlatform() {
                         <th className="py-2.5 px-3">סטטוס</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y dark:divide-slate-800">
+                    <tbody className={`divide-y ${theme === 'light' ? 'divide-slate-200 text-slate-800' : 'divide-slate-800 text-slate-200'}`}>
                       {apiKeys.map((key) => (
-                        <tr key={key.id} className="hover:bg-slate-500/5 transition">
-                          <td className="py-3 px-3 font-semibold text-slate-900 dark:text-slate-100">{key.name}</td>
+                        <tr key={key.id} className="hover:bg-indigo-50/40 dark:hover:bg-slate-800/40 transition">
+                          <td className="py-3 px-3 font-bold text-slate-900 dark:text-slate-100">{key.name}</td>
                           <td className="py-3 px-3">
-                            <span className="font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
+                            <span className="font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800">
                               /{key.tenant_id}
                             </span>
                           </td>
-                          <td className="py-3 px-3 font-mono text-slate-500">{key.key_prefix}</td>
-                          <td className="py-3 px-3 text-slate-400">{key.last_used}</td>
+                          <td className="py-3 px-3 font-mono text-slate-600 dark:text-slate-400 font-semibold">{key.key_prefix}</td>
+                          <td className="py-3 px-3 text-slate-500 dark:text-slate-400">{key.last_used}</td>
                           <td className="py-3 px-3">
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">
                               Active
                             </span>
                           </td>
@@ -790,21 +816,21 @@ export default function SuperAdminPlatform() {
           {activeTab === 'analytics' && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
               <div className={`p-6 rounded-2xl border space-y-2 ${cardBg[theme]}`}>
-                <span className="text-xs font-semibold text-slate-400">זמן מענה ממוצע לקריאה</span>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400">זמן מענה ממוצע לקריאה</span>
                 <p className="text-3xl font-black text-indigo-600 dark:text-indigo-400">1.4 שניות</p>
-                <p className="text-[11px] text-slate-500">פיענוח מלא ע״י Rebecca AI</p>
+                <p className="text-[11px] text-slate-500 font-medium">פיענוח מלא ע״י Zack AI</p>
               </div>
 
               <div className={`p-6 rounded-2xl border space-y-2 ${cardBg[theme]}`}>
-                <span className="text-xs font-semibold text-slate-400">אחוז הסטת פניות אוטומטית</span>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400">אחוז הסטת פניות אוטומטית</span>
                 <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">84.2%</p>
-                <p className="text-[11px] text-slate-500">קריאות שסווגו לצוות המדויק ללא מגע יד</p>
+                <p className="text-[11px] text-slate-500 font-medium">קריאות שסווגו לצוות המדויק ללא מגע יד</p>
               </div>
 
               <div className={`p-6 rounded-2xl border space-y-2 ${cardBg[theme]}`}>
-                <span className="text-xs font-semibold text-slate-400">דיוק ניתוח דחיפות SLA</span>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-400">דיוק ניתוח דחיפות SLA</span>
                 <p className="text-3xl font-black text-purple-600 dark:text-purple-400">97.8%</p>
-                <p className="text-[11px] text-slate-500">מבוסס מודל Gemini 2.5 Flash</p>
+                <p className="text-[11px] text-slate-500 font-medium">מבוסס מודל Gemini 2.5 Flash</p>
               </div>
             </div>
           )}
@@ -812,7 +838,7 @@ export default function SuperAdminPlatform() {
           {/* TAB 5: SECURITY & SAML */}
           {activeTab === 'security' && (
             <div className={`p-6 rounded-2xl border space-y-6 ${cardBg[theme]}`}>
-              <div className="flex items-center gap-2 border-b pb-3 dark:border-slate-800">
+              <div className="flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
                 <ShieldCheck className="w-4 h-4 text-emerald-500" />
                 <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
                   הגדרות אבטחה, WAF ואימות זהויות ארגוני
@@ -822,18 +848,18 @@ export default function SuperAdminPlatform() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className={`p-4 rounded-xl border space-y-2 ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
                   <div className="flex items-center justify-between">
-                    <strong className="font-bold">אימות SAML 2.0 / Entra ID</strong>
+                    <strong className="font-bold text-slate-900 dark:text-white">אימות SAML 2.0 / Entra ID</strong>
                     <span className="text-emerald-600 font-bold">פעיל</span>
                   </div>
-                  <p className="text-slate-400 text-[11px]">תמיכה בהתחברות SSO מאוחדת עם אימות דו-שלבי וסנכרון קבוצות הרשאות IT.</p>
+                  <p className="text-slate-600 dark:text-slate-400 text-[11px]">תמיכה בהתחברות SSO מאוחדת עם אימות דו-שלבי וסנכרון קבוצות הרשאות IT.</p>
                 </div>
 
                 <div className={`p-4 rounded-xl border space-y-2 ${theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900 border-slate-800'}`}>
                   <div className="flex items-center justify-between">
-                    <strong className="font-bold">הגנת WAF ו-Rate Limiting</strong>
+                    <strong className="font-bold text-slate-900 dark:text-white">הגנת WAF ו-Rate Limiting</strong>
                     <span className="text-emerald-600 font-bold">מוגן</span>
                   </div>
-                  <p className="text-slate-400 text-[11px]">חסימת התקפות מניעת שירות (DDoS) והגנה על נקודות הקצה של ה-API.</p>
+                  <p className="text-slate-600 dark:text-slate-400 text-[11px]">חסימת התקפות מניעת שירות (DDoS) והגנה על נקודות הקצה של ה-API.</p>
                 </div>
               </div>
             </div>

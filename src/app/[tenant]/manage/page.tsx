@@ -16,11 +16,11 @@ import {
   Check, 
   Plus, 
   Trash2, 
-  ExternalLink,
-  Sun,
-  Moon,
-  Sparkles,
-  RefreshCw
+  Sun, 
+  Moon, 
+  Sparkles, 
+  RefreshCw,
+  ExternalLink
 } from 'lucide-react';
 
 type ThemeMode = 'light' | 'dark' | 'ai';
@@ -40,6 +40,8 @@ interface TenantInfo {
   name: string;
   domain: string;
   admin_email: string;
+  saml_login_url?: string;
+  saml_cert?: string;
 }
 
 function TenantManageConsole() {
@@ -68,6 +70,11 @@ function TenantManageConsole() {
     notification_webhook_url: '',
   });
 
+  const [ssoConfig, setSsoConfig] = useState({
+    saml_login_url: '',
+    saml_cert: '',
+  });
+
   const [newTeamName, setNewTeamName] = useState('');
 
   const fetchData = async () => {
@@ -78,7 +85,14 @@ function TenantManageConsole() {
         supabase.from('tenant_settings').select('*').eq('tenant_id', tenantSlug).single()
       ]);
 
-      if (tenantRes.data) setTenant(tenantRes.data);
+      if (tenantRes.data) {
+        setTenant(tenantRes.data);
+        setSsoConfig({
+          saml_login_url: tenantRes.data.saml_login_url || '',
+          saml_cert: tenantRes.data.saml_cert || '',
+        });
+      }
+
       if (settingsRes.data) {
         setSettings({
           sla_critical_hours: settingsRes.data.sla_critical_hours ?? 1,
@@ -107,15 +121,20 @@ function TenantManageConsole() {
     setSaveSuccess(false);
 
     try {
-      const { error } = await supabase
-        .from('tenant_settings')
-        .upsert({
+      const [settingsUpdate, tenantUpdate] = await Promise.all([
+        supabase.from('tenant_settings').upsert({
           tenant_id: tenantSlug,
           ...settings,
           updated_at: new Date().toISOString()
-        });
+        }),
+        supabase.from('tenants').update({
+          saml_login_url: ssoConfig.saml_login_url.trim() || null,
+          saml_cert: ssoConfig.saml_cert.trim() || null,
+        }).eq('id', tenantSlug)
+      ]);
 
-      if (error) throw error;
+      if (settingsUpdate.error) throw settingsUpdate.error;
+      if (tenantUpdate.error) throw tenantUpdate.error;
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -195,6 +214,7 @@ function TenantManageConsole() {
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
 
+          {/* Theme Capsule */}
           <div className={`flex items-center p-1 rounded-xl border ${
             theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800 border-slate-700'
           }`}>
@@ -242,7 +262,7 @@ function TenantManageConsole() {
                 הגדרות Workspace של {tenant?.name || tenantSlug}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-                שליטה מלאה במדיניות ה-SLA, צוותים מטפלים, והתנהגות Zack AI בארגון
+                שליטה מלאה במדיניות ה-SLA, צוותים מטפלים, SSO והנחיות ה-AI בארגון
               </p>
             </div>
 
@@ -371,7 +391,7 @@ function TenantManageConsole() {
             </div>
           </div>
 
-          {/* Section 3: Custom Zack AI Instructions */}
+          {/* Section 3: Custom AI Instructions */}
           <div className={`p-6 rounded-2xl border space-y-4 ${cardBg[theme]}`}>
             <div className="flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
               <Cpu className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -387,16 +407,52 @@ function TenantManageConsole() {
             />
           </div>
 
-          {/* Section 4: Webhook */}
+          {/* Section 4: SAML / SSO Configuration */}
+          <div className={`p-6 rounded-2xl border space-y-4 ${cardBg[theme]}`}>
+            <div className="flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <h2 className="text-sm font-black">אינטגרציית SAML 2.0 / Entra ID (SSO)</h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+              <div className="space-y-1.5">
+                <label className="block font-black text-slate-800 dark:text-slate-200">
+                  SAML Single Sign-On URL
+                </label>
+                <input
+                  type="url"
+                  value={ssoConfig.saml_login_url}
+                  onChange={(e) => setSsoConfig({ ...ssoConfig, saml_login_url: e.target.value })}
+                  placeholder="https://login.microsoftonline.com/..."
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block font-black text-slate-800 dark:text-slate-200">
+                  X.509 Public Certificate (SAML Cert)
+                </label>
+                <input
+                  type="text"
+                  value={ssoConfig.saml_cert}
+                  onChange={(e) => setSsoConfig({ ...ssoConfig, saml_cert: e.target.value })}
+                  placeholder="MIIC8DCCAdigAwIBAgIQ..."
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 5: Webhook & Notifications */}
           <div className={`p-6 rounded-2xl border space-y-4 ${cardBg[theme]}`}>
             <div className="flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
               <Bell className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <h2 className="text-sm font-black">אינטגרציית Webhook והתרעות</h2>
+              <h2 className="text-sm font-black">אינטגרציית Webhook והתרעות (Teams / Slack)</h2>
             </div>
 
             <div className="space-y-1.5 text-xs">
               <label className="block font-black text-slate-800 dark:text-slate-200">
-                כתובת Webhook URL להתרעות על קריאות קריטיות (Teams / Slack)
+                כתובת Webhook URL להתרעות על קריאות קריטיות
               </label>
               <input
                 type="url"

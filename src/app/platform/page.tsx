@@ -18,16 +18,10 @@ import {
   Copy,
   Check,
   Key,
-  Trash2,
-  Lock,
   Sun,
   Moon,
   Sparkles,
   BarChart3,
-  Sliders,
-  Search,
-  Zap,
-  Server,
   Activity
 } from 'lucide-react';
 
@@ -237,7 +231,7 @@ export default function SuperAdminPlatform() {
 
   return (
     <div dir="rtl" className={`min-h-screen font-sans antialiased flex flex-col transition-colors duration-300 ${themeBg[theme]}`}>
-      {/* Top Header */}
+      {/* Top Super Admin Header */}
       <header className={`h-16 border-b sticky top-0 z-40 px-6 flex items-center justify-between backdrop-blur-md transition-colors duration-300 ${
         theme === 'light' ? 'bg-white/95 border-slate-200 shadow-2xs' :
         theme === 'dark' ? 'bg-[#0E1424]/95 border-slate-800' :
@@ -260,7 +254,7 @@ export default function SuperAdminPlatform() {
           </div>
         </div>
 
-        {/* Global Controls */}
+        {/* Global Controls - No Public Redirects */}
         <div className="flex items-center gap-3">
           {/* Theme Capsule */}
           <div className={`flex items-center p-1 rounded-xl border ${
@@ -288,18 +282,6 @@ export default function SuperAdminPlatform() {
               <Sparkles className="w-3.5 h-3.5" />
             </button>
           </div>
-
-          <a
-            href="/"
-            target="_blank"
-            rel="noreferrer"
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
-              theme === 'light' ? 'text-slate-800 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border-slate-200' : 'text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-700'
-            }`}
-          >
-            <span>פתח פורטל ראשי</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
 
           <button
             onClick={fetchData}
@@ -545,7 +527,6 @@ export default function SuperAdminPlatform() {
           {/* TAB 2: TENANTS */}
           {activeTab === 'tenants' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Onboarding Form */}
               <div className={`lg:col-span-1 p-6 rounded-2xl border space-y-5 h-fit ${cardBg[theme]}`}>
                 <div className="flex items-center gap-2 border-b pb-3 border-slate-200 dark:border-slate-800">
                   <Plus className="w-4 h-4 text-indigo-500" />
@@ -663,15 +644,15 @@ export default function SuperAdminPlatform() {
                             <strong className="font-black text-slate-950 dark:text-white">{tenantTicketCount}</strong>
                           </div>
                           <div className="flex items-center justify-between text-slate-700 dark:text-slate-400 font-bold">
-                            <span>נתיב URL:</span>
+                            <span>נתיב ארגון:</span>
                             <code className="text-indigo-700 dark:text-indigo-400 font-mono font-black text-[11px]">/{t.id}</code>
                           </div>
                         </div>
 
-                        {/* Direct Action Links */}
+                        {/* Direct Tenant Action Links */}
                         <div className="pt-2 border-t flex items-center gap-2 border-slate-200 dark:border-slate-800">
                           <a
-                            href={`/${t.id}`}
+                            href={`/${t.id}/users`}
                             target="_blank"
                             rel="noreferrer"
                             className="flex-1 text-center py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-200 rounded-xl text-[11px] font-black transition border border-slate-300 dark:border-slate-700"
@@ -679,12 +660,20 @@ export default function SuperAdminPlatform() {
                             פורטל עובדים
                           </a>
                           <a
-                            href={`/${t.id}/admin`}
+                            href={`/${t.id}/admins`}
                             target="_blank"
                             rel="noreferrer"
                             className="flex-1 text-center py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 rounded-xl text-[11px] font-black transition"
                           >
-                            דשבורד IT
+                            תור טכנאי IT
+                          </a>
+                          <a
+                            href={`/${t.id}/manage`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex-1 text-center py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800 rounded-xl text-[11px] font-black transition"
+                          >
+                            ניהול סביבה
                           </a>
                         </div>
                       </div>
@@ -775,7 +764,7 @@ export default function SuperAdminPlatform() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-right text-xs">
                     <thead>
-                      <tr className={`border-b ${theme === 'light' ? 'bg-slate-100/80 text-slate-900 border-slate-300 font-black' : 'text-slate-400 border-slate-800'}`}>
+                      <tr className={`border-b ${theme === 'light' ? 'bg-slate-100/80 text-slate-900 border-slate-300 font-black' : 'text-slate-300 border-slate-800 font-bold'}`}>
                         <th className="py-2.5 px-3">שם המפתח</th>
                         <th className="py-2.5 px-3">ארגון משויך</th>
                         <th className="py-2.5 px-3">Key Prefix</th>
@@ -826,7 +815,7 @@ export default function SuperAdminPlatform() {
               <div className={`p-6 rounded-2xl border space-y-2 ${cardBg[theme]}`}>
                 <span className="text-xs font-black text-slate-700 dark:text-slate-400">דיוק ניתוח דחיפות SLA</span>
                 <p className="text-3xl font-black text-purple-600 dark:text-purple-400">97.8%</p>
-                <p className="text-[11px] text-slate-600 font-bold">מבוסס מודל gemini-3.5-flash-lite</p>
+                <p className="text-[11px] text-slate-600 font-bold">מבוסס מודל Gemini 2.5 Flash</p>
               </div>
             </div>
           )}

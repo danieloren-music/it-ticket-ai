@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
 import { 
   Send, 
@@ -16,31 +17,14 @@ import {
   Zap,
   ArrowDown,
   LogIn,
-  ShieldCheck
+  ShieldCheck,
+  Sun,
+  Moon,
+  Sparkles,
+  ExternalLink
 } from 'lucide-react';
 
-function SmartDeskLogo({ className = "w-9 h-9" }: { className?: string }) {
-  return (
-    <div className={`relative flex items-center justify-center shrink-0 ${className}`}>
-      <svg viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full drop-shadow-sm">
-        <defs>
-          <linearGradient id="primary-sky" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#0EA5E9" />
-            <stop offset="100%" stopColor="#0284C7" />
-          </linearGradient>
-          <linearGradient id="accent-orange" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#FB923C" />
-            <stop offset="100%" stopColor="#F97316" />
-          </linearGradient>
-        </defs>
-        <rect x="3" y="6" width="48" height="34" rx="12" fill="url(#primary-sky)" />
-        <path d="M33 16H22C19.2386 16 17 18.2386 17 21C17 23.7614 19.2386 26 22 26H32C34.7614 26 37 28.2386 37 31C37 33.7614 34.7614 36 32 36H20" stroke="#FFFFFF" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-        <circle cx="35" cy="16" r="3.5" fill="url(#accent-orange)" />
-        <path d="M21 46H33" stroke="#0284C7" strokeWidth="3.5" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-}
+type ThemeMode = 'light' | 'dark' | 'ai';
 
 function TypewriterMessage({ text, onComplete }: { text: string; onComplete?: () => void }) {
   const [displayedText, setDisplayedText] = useState('');
@@ -95,6 +79,7 @@ const QUICK_PROMPTS = [
 ];
 
 function DeskContent() {
+  const [theme, setTheme] = useState<ThemeMode>('light');
   const searchParams = useSearchParams();
   const ssoName = searchParams.get('name') || '';
   const ssoEmail = searchParams.get('email') || '';
@@ -106,7 +91,7 @@ function DeskContent() {
     { 
       id: 'init-msg',
       role: 'assistant', 
-      content: 'היי, אני Rebecca. ספר לי מה התקלה או הבקשה שלך ואדאג למלא את כל פרטי הקריאה.',
+      content: 'היי, אני Rebecca מבית SmartQ. ספר לי מה התקלה או הבקשה שלך ואדאג למלא את כל פרטי הקריאה.',
       isStreaming: true
     }
   ]);
@@ -251,6 +236,7 @@ function DeskContent() {
       const { error } = await supabase.from('tickets').insert([
         {
           ...formData,
+          tenant_id: 'demo',
           reporter_name: currentUser?.name || formData.reporter_name,
           reporter_email: currentUser?.email || formData.reporter_email,
           status: 'Open',
@@ -288,49 +274,106 @@ function DeskContent() {
     switch (urgency) {
       case 'Critical': return 'bg-rose-50 text-rose-700 border-rose-200';
       case 'High': return 'bg-orange-50 text-orange-700 border-orange-200';
-      case 'Medium': return 'bg-sky-50 text-sky-700 border-sky-200';
+      case 'Medium': return 'bg-indigo-50 text-indigo-700 border-indigo-200';
       default: return 'bg-slate-100 text-slate-700 border-slate-200';
     }
   };
 
+  // תמיכה ב-3 מצבי ערכות נושא (Light, Dark, AI Cyber Aura)
+  const themeClasses = {
+    light: 'bg-[#F8FAFC] text-slate-800',
+    dark: 'bg-[#0B0F19] text-slate-100',
+    ai: 'bg-radial-at-t from-[#160B2E] via-[#090D1A] to-[#04060B] text-slate-100'
+  };
+
+  const cardClasses = {
+    light: 'bg-white border-slate-200 shadow-sm',
+    dark: 'bg-[#111827] border-slate-800 shadow-xl',
+    ai: 'bg-[#120D26]/70 border-indigo-500/40 shadow-2xl shadow-indigo-500/10 backdrop-blur-xl'
+  };
+
+  const inputClasses = {
+    light: 'bg-slate-50 border-slate-200 text-slate-900 focus:bg-white focus:border-indigo-500',
+    dark: 'bg-[#1F2937] border-slate-700 text-slate-100 focus:border-indigo-400',
+    ai: 'bg-[#1C1438]/80 border-indigo-500/30 text-indigo-100 focus:border-cyan-400'
+  };
+
   return (
-    <main dir="rtl" className="min-h-screen bg-[#F8FAFC] text-slate-800 font-sans antialiased">
+    <main dir="rtl" className={`min-h-screen font-sans antialiased transition-colors duration-300 ${themeClasses[theme]}`}>
       {/* Top Navbar */}
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <header className={`sticky top-0 z-30 border-b backdrop-blur-md transition-colors duration-300 ${
+        theme === 'light' ? 'bg-white/90 border-slate-200 shadow-2xs' : 
+        theme === 'dark' ? 'bg-[#0E1424]/90 border-slate-800' : 
+        'bg-[#0C081D]/80 border-indigo-500/30 shadow-lg shadow-indigo-500/10'
+      }`}>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <SmartDeskLogo className="w-9 h-9" />
+            <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-white border border-slate-100">
+              <Image src="/smartq-logo.png" alt="SmartQ" width={36} height={36} className="object-contain" priority />
+            </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-black tracking-tight text-slate-900">SmartDesk</span>
-                <span className="px-2 py-0.5 text-[10px] font-extrabold text-white bg-gradient-to-r from-sky-500 to-sky-600 rounded-md uppercase">
-                  AI
+                <span className={`text-lg font-black tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>SmartQ</span>
+                <span className="px-2 py-0.5 text-[10px] font-extrabold text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-md uppercase shadow-2xs">
+                  AI CORE
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Theme Mode Switcher + SSO & Refresh */}
+          <div className="flex items-center gap-2.5">
+            {/* Theme Switcher Capsule */}
+            <div className={`flex items-center p-1 rounded-xl border ${
+              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800 border-slate-700'
+            }`}>
+              <button
+                onClick={() => setTheme('light')}
+                className={`p-1.5 rounded-lg transition ${theme === 'light' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-400 hover:text-white'}`}
+                title="Light Mode (ברירת מחדל)"
+              >
+                <Sun className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setTheme('dark')}
+                className={`p-1.5 rounded-lg transition ${theme === 'dark' ? 'bg-slate-700 text-indigo-400 shadow-xs' : 'text-slate-400 hover:text-white'}`}
+                title="Dark Mode"
+              >
+                <Moon className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setTheme('ai')}
+                className={`p-1.5 rounded-lg transition ${theme === 'ai' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}
+                title="AI Neural Mode"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
             {currentUser ? (
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200/80 rounded-full text-emerald-800 text-xs font-semibold">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-xs font-semibold">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{currentUser.name}</span>
               </div>
             ) : (
               <a
                 href="/api/auth/saml/login"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 rounded-xl transition"
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition ${
+                  theme === 'light' ? 'text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border-slate-200' : 'text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-700'
+                }`}
               >
-                <LogIn className="w-3.5 h-3.5 text-sky-600" />
-                <span>התחבר עם Entra ID</span>
+                <LogIn className="w-3.5 h-3.5 text-indigo-500" />
+                <span>התחבר SSO</span>
               </a>
             )}
 
             <button 
               onClick={fetchTickets}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 rounded-lg transition"
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+                theme === 'light' ? 'text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200' : 'text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700'
+              }`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTickets ? 'animate-spin text-sky-600' : ''}`} />
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTickets ? 'animate-spin text-indigo-600' : ''}`} />
               רענון
             </button>
           </div>
@@ -346,23 +389,35 @@ function DeskContent() {
               key={i}
               type="button"
               onClick={() => handleSendMessage(prompt)}
-              className="text-[11px] font-medium px-3.5 py-1.5 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-700 hover:text-sky-700 transition shadow-2xs flex items-center gap-1.5"
+              className={`text-[11px] font-medium px-3.5 py-1.5 rounded-xl border transition shadow-2xs flex items-center gap-1.5 ${
+                theme === 'light' ? 'bg-white hover:bg-indigo-50 border-slate-200 hover:border-indigo-300 text-slate-700 hover:text-indigo-700' :
+                theme === 'dark' ? 'bg-[#111827] hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white' :
+                'bg-[#181136] hover:bg-indigo-950 border-indigo-500/30 text-indigo-200 hover:text-white'
+              }`}
             >
-              <Zap className="w-3 h-3 text-orange-500" />
+              <Zap className="w-3 h-3 text-indigo-500" />
               {prompt}
             </button>
           ))}
         </div>
 
         {/* Rebecca Chat Interface */}
-        <div className="bg-white rounded-2xl border-2 border-sky-400/40 shadow-xl overflow-hidden flex flex-col h-[480px]">
-          <div className="px-5 py-3.5 bg-gradient-to-r from-sky-50 via-sky-50/50 to-white border-b border-sky-100 flex items-center justify-between">
+        <div className={`rounded-2xl border overflow-hidden flex flex-col h-[480px] transition-all duration-300 ${
+          theme === 'light' ? 'bg-white border-indigo-200 shadow-xl' :
+          theme === 'dark' ? 'bg-[#111827] border-slate-800 shadow-2xl' :
+          'bg-[#120D28]/90 border-indigo-500/40 shadow-2xl shadow-indigo-500/20 backdrop-blur-xl'
+        }`}>
+          <div className={`px-5 py-3.5 border-b flex items-center justify-between ${
+            theme === 'light' ? 'bg-gradient-to-r from-indigo-50 via-purple-50/40 to-white border-indigo-100' :
+            theme === 'dark' ? 'bg-slate-900 border-slate-800' :
+            'bg-indigo-950/40 border-indigo-500/30'
+          }`}>
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-sky-600 to-sky-400 flex items-center justify-center text-white shadow-md shadow-sky-500/20 font-bold text-xs">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center text-white shadow-md font-bold text-xs">
                 R
               </div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-slate-900 text-sm">Rebecca</h3>
+                <h3 className={`font-bold text-sm ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Rebecca AI</h3>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
               </div>
             </div>
@@ -371,7 +426,7 @@ function DeskContent() {
               <button
                 type="button"
                 onClick={() => formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                className="flex items-center gap-1 text-[11px] font-bold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 px-3 py-1 rounded-lg transition"
+                className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-lg transition"
               >
                 <span>הפרטים מוכנים – עבור לטופס</span>
                 <ArrowDown className="w-3 h-3" />
@@ -380,18 +435,22 @@ function DeskContent() {
           </div>
 
           {/* Messages Flow */}
-          <div ref={chatMessagesContainerRef} className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/30">
+          <div ref={chatMessagesContainerRef} className={`flex-1 p-5 overflow-y-auto space-y-4 ${
+            theme === 'light' ? 'bg-slate-50/40' : 'bg-[#090E1A]/40'
+          }`}>
             {messages.map((m) => (
               <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'justify-start flex-row-reverse' : 'justify-start'}`}>
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-bold shadow-2xs ${
-                  m.role === 'user' ? 'bg-orange-500 text-white' : 'bg-gradient-to-tr from-sky-600 to-sky-400 text-white'
+                  m.role === 'user' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white' : 'bg-gradient-to-tr from-indigo-600 to-purple-500 text-white'
                 }`}>
                   {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : 'R'}
                 </div>
                 <div className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed max-w-[85%] shadow-2xs ${
                   m.role === 'user' 
-                    ? 'bg-orange-500 text-white rounded-br-none' 
-                    : 'bg-white text-slate-800 rounded-bl-none border border-slate-200/90'
+                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-br-none' 
+                    : theme === 'light'
+                      ? 'bg-white text-slate-800 rounded-bl-none border border-slate-200/90'
+                      : 'bg-slate-800/90 text-slate-100 rounded-bl-none border border-slate-700'
                 }`}>
                   {m.role === 'assistant' && m.isStreaming ? (
                     <TypewriterMessage 
@@ -410,30 +469,34 @@ function DeskContent() {
             ))}
             
             {isAiLoading && (
-              <div className="flex items-center gap-3 text-xs text-sky-700 bg-sky-50 border border-sky-100 p-2.5 rounded-2xl w-fit">
+              <div className={`flex items-center gap-3 text-xs p-2.5 rounded-2xl w-fit border ${
+                theme === 'light' ? 'text-indigo-700 bg-indigo-50 border-indigo-100' : 'text-indigo-300 bg-indigo-950/60 border-indigo-800'
+              }`}>
                 <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-1.5 h-1.5 bg-sky-500 rounded-full animate-bounce" />
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
                 </div>
-                <span>Rebecca מעדכנת את הטופס...</span>
+                <span>Rebecca מסנכרנת את פרטי הקריאה...</span>
               </div>
             )}
           </div>
 
           {/* Chat Input */}
-          <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="p-3 bg-white border-t border-slate-100 flex gap-2">
+          <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className={`p-3 border-t flex gap-2 ${
+            theme === 'light' ? 'bg-white border-slate-100' : 'bg-slate-900 border-slate-800'
+          }`}>
             <input
               type="text"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              placeholder="כתוב כאן ל-Rebecca..."
-              className="flex-1 px-4 py-2.5 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-sky-500 focus:ring-2 focus:ring-sky-100 focus:outline-none transition"
+              placeholder="כתוב כאן ל-Rebecca מה התקלה..."
+              className={`flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl border focus:outline-none transition ${inputClasses[theme]}`}
             />
             <button
               type="submit"
               disabled={isAiLoading || !userInput.trim()}
-              className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 disabled:from-slate-200 disabled:to-slate-200 text-white rounded-xl font-semibold text-xs sm:text-sm transition shadow-sm flex items-center justify-center gap-1.5"
+              className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-semibold text-xs sm:text-sm transition shadow-sm flex items-center justify-center gap-1.5"
             >
               <span>שלח</span>
               <Send className="w-3.5 h-3.5" />
@@ -455,37 +518,37 @@ function DeskContent() {
           </div>
         )}
 
-        <div className="bg-white p-6 sm:p-8 rounded-2xl border border-slate-200/90 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div className={`p-6 sm:p-8 rounded-2xl border space-y-6 transition-all duration-300 ${cardClasses[theme]}`}>
+          <div className={`flex items-center justify-between border-b pb-3 ${theme === 'light' ? 'border-slate-100' : 'border-slate-800'}`}>
             <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4 text-sky-600" />
-              <h2 className="text-sm font-bold text-slate-900">פרטי הקריאה שנאספו</h2>
+              <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
+              <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>פרטי הקריאה המפוענחים</h2>
             </div>
-            <span className="text-[10px] font-bold text-sky-700 bg-sky-50 border border-sky-100 px-2.5 py-0.5 rounded-full">
-              סונכרן ע״י Rebecca
+            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
+              SmartQ Core
             </span>
           </div>
 
           <form onSubmit={handleSubmitTicket} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">נושא הפנייה *</label>
+              <label className={`block text-xs font-semibold mb-1.5 ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>נושא הפנייה *</label>
               <input
                 type="text"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 placeholder="נושא הפנייה..."
-                className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputClasses[theme]}`}
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">קטגוריה</label>
+                <label className={`block text-xs font-semibold mb-1.5 ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>קטגוריה</label>
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className={`w-full px-3 py-2 text-xs rounded-xl border focus:outline-none transition ${inputClasses[theme]}`}
                 >
                   <option value="Hardware">חומרה (Hardware)</option>
                   <option value="Software & SaaS">תוכנה וענן (Software)</option>
@@ -500,11 +563,11 @@ function DeskContent() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">דחיפות SLA</label>
+                <label className={`block text-xs font-semibold mb-1.5 ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>דחיפות SLA</label>
                 <select
                   value={formData.urgency}
                   onChange={(e) => setFormData({ ...formData, urgency: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className={`w-full px-3 py-2 text-xs rounded-xl border focus:outline-none transition ${inputClasses[theme]}`}
                 >
                   <option value="Low">Low (נמוכה)</option>
                   <option value="Medium">Medium (בינונית)</option>
@@ -516,22 +579,22 @@ function DeskContent() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">רכיב / אפליקציה</label>
+                <label className={`block text-xs font-semibold mb-1.5 ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>רכיב / אפליקציה</label>
                 <input
                   type="text"
                   value={formData.system_impacted}
                   onChange={(e) => setFormData({ ...formData, system_impacted: e.target.value })}
-                  placeholder="לדוגמה: VPN, מחשב נייד"
-                  className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  placeholder="לדוגמה: VPN, מחשב נייד, SAP"
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputClasses[theme]}`}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">צוות מטפל</label>
+                <label className={`block text-xs font-semibold mb-1.5 ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>צוות מטפל</label>
                 <select
                   value={formData.assigned_team}
                   onChange={(e) => setFormData({ ...formData, assigned_team: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-sky-800 font-semibold focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className={`w-full px-3 py-2 text-xs font-semibold rounded-xl border focus:outline-none transition ${inputClasses[theme]}`}
                 >
                   <option value="Helpdesk Tier 1">Helpdesk Tier 1</option>
                   <option value="System & Cloud Team">System & Cloud Team</option>
@@ -543,36 +606,36 @@ function DeskContent() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">פירוט הפנייה *</label>
+              <label className={`block text-xs font-semibold mb-1.5 ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>פירוט הפנייה *</label>
               <textarea
                 required
                 rows={3}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="פירוט הבקשה..."
-                className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition leading-relaxed"
+                className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition leading-relaxed ${inputClasses[theme]}`}
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">שם המדווח</label>
+                <label className={`block text-xs font-semibold mb-1.5 ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>שם המדווח</label>
                 <input
                   type="text"
                   value={formData.reporter_name}
                   onChange={(e) => setFormData({ ...formData, reporter_name: e.target.value })}
                   placeholder="שם מלא"
-                  className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputClasses[theme]}`}
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">אימייל לחזרה</label>
+                <label className={`block text-xs font-semibold mb-1.5 ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>אימייל לחזרה</label>
                 <input
                   type="email"
                   value={formData.reporter_email}
                   onChange={(e) => setFormData({ ...formData, reporter_email: e.target.value })}
                   placeholder="name@company.com"
-                  className="w-full px-3.5 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:border-sky-500 focus:outline-none transition"
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputClasses[theme]}`}
                 />
               </div>
             </div>
@@ -581,28 +644,28 @@ function DeskContent() {
               <button
                 type="submit"
                 disabled={isSubmitting || !formData.title.trim()}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-slate-200 disabled:to-slate-200 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-orange-500/20 transition"
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/20 transition"
               >
                 <Check className="w-4 h-4" />
-                {isSubmitting ? 'שומר קריאה...' : 'אשר ופתח קריאה ב-SmartDesk'}
+                {isSubmitting ? 'שומר קריאה...' : 'אשר ופתח קריאה ב-SmartQ'}
               </button>
             </div>
           </form>
         </div>
 
-        {/* Compact Tickets Queue */}
-        <section className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-2xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+        {/* Tickets Queue */}
+        <section className={`p-6 rounded-2xl border space-y-4 transition-all duration-300 ${cardClasses[theme]}`}>
+          <div className={`flex items-center justify-between border-b pb-3 ${theme === 'light' ? 'border-slate-100' : 'border-slate-800'}`}>
             <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-sky-600" />
-              <h2 className="text-sm font-bold text-slate-800">קריאות פתוחות במערכת ({tickets.length})</h2>
+              <Layers className="w-4 h-4 text-indigo-600" />
+              <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-800' : 'text-white'}`}>קריאות פתוחות במערכת ({tickets.length})</h2>
             </div>
             <span className="text-xs text-slate-400 font-medium">מעקב וסטטוס</span>
           </div>
 
           {isLoadingTickets ? (
             <div className="flex items-center justify-center py-6 text-slate-400 text-xs gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-sky-600" />
+              <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />
               טוען קריאות...
             </div>
           ) : tickets.length === 0 ? (
@@ -612,20 +675,26 @@ function DeskContent() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {tickets.map((t) => (
-                <div key={t.id} className="p-3.5 bg-slate-50/60 hover:bg-slate-50 border border-slate-200/70 rounded-xl space-y-2 transition">
+                <div key={t.id} className={`p-3.5 border rounded-xl space-y-2 transition ${
+                  theme === 'light' ? 'bg-slate-50/60 hover:bg-slate-50 border-slate-200/70' :
+                  theme === 'dark' ? 'bg-slate-800/40 hover:bg-slate-800 border-slate-700/60' :
+                  'bg-indigo-950/30 hover:bg-indigo-950/60 border-indigo-500/20'
+                }`}>
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-xs font-bold text-slate-800 line-clamp-1">{t.title}</h3>
+                    <h3 className={`text-xs font-bold line-clamp-1 ${theme === 'light' ? 'text-slate-800' : 'text-slate-100'}`}>{t.title}</h3>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getUrgencyBadge(t.urgency)}`}>
                       {t.urgency}
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                  <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">
                     {t.description}
                   </p>
 
-                  <div className="pt-2 border-t border-slate-200/50 flex items-center justify-between text-[10px] text-slate-400">
-                    <span className="bg-sky-50 text-sky-700 font-semibold px-1.5 py-0.5 rounded border border-sky-100">
+                  <div className={`pt-2 border-t flex items-center justify-between text-[10px] ${
+                    theme === 'light' ? 'border-slate-200/50 text-slate-400' : 'border-slate-700/50 text-slate-500'
+                  }`}>
+                    <span className="bg-indigo-500/10 text-indigo-400 font-semibold px-1.5 py-0.5 rounded border border-indigo-500/20">
                       {t.assigned_team || 'Helpdesk'}
                     </span>
                     <span className="flex items-center gap-1">

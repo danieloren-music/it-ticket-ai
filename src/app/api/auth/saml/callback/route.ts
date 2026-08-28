@@ -23,7 +23,8 @@ export async function POST(req: NextRequest) {
       callbackUrl: 'https://it-ticket-ai-beige.vercel.app/api/auth/saml/callback',
       entryPoint: entryPoint,
       idpCert: formatCert(rawCert),
-      wantAssertionsSigned: true,
+      wantAssertionsSigned: false,
+      wantAuthnResponseSigned: false,
     } as any);
 
     const formData = await req.formData();
@@ -32,16 +33,35 @@ export async function POST(req: NextRequest) {
     const result = await saml.validatePostResponseAsync({ SAMLResponse });
     const profile: any = result?.profile;
 
-    const userName = (profile?.displayName || profile?.name || profile?.['http://schemas.microsoft.com/identity/claims/displayname'] || 'User') as string;
-    const userEmail = (profile?.email || profile?.nameID || profile?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] || '') as string;
-    const userDept = (profile?.department || 'IT Operations') as string;
+    const userName = (
+      profile?.displayName || 
+      profile?.name || 
+      profile?.['http://schemas.microsoft.com/identity/claims/displayname'] || 
+      profile?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname'] || 
+      'User'
+    ) as string;
+
+    const userEmail = (
+      profile?.email || 
+      profile?.nameID || 
+      profile?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] || 
+      profile?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] || 
+      ''
+    ) as string;
+
+    const userDept = (
+      profile?.department || 
+      profile?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/department'] || 
+      'IT Operations'
+    ) as string;
 
     const redirectUrl = new URL('/', req.url);
     redirectUrl.searchParams.set('name', userName);
     redirectUrl.searchParams.set('email', userEmail);
     redirectUrl.searchParams.set('dept', userDept);
 
-    return NextResponse.redirect(redirectUrl);
+    // סטטוס 303 מכריח את הדפדפן לגשת לדף הבית ב-GET ולא ב-POST
+    return NextResponse.redirect(redirectUrl.toString(), 303);
   } catch (err: any) {
     console.error('SAML Callback Error:', err);
     return NextResponse.json({ error: 'SAML Authentication failed', details: err.message }, { status: 500 });

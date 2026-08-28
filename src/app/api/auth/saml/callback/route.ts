@@ -1,25 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SAML } from '@node-saml/node-saml';
 
-const saml = new SAML({
-  issuer: 'https://it-ticket-ai-beige.vercel.app',
-  callbackUrl: 'https://it-ticket-ai-beige.vercel.app/api/auth/saml/callback',
-  idpCert: process.env.ENTRA_CERTIFICATE!,
-  wantAssertionsSigned: true,
-});
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    const saml = new SAML({
+      issuer: 'https://it-ticket-ai-beige.vercel.app',
+      callbackUrl: 'https://it-ticket-ai-beige.vercel.app/api/auth/saml/callback',
+      idpCert: process.env.ENTRA_CERTIFICATE || '',
+      wantAssertionsSigned: true,
+    } as any);
+
     const formData = await req.formData();
     const SAMLResponse = formData.get('SAMLResponse') as string;
 
-    const { profile } = await saml.validatePostResponseAsync({ SAMLResponse });
+    const result = await saml.validatePostResponseAsync({ SAMLResponse });
+    const profile: any = result?.profile;
 
     const userName = (profile?.displayName || profile?.name || 'User') as string;
     const userEmail = (profile?.email || profile?.nameID || '') as string;
-    const userDept = ((profile as any)?.department || 'IT Operations') as string;
+    const userDept = (profile?.department || 'IT Operations') as string;
 
-    // הפניה חזרה לדף הראשי עם פרטי המשתמש שחולצו
     const redirectUrl = new URL('/', req.url);
     redirectUrl.searchParams.set('name', userName);
     redirectUrl.searchParams.set('email', userEmail);

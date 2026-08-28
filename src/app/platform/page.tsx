@@ -1,20 +1,18 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
 import { 
   Building2, 
   Plus, 
   Layers, 
-  ExternalLink, 
   ShieldCheck, 
   RefreshCw, 
   CheckCircle2, 
   AlertCircle,
   TrendingUp,
   Globe,
-  Mail,
   Copy,
   Check,
   Key,
@@ -22,7 +20,11 @@ import {
   Moon,
   Sparkles,
   BarChart3,
-  Activity
+  Activity,
+  Trash2,
+  Power,
+  PauseCircle,
+  PlayCircle
 } from 'lucide-react';
 
 type ThemeMode = 'light' | 'dark' | 'ai';
@@ -33,6 +35,7 @@ interface Tenant {
   name: string;
   domain: string;
   admin_email: string;
+  status?: 'active' | 'suspended';
   saml_login_url?: string;
   saml_cert?: string;
   created_at: string;
@@ -67,6 +70,7 @@ export default function SuperAdminPlatform() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Form State
@@ -150,6 +154,7 @@ export default function SuperAdminPlatform() {
           name: newTenant.name.trim(),
           domain: newTenant.domain.trim(),
           admin_email: newTenant.admin_email.trim(),
+          status: 'active',
           saml_login_url: newTenant.saml_login_url.trim() || null,
           saml_cert: newTenant.saml_cert.trim() || null,
         }
@@ -172,6 +177,60 @@ export default function SuperAdminPlatform() {
       setFeedback({ text: 'שגיאה ביצירת ארגון: ' + err.message, type: 'error' });
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  // Toggle Disable / Enable Tenant
+  const handleToggleTenantStatus = async (tenantId: string, currentStatus?: string) => {
+    const nextStatus = currentStatus === 'suspended' ? 'active' : 'suspended';
+    setActionLoadingId(tenantId);
+    setFeedback(null);
+
+    try {
+      const { error } = await supabase
+        .from('tenants')
+        .update({ status: nextStatus })
+        .eq('id', tenantId);
+
+      if (error) throw error;
+
+      setTenants((prev) =>
+        prev.map((t) => (t.id === tenantId ? { ...t, status: nextStatus } : t))
+      );
+      setFeedback({
+        text: `סטטוס הארגון ${tenantId} שונה בהצלחה ל-${nextStatus === 'active' ? 'פעיל' : 'מושעה'}`,
+        type: 'success'
+      });
+    } catch (err: any) {
+      setFeedback({ text: 'שגיאה בעדכון סטטוס ארגון: ' + err.message, type: 'error' });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Delete Tenant Permanently
+  const handleDeleteTenant = async (tenantId: string, tenantName: string) => {
+    const confirmed = window.confirm(`האם אתה בטוח שברצונך למחוק לחלוטין את ארגון "${tenantName}" (/${tenantId})?\nפעולה זו תמחק לצמיתות את כל הקריאות, ההגדרות וההרשאות של הארגון!`);
+    if (!confirmed) return;
+
+    setActionLoadingId(tenantId);
+    setFeedback(null);
+
+    try {
+      const { error } = await supabase
+        .from('tenants')
+        .delete()
+        .eq('id', tenantId);
+
+      if (error) throw error;
+
+      setTenants((prev) => prev.filter((t) => t.id !== tenantId));
+      setTickets((prev) => prev.filter((tick) => tick.tenant_id !== tenantId));
+      setFeedback({ text: `הארגון "${tenantName}" נמחק לצמיתות מהמערכת`, type: 'success' });
+    } catch (err: any) {
+      setFeedback({ text: 'שגיאה במחיקת ארגון: ' + err.message, type: 'error' });
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -231,7 +290,7 @@ export default function SuperAdminPlatform() {
 
   return (
     <div dir="rtl" className={`min-h-screen font-sans antialiased flex flex-col transition-colors duration-300 ${themeBg[theme]}`}>
-      {/* Top Super Admin Header */}
+      {/* Top Header */}
       <header className={`h-16 border-b sticky top-0 z-40 px-6 flex items-center justify-between backdrop-blur-md transition-colors duration-300 ${
         theme === 'light' ? 'bg-white/95 border-slate-200 shadow-2xs' :
         theme === 'dark' ? 'bg-[#0E1424]/95 border-slate-800' :
@@ -254,9 +313,8 @@ export default function SuperAdminPlatform() {
           </div>
         </div>
 
-        {/* Global Controls - No Public Redirects */}
+        {/* Global Controls */}
         <div className="flex items-center gap-3">
-          {/* Theme Capsule */}
           <div className={`flex items-center p-1 rounded-xl border ${
             theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800 border-slate-700'
           }`}>
@@ -419,7 +477,6 @@ export default function SuperAdminPlatform() {
           {/* TAB 1: OVERVIEW DASHBOARD */}
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* KPIs Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className={`p-5 rounded-2xl border ${cardBg[theme]}`}>
                   <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
@@ -524,7 +581,7 @@ export default function SuperAdminPlatform() {
             </div>
           )}
 
-          {/* TAB 2: TENANTS */}
+          {/* TAB 2: TENANTS WITH DISABLE & DELETE */}
           {activeTab === 'tenants' && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className={`lg:col-span-1 p-6 rounded-2xl border space-y-5 h-fit ${cardBg[theme]}`}>
@@ -616,16 +673,28 @@ export default function SuperAdminPlatform() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {tenants.map((t) => {
                     const tenantTicketCount = tickets.filter((ticket) => ticket.tenant_id === t.id).length;
+                    const isSuspended = t.status === 'suspended';
 
                     return (
-                      <div key={t.id} className={`p-5 rounded-2xl border space-y-4 transition ${cardBg[theme]}`}>
+                      <div key={t.id} className={`p-5 rounded-2xl border space-y-4 transition ${cardBg[theme]} ${isSuspended ? 'opacity-70 border-rose-300 dark:border-rose-900' : ''}`}>
                         <div className="flex items-start justify-between">
-                          <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center font-black text-indigo-700 dark:text-indigo-400 text-base">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-base border ${
+                            isSuspended 
+                              ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400' 
+                              : 'bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-400'
+                          }`}>
                             {t.name.charAt(0)}
                           </div>
-                          <span className="px-2.5 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-800 rounded-full">
-                            פעיל
-                          </span>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
+                              isSuspended
+                                ? 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-400'
+                                : 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400'
+                            }`}>
+                              {isSuspended ? 'מושעה (Disabled)' : 'פעיל (Active)'}
+                            </span>
+                          </div>
                         </div>
 
                         <div>
@@ -649,7 +718,7 @@ export default function SuperAdminPlatform() {
                           </div>
                         </div>
 
-                        {/* Direct Tenant Action Links */}
+                        {/* Tenant Links */}
                         <div className="pt-2 border-t flex items-center gap-2 border-slate-200 dark:border-slate-800">
                           <a
                             href={`/${t.id}/users`}
@@ -657,7 +726,7 @@ export default function SuperAdminPlatform() {
                             rel="noreferrer"
                             className="flex-1 text-center py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-900 dark:text-slate-200 rounded-xl text-[11px] font-black transition border border-slate-300 dark:border-slate-700"
                           >
-                            פורטל עובדים
+                            עובדים
                           </a>
                           <a
                             href={`/${t.id}/admins`}
@@ -665,7 +734,7 @@ export default function SuperAdminPlatform() {
                             rel="noreferrer"
                             className="flex-1 text-center py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/70 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 rounded-xl text-[11px] font-black transition"
                           >
-                            תור טכנאי IT
+                            טכנאי IT
                           </a>
                           <a
                             href={`/${t.id}/manage`}
@@ -673,8 +742,36 @@ export default function SuperAdminPlatform() {
                             rel="noreferrer"
                             className="flex-1 text-center py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-950/70 text-purple-800 dark:text-purple-300 border border-purple-300 dark:border-purple-800 rounded-xl text-[11px] font-black transition"
                           >
-                            ניהול סביבה
+                            ניהול
                           </a>
+                        </div>
+
+                        {/* Super Admin Actions: Disable & Delete */}
+                        <div className="pt-2 border-t flex items-center gap-2 border-slate-200 dark:border-slate-800">
+                          <button
+                            type="button"
+                            disabled={actionLoadingId === t.id}
+                            onClick={() => handleToggleTenantStatus(t.id, t.status)}
+                            className={`flex-1 py-1.5 rounded-xl text-[11px] font-black border transition flex items-center justify-center gap-1.5 ${
+                              isSuspended
+                                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300'
+                                : 'bg-orange-50 text-orange-800 border-orange-300 hover:bg-orange-100 dark:bg-orange-950/40 dark:text-orange-300'
+                            }`}
+                          >
+                            {isSuspended ? <PlayCircle className="w-3.5 h-3.5" /> : <PauseCircle className="w-3.5 h-3.5" />}
+                            <span>{isSuspended ? 'הפעל ארגון' : 'השבת (Disable)'}</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled={actionLoadingId === t.id}
+                            onClick={() => handleDeleteTenant(t.id, t.name)}
+                            className="p-1.5 px-2.5 rounded-xl text-[11px] font-black bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900 transition flex items-center gap-1"
+                            title="מחק ארגון לחלוטין"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>מחק</span>
+                          </button>
                         </div>
                       </div>
                     );

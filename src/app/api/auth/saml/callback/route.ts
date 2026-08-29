@@ -1,69 +1,90 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SAML } from '@node-saml/node-saml';
-
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
-function formatCert(cert: string) {
-  if (!cert) return '';
-  const clean = cert
-    .replace(/-----BEGIN CERTIFICATE-----/g, '')
-    .replace(/-----END CERTIFICATE-----/g, '')
-    .replace(/\s+/g, '');
-  return `-----BEGIN CERTIFICATE-----\n${clean}\n-----END CERTIFICATE-----`;
-}
+import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(req: NextRequest) {
   try {
-    const rawCert = process.env.ENTRA_CERTIFICATE || '';
-    const entryPoint = process.env.ENTRA_LOGIN_URL || '';
-
-    const saml = new SAML({
-      issuer: 'https://it-ticket-ai-beige.vercel.app',
-      callbackUrl: 'https://it-ticket-ai-beige.vercel.app/api/auth/saml/callback',
-      entryPoint: entryPoint,
-      idpCert: formatCert(rawCert),
-      wantAssertionsSigned: false,
-      wantAuthnResponseSigned: false,
-    } as any);
-
     const formData = await req.formData();
-    const SAMLResponse = formData.get('SAMLResponse') as string;
+    const samlResponse = formData.get('SAMLResponse') as string;
+    const relayStateParam = formData.get('RelayState') as string;
 
-    const result = await saml.validatePostResponseAsync({ SAMLResponse });
-    const profile: any = result?.profile;
+    if (!samlResponse) {
+      return NextResponse.json({ error: 'חסר SAMLResponse בבקשה' }, { status: 400 });
+    }
 
-    const userName = (
-      profile?.displayName || 
-      profile?.name || 
-      profile?.['http://schemas.microsoft.com/identity/claims/displayname'] || 
-      profile?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname'] || 
-      'User'
-    ) as string;
+    let tenantSlug = 'SyncOren';
+    let returnTo = '/SyncOren/users';
 
-    const userEmail = (
-      profile?.email || 
-      profile?.nameID || 
-      profile?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress'] || 
-      profile?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] || 
-      ''
-    ) as string;
+    if (relayStateParam) {
+      try {
+        const decoded = JSON.parse(Buffer.from(relayStateParam, 'base64').toString('utf-8'));
+        tenantSlug = decoded.tenantSlug || tenantSlug;
+        returnTo = decoded.returnTo || returnTo;
+      } catch {
+        // ברירת מחדל
+      }
+    }
 
-    const userDept = (
-      profile?.department || 
-      profile?.['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/department'] || 
-      'IT Operations'
-    ) as string;
+    // פענוח ה-SAML XML מ-Base64
+    const xml = Buffer.from(samlResponse, 'base64').toString('utf-8');
 
-    const redirectUrl = new URL('/', req.url);
-    redirectUrl.searchParams.set('name', userName);
-    redirectUrl.searchParams.set('email', userEmail);
-    redirectUrl.searchParams.set('dept', userDept);
+    // חילוץ אימייל, שם וקבוצות מתוך ה-XML
+    const emailMatch = xml.match(/(?:name=".*?emailaddress"|name=".*?nameIdentifier"|name=".*?upn")[^>]*>[\s\S]*?<saml\d?:AttributeValue[^>]*>([^<]+)<\/saml\d?:AttributeValue>/i)
+      || xml.match(/<saml\d?:NameID[^>]*>([^<]+)<\/saml\d?:NameID>/i);
+    const userEmail = emailMatch ? emailMatch[1].trim() : '';
 
-    // סטטוס 303 מכריח את הדפדפן לגשת לדף הבית ב-GET ולא ב-POST
-    return NextResponse.redirect(redirectUrl.toString(), 303);
+    const nameMatch = xml.match(/(?:name=".*?displayname"|name=".*?name")[^>]*>[\s\S]*?<saml\d?:AttributeValue[^>]*>([^<]+)<\/saml\d?:AttributeValue>/i);
+    const userName = nameMatch ? nameMatch[1].trim() : userEmail;
+
+    // חילוץ כל ה-Object IDs של הקבוצות (Groups Claim)
+    const groupsMatches = [...xml.matchAll(/name=".*?groups"[^>]*>([\s\S]*?)<\/saml\d?:Attribute>/gi)];
+    const extractedGroups: string[] = [];
+
+    for (const match of groupsMatches) {
+      const values = [...match[1].matchAll(/<saml\d?:AttributeValue[^>]*>([^<]+)<\/saml\d?:AttributeValue>/gi)];
+      values.forEach((v) => extractedGroups.push(v[1].trim()));
+    }
+
+    // שליפת הגדרות קבוצות ה-SAML מה-DB לצורך בדיקת הרשאות
+    const { data: settings } = await supabase
+      .from('tenant_settings')
+      .select('*')
+      .eq('tenant_id', tenantSlug)
+      .single();
+
+    let assignedRole: 'manager' | 'admin' | 'user' = 'user';
+
+    if (settings?.saml_group_managers_id && extractedGroups.includes(settings.saml_group_managers_id)) {
+      assignedRole = 'manager';
+    } else if (settings?.saml_group_admins_id && extractedGroups.includes(settings.saml_group_admins_id)) {
+      assignedRole = 'admin';
+    } else if (settings?.saml_group_users_id && extractedGroups.includes(settings.saml_group_users_id)) {
+      assignedRole = 'user';
+    }
+
+    // יצירת Session מאובטח
+    const sessionData = {
+      email: userEmail,
+      name: userName,
+      role: assignedRole,
+      tenantId: tenantSlug,
+      groups: extractedGroups,
+      exp: Date.now() + 1000 * 60 * 60 * 12,
+    };
+
+    const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+
+    const redirectUrl = new URL(returnTo, req.url);
+    const res = NextResponse.redirect(redirectUrl, { status: 303 });
+    res.cookies.set('smartq_session', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 12,
+    });
+
+    return res;
   } catch (err: any) {
-    console.error('SAML Callback Error:', err);
-    return NextResponse.json({ error: 'SAML Authentication failed', details: err.message }, { status: 500 });
+    return NextResponse.json({ error: 'שגיאה בעיבוד ה-SAML Callback: ' + err.message }, { status: 500 });
   }
 }

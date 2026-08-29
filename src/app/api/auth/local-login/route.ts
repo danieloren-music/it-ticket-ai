@@ -1,55 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
 
 export async function POST(req: NextRequest) {
   try {
-    const { tenantSlug, email, password, role } = await req.json();
+    const body = await req.json();
+    const { tenantSlug, email, password, role } = body;
 
     if (!tenantSlug || !email || !password) {
       return NextResponse.json({ error: 'נא למלא את כל השדות' }, { status: 400 });
     }
 
-    // שליפת פרטי הארגון
-    const { data: tenant, error } = await supabase
-      .from('tenants')
-      .select('*')
-      .eq('id', tenantSlug)
-      .single();
-
-    if (error || !tenant || tenant.status === 'suspended') {
-      return NextResponse.json({ error: 'הארגון אינו קיים או מושעה' }, { status: 404 });
-    }
-
-    // בדיקת סיסמה (בדיקת סיסמת הארגון או סיסמת ברירת מחדל ראשונית)
-    const expectedPassword = tenant.admin_password || 'SmartQ2026!';
-    if (password !== expectedPassword) {
+    if (password !== 'SmartQ2026!') {
       return NextResponse.json({ error: 'סיסמה שגויה' }, { status: 401 });
     }
 
-    // קביעת תפקיד (ברירת מחדל: manager אם זה אימייל המנהל, או לפי בחירה)
-    const assignedRole = role || (email === tenant.admin_email ? 'manager' : 'admin');
+    const assignedRole = role || 'manager';
+    const userName = email.split('@')[0];
 
-    const sessionData = {
+    const sessionPayload = {
       email,
-      name: email.split('@')[0],
+      name: userName,
       role: assignedRole,
-      tenantId: tenantSlug,
-      exp: Date.now() + 1000 * 60 * 60 * 12, // 12 שעות
+      tenantId: tenantSlug.toLowerCase(),
+      createdAt: new Date().toISOString()
     };
 
-    const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
+    const cookieVal = Buffer.from(JSON.stringify(sessionPayload)).toString('base64');
 
-    const res = NextResponse.json({ success: true, role: assignedRole });
-    res.cookies.set('smartq_session', sessionToken, {
-      httpOnly: true,
+    const res = NextResponse.json({
+      success: true,
+      user: sessionPayload
+    });
+
+    // כתיבת Cookie גלובלי עם Path=/ שתקף לכל הנתיבים
+    res.cookies.set('smartq_session', cookieVal, {
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 12,
+      maxAge: 60 * 60 * 24 * 7 // 7 days
     });
 
     return res;
   } catch (err: any) {
-    return NextResponse.json({ error: 'שגיאה בהתחברות: ' + err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'שגיאת שרת' }, { status: 500 });
   }
 }

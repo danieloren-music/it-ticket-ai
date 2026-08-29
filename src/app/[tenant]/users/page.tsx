@@ -143,7 +143,6 @@ function TenantPortalContent() {
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
   const formSectionRef = useRef<HTMLDivElement>(null);
 
-  // זיהוי Session של המשתמש והסביבה
   useEffect(() => {
     const fetchTenantAndSession = async () => {
       const { data } = await supabase
@@ -163,7 +162,7 @@ function TenantPortalContent() {
         });
       }
 
-      // קריאת Session מעוגייה אם קיימת
+      // חילוץ פרטי Session של המשתמש המחובר
       const matchCookie = document.cookie
         .split('; ')
         .find((row) => row.startsWith('smartq_session='));
@@ -173,11 +172,12 @@ function TenantPortalContent() {
           const rawVal = matchCookie.split('=')[1];
           const decoded = JSON.parse(atob(rawVal));
           if (decoded.email) {
-            setCurrentUser({ name: decoded.name || decoded.email.split('@')[0], email: decoded.email, dept: decoded.city || '' });
+            const resolvedName = decoded.name || decoded.email.split('@')[0];
+            setCurrentUser({ name: resolvedName, email: decoded.email, dept: decoded.city || '' });
             setFormData((prev) => ({
               ...prev,
-              reporter_name: decoded.name || prev.reporter_name,
-              reporter_email: decoded.email || prev.reporter_email,
+              reporter_name: resolvedName,
+              reporter_email: decoded.email,
               user_city: decoded.city || prev.user_city,
             }));
           }
@@ -193,8 +193,8 @@ function TenantPortalContent() {
       setCurrentUser({ name: ssoName, email: ssoEmail, dept: ssoDept });
       setFormData((prev) => ({
         ...prev,
-        reporter_name: ssoName || prev.reporter_name,
-        reporter_email: ssoEmail || prev.reporter_email,
+        reporter_name: ssoName,
+        reporter_email: ssoEmail,
       }));
       setMessages([
         {
@@ -257,15 +257,15 @@ function TenantPortalContent() {
 
       setFormData((prev) => ({
         ...prev,
-        title: data.title || data.summary || prev.title || messageContent.slice(0, 60),
+        title: data.title || prev.title || messageContent.slice(0, 60),
         description: data.description || prev.description || messageContent,
         category: data.category || prev.category,
         urgency: data.urgency || prev.urgency,
         system_impacted: data.system_impacted || prev.system_impacted,
         assigned_team: data.assigned_team || data.assignedTeam || prev.assigned_team,
-        reporter_name: currentUser?.name || data.reporter_name || prev.reporter_name,
-        reporter_email: currentUser?.email || data.reporter_email || prev.reporter_email,
-        user_city: data.city || prev.user_city,
+        reporter_name: currentUser?.name || prev.reporter_name || '',
+        reporter_email: currentUser?.email || prev.reporter_email || '',
+        user_city: data.user_city || prev.user_city,
       }));
 
       if (data.follow_up_question) {
@@ -464,7 +464,7 @@ function TenantPortalContent() {
                 }`}
               >
                 <LogIn className="w-3.5 h-3.5 text-indigo-600" />
-                <span>התחבר SSO</span>
+                <span>התחבר</span>
               </a>
             )}
 
@@ -708,7 +708,7 @@ function TenantPortalContent() {
               </div>
             </div>
 
-            {/* פרטי מיקום וטלפון שהתווספו */}
+            {/* פרטי מיקום וטלפון */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={`block text-xs font-bold mb-1.5 flex items-center gap-1 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>

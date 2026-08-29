@@ -25,10 +25,8 @@ import {
   UserPlus, 
   Eye, 
   EyeOff,
-  User,
   LogOut,
-  ShieldCheck,
-  Check
+  AtSign
 } from 'lucide-react';
 
 interface Tenant {
@@ -101,7 +99,7 @@ export default function PlatformMasterConsole() {
     status: 'Active'
   });
 
-  // Platform User Modal State
+  // Platform User Modal State (עם username מפוצל מהדומיין הקבוע)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userModalMode, setUserModalMode] = useState<'create' | 'edit'>('create');
   const [savingUser, setSavingUser] = useState(false);
@@ -109,7 +107,7 @@ export default function PlatformMasterConsole() {
   const [userFormData, setUserFormData] = useState({
     firstName: '',
     lastName: '',
-    email: '',
+    username: '',
     password: '',
     role: 'Super Admin',
     department: 'Cloud Operations'
@@ -161,7 +159,7 @@ export default function PlatformMasterConsole() {
     fetchData();
   }, []);
 
-  // Save current admin profile edits
+  // Save Current Admin Profile Edits
   const handleSaveCurrentProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setProfileSaving(true);
@@ -183,7 +181,6 @@ export default function PlatformMasterConsole() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to update profile');
 
-      // Update cookie session
       const sessionObj = {
         email: currentAdmin.email,
         name: currentAdmin.fullName,
@@ -212,6 +209,7 @@ export default function PlatformMasterConsole() {
     router.push('/platform/login');
   };
 
+  // Tenants Handlers
   const handleOpenCreateTenantModal = () => {
     setTenantModalMode('create');
     setTenantFormData({
@@ -271,12 +269,13 @@ export default function PlatformMasterConsole() {
     }
   };
 
+  // Users Handlers
   const handleOpenCreateUserModal = () => {
     setUserModalMode('create');
     setUserFormData({
       firstName: '',
       lastName: '',
-      email: '',
+      username: '',
       password: '',
       role: 'Super Admin',
       department: 'Cloud Operations'
@@ -289,11 +288,12 @@ export default function PlatformMasterConsole() {
     const nameParts = u.full_name.split(' ');
     const firstName = nameParts[0] || '';
     const lastName = nameParts.slice(1).join(' ') || '';
+    const parsedUsername = u.email.split('@')[0];
 
     setUserFormData({
       firstName,
       lastName,
-      email: u.email,
+      username: parsedUsername,
       password: '',
       role: u.role || 'Super Admin',
       department: u.department || 'Cloud Operations'
@@ -303,8 +303,11 @@ export default function PlatformMasterConsole() {
 
   const handleSavePlatformUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userFormData.email || !userFormData.firstName) return;
+    if (!userFormData.username || !userFormData.firstName) return;
     setSavingUser(true);
+
+    const cleanUsername = userFormData.username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
+    const fullEmail = `${cleanUsername}@smartq.ai`;
 
     try {
       const fullName = `${userFormData.firstName.trim()} ${userFormData.lastName.trim()}`.trim();
@@ -312,7 +315,7 @@ export default function PlatformMasterConsole() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: userFormData.email,
+          email: fullEmail,
           fullName,
           password: userFormData.password || (userModalMode === 'create' ? 'SmartQ2026!' : undefined),
           role: userFormData.role,
@@ -332,13 +335,34 @@ export default function PlatformMasterConsole() {
     }
   };
 
+  const handleDeletePlatformUser = async (u: PlatformUser) => {
+    if (u.email.toLowerCase() === currentAdmin.email.toLowerCase()) {
+      alert('You cannot delete your own active administrator account.');
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete platform user "${u.full_name}" (${u.email})?`)) return;
+
+    try {
+      const res = await fetch(`/api/platform/admins?email=${encodeURIComponent(u.email)}`, {
+        method: 'DELETE'
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete platform user');
+
+      fetchData();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    }
+  };
+
   const filteredTenants = tenants.filter((t) =>
     t.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     t.domain?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Compute Initials for Avatar
   const getInitials = (name: string) => {
     if (!name) return 'DO';
     const parts = name.trim().split(' ').filter(Boolean);
@@ -384,7 +408,7 @@ export default function PlatformMasterConsole() {
             <span>Systems Online</span>
           </div>
 
-          {/* Interactive User Avatar (Click to edit profile & role) */}
+          {/* Interactive User Avatar */}
           <button
             type="button"
             onClick={() => setIsProfileModalOpen(true)}
@@ -659,13 +683,22 @@ export default function PlatformMasterConsole() {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-center">
-                          <button
-                            onClick={() => handleOpenEditUserModal(u)}
-                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 transition"
-                            title="Edit User & Credentials"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenEditUserModal(u)}
+                              className="p-1.5 rounded-lg border border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 transition"
+                              title="Edit User & Credentials"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeletePlatformUser(u)}
+                              className="p-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 transition"
+                              title="Delete Platform User"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1017,7 +1050,7 @@ export default function PlatformMasterConsole() {
                     required
                     value={userFormData.firstName}
                     onChange={(e) => setUserFormData({ ...userFormData, firstName: e.target.value })}
-                    placeholder="e.g. Daniel"
+                    placeholder="e.g. Itay"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                   />
                 </div>
@@ -1029,23 +1062,34 @@ export default function PlatformMasterConsole() {
                     required
                     value={userFormData.lastName}
                     onChange={(e) => setUserFormData({ ...userFormData, lastName: e.target.value })}
-                    placeholder="e.g. Oren"
+                    placeholder="e.g. Cohen"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block mb-1 text-slate-800">Platform Email *</label>
-                <input
-                  type="email"
-                  required
-                  disabled={userModalMode === 'edit'}
-                  value={userFormData.email}
-                  onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
-                  placeholder="user@smartq.ai"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 disabled:bg-slate-100 text-slate-900 font-mono font-semibold focus:outline-none focus:border-indigo-600"
-                />
+                <label className="block mb-1 text-slate-800">Platform Identity (Username) *</label>
+                <div className="flex items-center rounded-xl border border-slate-300 bg-slate-50 overflow-hidden focus-within:border-indigo-600 focus-within:ring-1 focus-within:ring-indigo-600">
+                  <div className="pl-3.5 pr-2 text-slate-400">
+                    <AtSign className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    disabled={userModalMode === 'edit'}
+                    value={userFormData.username}
+                    onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '') })}
+                    placeholder="itay"
+                    className="w-full py-2.5 bg-transparent text-slate-900 font-mono font-bold focus:outline-none disabled:text-slate-500"
+                  />
+                  <div className="px-3.5 py-2.5 bg-indigo-50 border-l border-slate-300 text-indigo-700 font-mono font-black select-none text-xs">
+                    @smartq.ai
+                  </div>
+                </div>
+                <span className="block mt-1 text-[11px] text-slate-400 font-semibold">
+                  Full login address: <span className="text-slate-700 font-mono">{userFormData.username ? `${userFormData.username}@smartq.ai` : 'username@smartq.ai'}</span>
+                </span>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">

@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     const userDept = department?.trim() || 'Cloud Operations';
     const userPass = password?.trim() || 'SmartQ2026!';
 
-    // 1. בדיקה אם המשתמש כבר קיים
+    // Check if exists
     const { data: existing } = await supabase
       .from('platform_admins')
       .select('id')
@@ -40,15 +40,19 @@ export async function POST(req: NextRequest) {
     let resultError;
 
     if (existing) {
+      const updatePayload: any = {
+        full_name: fullName.trim(),
+        role: userRole,
+        department: userDept,
+        updated_at: new Date().toISOString()
+      };
+      if (password) {
+        updatePayload.password_hash = userPass;
+      }
+
       const { data, error } = await supabase
         .from('platform_admins')
-        .update({
-          full_name: fullName.trim(),
-          role: userRole,
-          department: userDept,
-          password_hash: userPass,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', existing.id)
         .select()
         .single();
@@ -79,6 +83,28 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, admin: resultData });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const email = searchParams.get('email')?.toLowerCase().trim();
+
+    if (!email) {
+      return NextResponse.json({ error: 'User email is required' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('platform_admins')
+      .delete()
+      .ilike('email', email);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

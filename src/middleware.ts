@@ -15,7 +15,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. Vendor Platform Authentication Lock
+  // 2. Vendor Platform Lock
   if (pathname.startsWith('/platform')) {
     if (pathname === '/platform/login') {
       return NextResponse.next();
@@ -35,25 +35,36 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 3. Tenant Sub-Routes Processing
+  // 3. Root endpoints without tenant slug
+  if (pathname === '/selfservice' || pathname === '/self-service') {
+    return NextResponse.redirect(new URL('/rafael/self-service', req.url));
+  }
+  if (pathname === '/manage') {
+    return NextResponse.redirect(new URL('/rafael/manage', req.url));
+  }
+  if (pathname === '/admins') {
+    return NextResponse.redirect(new URL('/rafael/admins', req.url));
+  }
+
+  // 4. Tenant Sub-Routes Processing
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) return NextResponse.next();
 
   const rawTenant = segments[0];
   const routeTenant = rawTenant.toLowerCase();
-  const subRoute = segments[1] || '';
+  const subRoute = (segments[1] || '').toLowerCase();
+
+  // Redirect legacy or typo routes
+  if (subRoute === 'selfservice' || subRoute === 'new-request' || subRoute === 'users') {
+    return NextResponse.redirect(new URL(`/${rawTenant}/self-service`, req.url));
+  }
 
   // Open pages
   if (subRoute === 'login' || subRoute === 'access-denied') {
     return NextResponse.next();
   }
 
-  // Backwards compatibility redirects for old URLs
-  if (subRoute === 'users' || subRoute === 'new-request') {
-    return NextResponse.redirect(new URL(`/${rawTenant}/self-service`, req.url));
-  }
-
-  // 4. Decode Tenant Session
+  // 5. Decode Tenant Session
   const sessionCookie = req.cookies.get('smartq_session')?.value;
   let session: { role?: 'manager' | 'admin' | 'user'; tenantId?: string; email?: string } | null = null;
 
@@ -77,12 +88,11 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${rawTenant}/access-denied`, req.url));
   };
 
-  // 5. Intelligent Tenant Root Gateway: /[tenant]
+  // 6. Intelligent Tenant Root Gateway: /[tenant]
   if (!subRoute) {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(`/${rawTenant}/self-service`);
     }
-    // Intelligent role-based dispatch
     if (session.role === 'manager') {
       return NextResponse.redirect(new URL(`/${rawTenant}/manage`, req.url));
     }
@@ -92,7 +102,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${rawTenant}/self-service`, req.url));
   }
 
-  // 6. RBAC Page Enforcements:
+  // 7. RBAC Page Enforcements
   if (subRoute === 'self-service') {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(pathname);

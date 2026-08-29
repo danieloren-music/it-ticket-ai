@@ -79,19 +79,23 @@ export async function POST(req: NextRequest) {
     let resultError;
 
     if (existingUser) {
+      const updateData: any = {
+        full_name: String(fullName).trim(),
+        role,
+        job_title: String(jobTitle).trim(),
+        department: String(department).trim(),
+        site_location: String(siteLocation).trim(),
+        phone_number: String(phoneNumber).trim(),
+        is_active: isActive,
+        updated_at: new Date().toISOString()
+      };
+      if (body.password) {
+        updateData.password_hash = String(password).trim();
+      }
+
       const { data, error } = await supabase
         .from('tenant_users')
-        .update({
-          full_name: String(fullName).trim(),
-          role,
-          password_hash: String(password).trim(),
-          job_title: String(jobTitle).trim(),
-          department: String(department).trim(),
-          site_location: String(siteLocation).trim(),
-          phone_number: String(phoneNumber).trim(),
-          is_active: isActive,
-          updated_at: new Date().toISOString()
-        })
+        .update(updateData)
         .eq('id', existingUser.id)
         .select()
         .single();
@@ -129,5 +133,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, user: resultData });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const tenantSlug = extractTenant(req);
+    const email = searchParams.get('email')?.toLowerCase().trim();
+
+    if (!tenantSlug || !email) {
+      return NextResponse.json({ error: 'Tenant and email are required' }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from('tenant_users')
+      .delete()
+      .ilike('tenant_id', tenantSlug)
+      .ilike('email', email);
+
+    if (error) throw error;
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

@@ -8,12 +8,8 @@ import {
   Building2, 
   Search, 
   Clock, 
-  AlertCircle, 
   CheckCircle2, 
-  User, 
   MapPin, 
-  Phone, 
-  Mail, 
   Save, 
   RefreshCw, 
   ExternalLink,
@@ -21,14 +17,12 @@ import {
   Sparkles,
   Edit3,
   X,
-  Sliders,
   Activity,
   Settings,
-  HelpCircle,
-  KeyRound,
-  Users,
-  Shield
+  Users
 } from 'lucide-react';
+
+type LanguageMode = 'he' | 'en';
 
 interface Ticket {
   id: string;
@@ -51,6 +45,7 @@ interface Ticket {
 }
 
 function AdminsQueue() {
+  const [lang, setLang] = useState<LanguageMode>('he');
   const params = useParams();
   const rawTenant = (params?.tenant as string) || '';
   const tenantSlug = rawTenant.toLowerCase();
@@ -118,7 +113,7 @@ function AdminsQueue() {
       setTimeout(() => setEditSuccess(false), 2500);
       fetchTickets();
     } catch (err: any) {
-      alert('שגיאה בעדכון הקריאה: ' + err.message);
+      alert('Error updating ticket: ' + err.message);
     } finally {
       setSavingEdit(false);
     }
@@ -138,66 +133,92 @@ function AdminsQueue() {
     return matchesSearch && matchesStatus && matchesUrgency;
   });
 
+  const isHebrew = lang === 'he';
+
   return (
-    <div dir="rtl" className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans antialiased select-none">
+    <div dir={isHebrew ? 'rtl' : 'ltr'} className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans antialiased select-none">
       
       {/* Top Header */}
-      <header className="h-14 border-b border-slate-200 bg-white px-4 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-slate-200 flex items-center justify-center p-1 shadow-2xs">
-              <Image src="/smartq-logo.png" alt="SmartQ" width={28} height={28} className="object-contain" priority />
+      <header className="h-16 border-b border-slate-200 bg-white px-6 flex items-center justify-between sticky top-0 z-40 shadow-xs">
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl overflow-hidden bg-white border border-slate-200 flex items-center justify-center p-1.5 shadow-sm hover:shadow-md transition">
+              <Image src="/smartq-logo.png" alt="SmartQ" width={38} height={38} className="object-contain" priority />
             </div>
-            <div className="flex items-center gap-1.5 font-bold text-xs">
-              <span className="text-indigo-600 font-black text-sm">SmartQ</span>
-              <span className="text-slate-400">/</span>
-              <span className="text-slate-800 font-extrabold uppercase">{rawTenant}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-black tracking-tight text-slate-950">SmartQ</span>
+              <span className="text-slate-300 text-lg font-bold">/</span>
+              <span className="text-xs font-black text-slate-700 uppercase tracking-wider bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                {rawTenant}
+              </span>
             </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-lg border border-slate-200 text-xs font-bold">
-            <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="text-slate-800">IT QUEUE & OPERATIONS</span>
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100/80 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
+            <Building2 className="w-4 h-4 text-indigo-600" />
+            <span className="uppercase">{rawTenant} {isHebrew ? 'תור קריאות IT' : 'IT DESK QUEUE'}</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-indigo-600 text-white px-2.5 py-1 rounded-md text-[11px] font-black tracking-wider uppercase shadow-xs">
-            <Sparkles className="w-3 h-3" />
-            <span>AI DISPATCH</span>
+        <div className="flex items-center gap-3.5">
+          {/* Language Switcher Capsule */}
+          <div className="flex items-center p-0.5 rounded-xl border border-slate-200 bg-slate-100 text-xs font-black">
+            <button
+              onClick={() => setLang('he')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition ${
+                isHebrew ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>🇮🇱</span>
+              <span>עברית</span>
+            </button>
+            <button
+              onClick={() => setLang('en')}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition ${
+                !isHebrew ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>🇺🇸</span>
+              <span>EN</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-indigo-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-black tracking-wider uppercase shadow-sm">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{isHebrew ? 'ניתוב AI' : 'AI Dispatch'}</span>
           </div>
 
           <a
             href={`/${rawTenant}/manage`}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-black border border-slate-200 transition"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-black border border-slate-200 transition"
           >
-            <span>קונסולת ניהול</span>
-            <ExternalLink className="w-3 h-3" />
+            <span>{isHebrew ? 'קונסולת ניהול' : 'Manage Console'}</span>
+            <ExternalLink className="w-3.5 h-3.5" />
           </a>
 
           <button
             onClick={fetchTickets}
-            className="p-1.5 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-            title="רענן"
+            className="p-2 rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 transition shadow-2xs"
+            title={isHebrew ? 'רענן' : 'Refresh'}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-600' : ''}`} />
           </button>
         </div>
       </header>
 
-      {/* Main Wrapper */}
+      {/* Main Layout */}
       <div className="flex-1 flex overflow-hidden">
         
         {/* Left Sidebar */}
         <aside className="w-14 bg-[#1E293B] border-r border-slate-800 text-slate-300 flex flex-col items-center py-4 justify-between shrink-0 z-30">
           <div className="space-y-4 w-full flex flex-col items-center">
-            <button className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-md" title="תור קריאות">
+            <button className="p-2.5 rounded-xl bg-indigo-600 text-white shadow-md" title={isHebrew ? 'תור קריאות' : 'IT Queue'}>
               <Layers className="w-5 h-5" />
             </button>
-            <a href={`/${rawTenant}/manage`} className="p-2.5 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white transition" title="משתמשים וניהול">
+            <a href={`/${rawTenant}/manage`} className="p-2.5 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white transition" title={isHebrew ? 'משתמשים וניהול' : 'Users & Directory'}>
               <Users className="w-5 h-5" />
             </a>
-            <button className="p-2.5 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white transition" title="סטטיסטיקות">
+            <button className="p-2.5 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white transition" title={isHebrew ? 'סטטיסטיקות' : 'Telemetry'}>
               <Activity className="w-5 h-5" />
             </button>
           </div>
@@ -213,8 +234,12 @@ function AdminsQueue() {
           
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div>
-              <h1 className="text-lg font-black text-slate-900">תור קריאות שירות ותפעול IT ({filteredTickets.length})</h1>
-              <p className="text-xs text-slate-500 font-semibold mt-0.5">ניטור, הקצאת טכנאים וסגירת פניות שירות</p>
+              <h1 className="text-lg font-black text-slate-900">
+                {isHebrew ? `תור קריאות שירות ותפעול IT (${filteredTickets.length})` : `IT Service Desk Queue (${filteredTickets.length})`}
+              </h1>
+              <p className="text-xs text-slate-500 font-semibold mt-0.5">
+                {isHebrew ? 'ניטור קריאות, הקצאת טכנאים וסגירת פניות בזמן אמת' : 'Real-time incident dispatch, technician assignment and SLA tracking'}
+              </p>
             </div>
           </div>
 
@@ -222,13 +247,13 @@ function AdminsQueue() {
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3 flex-1 min-w-[280px]">
               <div className="relative flex-1">
-                <Search className="w-4 h-4 absolute right-3 top-2.5 text-slate-400" />
+                <Search className={`w-4 h-4 absolute ${isHebrew ? 'right-3' : 'left-3'} top-2.5 text-slate-400`} />
                 <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="חפש לפי מספר קריאה (6 ספרות), שם פונה, עיר או נושא..."
-                  className="w-full pr-9 pl-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-medium focus:outline-none focus:border-indigo-600"
+                  placeholder={isHebrew ? 'חפש לפי מספר קריאה (6 ספרות), שם פונה, עיר או נושא...' : 'Search by 6-digit reference ID, reporter name, campus or subject...'}
+                  className={`w-full ${isHebrew ? 'pr-9 pl-3.5' : 'pl-9 pr-3.5'} py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-medium focus:outline-none focus:border-indigo-600`}
                 />
               </div>
             </div>
@@ -239,12 +264,12 @@ function AdminsQueue() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-bold focus:outline-none"
               >
-                <option value="ALL">כל הסטטוסים</option>
-                <option value="Open">Open (פתוח)</option>
-                <option value="In Progress">In Progress (בטיפול)</option>
-                <option value="Pending User">Pending User (ממתין לפונה)</option>
-                <option value="Resolved">Resolved (נפתר)</option>
-                <option value="Closed">Closed (סגור)</option>
+                <option value="ALL">{isHebrew ? 'כל הסטטוסים' : 'All Statuses'}</option>
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Pending User">Pending User</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Closed">Closed</option>
               </select>
 
               <select
@@ -252,11 +277,11 @@ function AdminsQueue() {
                 onChange={(e) => setUrgencyFilter(e.target.value)}
                 className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-slate-800 font-bold focus:outline-none"
               >
-                <option value="ALL">כל הדחיפויות</option>
-                <option value="Critical">Critical (קריטי)</option>
-                <option value="High">High (גבוהה)</option>
-                <option value="Medium">Medium (בינונית)</option>
-                <option value="Low">Low (נמוכה)</option>
+                <option value="ALL">{isHebrew ? 'כל הדחיפויות' : 'All Urgencies'}</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
               </select>
             </div>
           </div>
@@ -264,18 +289,18 @@ function AdminsQueue() {
           {/* Table */}
           <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
+              <table className={`w-full ${isHebrew ? 'text-right' : 'text-left'} text-xs`}>
                 <thead>
                   <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-black">
-                    <th className="py-3 px-4">מספר קריאה</th>
-                    <th className="py-3 px-4">שם הפונה</th>
-                    <th className="py-3 px-4">עיר / מטה</th>
-                    <th className="py-3 px-4">נושא הפנייה</th>
-                    <th className="py-3 px-4">דחיפות</th>
-                    <th className="py-3 px-4">צוות מטפל</th>
-                    <th className="py-3 px-4">סטטוס</th>
-                    <th className="py-3 px-4">זמן פתיחה</th>
-                    <th className="py-3 px-4 text-center">פעולה</th>
+                    <th className="py-3 px-4">{isHebrew ? 'מספר קריאה' : 'Ticket ID'}</th>
+                    <th className="py-3 px-4">{isHebrew ? 'שם הפונה' : 'Reporter'}</th>
+                    <th className="py-3 px-4">{isHebrew ? 'סניף / מטה' : 'Campus / Site'}</th>
+                    <th className="py-3 px-4">{isHebrew ? 'נושא הפנייה' : 'Subject'}</th>
+                    <th className="py-3 px-4">{isHebrew ? 'דחיפות' : 'Urgency'}</th>
+                    <th className="py-3 px-4">{isHebrew ? 'צוות מטפל' : 'Assigned Team'}</th>
+                    <th className="py-3 px-4">{isHebrew ? 'סטטוס' : 'Status'}</th>
+                    <th className="py-3 px-4">{isHebrew ? 'זמן פתיחה' : 'Created At'}</th>
+                    <th className="py-3 px-4 text-center">{isHebrew ? 'פעולה' : 'Actions'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 font-semibold bg-white">
@@ -288,11 +313,11 @@ function AdminsQueue() {
                       <td className="py-3.5 px-4 font-mono font-black text-indigo-600">
                         #{t.ticket_number || t.id.slice(0, 6)}
                       </td>
-                      <td className="py-3.5 px-4 font-black text-slate-900">{t.user_name || t.reporter_name || 'עובד ארגון'}</td>
+                      <td className="py-3.5 px-4 font-black text-slate-900">{t.user_name || t.reporter_name || 'Enterprise User'}</td>
                       <td className="py-3.5 px-4 text-slate-700">
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3 h-3 text-indigo-600" />
-                          {t.user_city || 'מטה ראשי'}
+                          {t.user_city || 'Headquarters'}
                         </span>
                       </td>
                       <td className="py-3.5 px-4 max-w-xs truncate text-slate-800 font-bold">{t.title}</td>
@@ -316,8 +341,8 @@ function AdminsQueue() {
                           {t.status}
                         </span>
                       </td>
-                      <td className="py-3.5 px-4 text-slate-500 text-[11px]">
-                        {new Date(t.created_at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                      <td className="py-3.5 px-4 text-slate-500 text-[11px] font-mono">
+                        {new Date(t.created_at).toLocaleTimeString(isHebrew ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                       </td>
                       <td className="py-3.5 px-4 text-center">
                         <button className="p-1.5 rounded-lg border border-slate-200 bg-slate-100 hover:bg-indigo-600 hover:text-white transition">
@@ -334,10 +359,10 @@ function AdminsQueue() {
         </main>
       </div>
 
-      {/* FULL TICKET DETAILS & EDIT DRAWER / MODAL */}
+      {/* FULL TICKET DETAILS & EDIT MODAL */}
       {selectedTicket && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-2xl rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto border border-slate-200 bg-white">
+          <div className="w-full max-w-2xl rounded-3xl shadow-2xl p-7 space-y-6 max-h-[90vh] overflow-y-auto border border-slate-200 bg-white">
             
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div className="flex items-center gap-3">
@@ -347,11 +372,11 @@ function AdminsQueue() {
                 <div>
                   <h2 className="text-base font-black text-slate-900">{selectedTicket.title}</h2>
                   <div className="flex items-center gap-2 text-xs text-slate-500 font-semibold mt-0.5">
-                    <span>פונה: {selectedTicket.user_name || selectedTicket.reporter_name || 'עובד ארגון'}</span>
+                    <span>{isHebrew ? 'פונה: ' : 'Reporter: '} {selectedTicket.user_name || selectedTicket.reporter_name || 'Enterprise User'}</span>
                     <span>•</span>
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3 h-3 text-indigo-600" />
-                      {selectedTicket.user_city || 'מטה ראשי'}
+                      {selectedTicket.user_city || 'Headquarters'}
                     </span>
                   </div>
                 </div>
@@ -367,43 +392,43 @@ function AdminsQueue() {
             </div>
 
             <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2 text-xs">
-              <div className="font-black text-slate-800">תיאור הפנייה המקורי (פונה):</div>
+              <div className="font-black text-slate-800">{isHebrew ? 'תיאור הפנייה המקורי:' : 'Original Request Description:'}</div>
               <p className="leading-relaxed whitespace-pre-wrap font-medium text-slate-700">{selectedTicket.description}</p>
             </div>
 
             <form onSubmit={handleUpdateTicket} className="space-y-4 text-xs font-bold">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block mb-1.5 text-slate-800">סטטוס קריאה</label>
+                  <label className="block mb-1.5 text-slate-800">{isHebrew ? 'סטטוס קריאה' : 'Status'}</label>
                   <select
                     value={selectedTicket.status}
                     onChange={(e: any) => setSelectedTicket({ ...selectedTicket, status: e.target.value })}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none"
                   >
-                    <option value="Open">Open (פתוח)</option>
-                    <option value="In Progress">In Progress (בטיפול)</option>
-                    <option value="Pending User">Pending User (ממתין למשתמש)</option>
-                    <option value="Resolved">Resolved (נפתר)</option>
-                    <option value="Closed">Closed (סגור)</option>
+                    <option value="Open">Open</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Pending User">Pending User</option>
+                    <option value="Resolved">Resolved</option>
+                    <option value="Closed">Closed</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block mb-1.5 text-slate-800">רמת דחיפות</label>
+                  <label className="block mb-1.5 text-slate-800">{isHebrew ? 'דחיפות SLA' : 'SLA Urgency'}</label>
                   <select
                     value={selectedTicket.urgency}
                     onChange={(e: any) => setSelectedTicket({ ...selectedTicket, urgency: e.target.value })}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none"
                   >
-                    <option value="Critical">Critical (קריטי)</option>
-                    <option value="High">High (גבוהה)</option>
-                    <option value="Medium">Medium (בינונית)</option>
-                    <option value="Low">Low (נמוכה)</option>
+                    <option value="Critical">Critical</option>
+                    <option value="High">High</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Low">Low</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block mb-1.5 text-slate-800">צוות מטפל</label>
+                  <label className="block mb-1.5 text-slate-800">{isHebrew ? 'צוות מטפל' : 'Assigned Team'}</label>
                   <input
                     type="text"
                     value={selectedTicket.assigned_team}
@@ -413,24 +438,24 @@ function AdminsQueue() {
                 </div>
 
                 <div>
-                  <label className="block mb-1.5 text-slate-800">טכנאי מטפל (Assignee)</label>
+                  <label className="block mb-1.5 text-slate-800">{isHebrew ? 'טכנאי מטפל' : 'Assignee Technician'}</label>
                   <input
                     type="text"
                     value={selectedTicket.assigned_technician || ''}
                     onChange={(e) => setSelectedTicket({ ...selectedTicket, assigned_technician: e.target.value })}
-                    placeholder="הקצה טכנאי אישי..."
+                    placeholder={isHebrew ? 'הקצה טכנאי אישי...' : 'Assign specific engineer...'}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-slate-900 font-bold focus:outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block mb-1.5 text-slate-800">הערות פנימיות של צוות ה-IT (Internal Admin Notes)</label>
+                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'הערות פנימיות של צוות ה-IT' : 'Internal IT Notes & Diagnostics'}</label>
                 <textarea
                   rows={3}
                   value={selectedTicket.admin_internal_notes || ''}
                   onChange={(e) => setSelectedTicket({ ...selectedTicket, admin_internal_notes: e.target.value })}
-                  placeholder="הערות לטיפול, צעדי דיאגנוסטיקה שבוצעו..."
+                  placeholder={isHebrew ? 'הערות לטיפול, צעדים שבוצעו, מספרים סידוריים...' : 'Troubleshooting steps taken, hardware serials, resolution details...'}
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-slate-900 font-medium leading-relaxed focus:outline-none"
                 />
               </div>
@@ -438,7 +463,7 @@ function AdminsQueue() {
               <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
                 {editSuccess ? (
                   <span className="text-emerald-600 font-bold flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" /> הקריאה עודכנה בהצלחה!
+                    <CheckCircle2 className="w-4 h-4" /> {isHebrew ? 'הקריאה עודכנה בהצלחה!' : 'Ticket updated successfully!'}
                   </span>
                 ) : <div />}
 
@@ -446,17 +471,17 @@ function AdminsQueue() {
                   <button
                     type="button"
                     onClick={() => setSelectedTicket(null)}
-                    className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
+                    className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
                   >
-                    סגור
+                    {isHebrew ? 'סגור' : 'Close'}
                   </button>
                   <button
                     type="submit"
                     disabled={savingEdit}
-                    className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black shadow-md transition flex items-center gap-1.5"
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black shadow-md transition flex items-center gap-1.5"
                   >
                     <Save className="w-4 h-4" />
-                    <span>{savingEdit ? 'שומר...' : 'שמור שינויים בקריאה'}</span>
+                    <span>{savingEdit ? (isHebrew ? 'שומר...' : 'Saving...') : (isHebrew ? 'שמור שינויים' : 'Save Changes')}</span>
                   </button>
                 </div>
               </div>

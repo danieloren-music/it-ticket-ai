@@ -23,7 +23,8 @@ import {
   ShieldCheck,
   Sun,
   Moon,
-  Zap
+  Zap,
+  ArrowLeft
 } from 'lucide-react';
 
 type ThemeMode = 'light' | 'dark' | 'ai';
@@ -43,7 +44,8 @@ interface ParsedTicketPreview {
 }
 
 function UsersPortalContent() {
-  const [theme, setTheme] = useState<ThemeMode>('dark');
+  // 1. Default is strictly Light (Bright)
+  const [theme, setTheme] = useState<ThemeMode>('light');
   const params = useParams();
   const rawTenant = (params?.tenant as string) || '';
   const tenantSlug = rawTenant.toLowerCase();
@@ -226,15 +228,15 @@ function UsersPortalContent() {
     }
   };
 
-  // Dynamic Theme Styling Matrix
+  // Theme Styling
   const themeBg = {
     light: 'bg-[#F8FAFC] text-slate-900',
     dark: 'bg-[#0B0F19] text-slate-100',
-    ai: 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#1e0847] via-[#0b051e] to-[#04010d] text-cyan-50 selection:bg-fuchsia-500'
+    ai: 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#1e0847] via-[#0b051e] to-[#04010d] text-cyan-50'
   };
 
   const headerBg = {
-    light: 'bg-white/90 border-slate-200 shadow-xs',
+    light: 'bg-white/95 border-slate-200 shadow-2xs',
     dark: 'bg-[#0E1424]/90 border-slate-800',
     ai: 'bg-[#110729]/80 border-fuchsia-500/30 backdrop-blur-xl shadow-lg shadow-purple-950/40'
   };
@@ -248,43 +250,43 @@ function UsersPortalContent() {
   const inputStyle = {
     light: 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-600',
     dark: 'bg-slate-800/90 border-slate-700 text-white placeholder-slate-500 focus:border-indigo-500',
-    ai: 'bg-[#1e0d47]/80 border-cyan-400/40 text-cyan-100 placeholder-fuchsia-300/40 focus:border-cyan-300 focus:ring-1 focus:ring-cyan-300/50 shadow-inner'
+    ai: 'bg-[#1e0d47]/80 border-cyan-400/40 text-cyan-100 placeholder-fuchsia-300/40 focus:border-cyan-300'
   };
 
   const botBubbleBg = {
-    light: 'bg-slate-100 border-slate-200 text-slate-800',
-    dark: 'bg-slate-800/90 border-slate-700/80 text-slate-200',
-    ai: 'bg-[#200d4d]/90 border border-fuchsia-500/40 text-fuchsia-100 shadow-[0_0_15px_rgba(217,70,239,0.1)]'
+    light: 'bg-slate-100 border border-slate-200 text-slate-800',
+    dark: 'bg-slate-800/90 border border-slate-700/80 text-slate-200',
+    ai: 'bg-[#200d4d]/90 border border-fuchsia-500/40 text-fuchsia-100'
   };
 
   const userBubbleBg = {
-    light: 'bg-indigo-600 text-white',
+    light: 'bg-indigo-600 text-white shadow-xs',
     dark: 'bg-indigo-600 text-white',
     ai: 'bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-600 text-white font-bold shadow-lg shadow-fuchsia-600/30'
   };
 
   return (
-    <div dir="rtl" className={`min-h-screen font-sans antialiased flex flex-col justify-between transition-colors duration-500 ${themeBg[theme]}`}>
+    <div dir="rtl" className={`min-h-screen font-sans antialiased flex flex-col justify-between transition-colors duration-300 ${themeBg[theme]}`}>
       
       {/* Top Header */}
       <header className={`h-16 border-b sticky top-0 z-30 px-6 flex items-center justify-between backdrop-blur-md transition-colors duration-300 ${headerBg[theme]}`}>
         <div className="flex items-center gap-3.5">
-          <div className={`relative w-9 h-9 rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-white border ${theme === 'ai' ? 'border-fuchsia-400 ring-2 ring-cyan-400/50' : 'border-slate-100'}`}>
+          <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-white border border-slate-100">
             <Image src="/smartq-logo.png" alt="SmartQ" width={36} height={36} className="object-contain" priority />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className={`text-base font-black ${theme === 'ai' ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-300 to-purple-400' : ''}`}>SmartQ Support</span>
+              <span className="text-base font-black tracking-tight">SmartQ Support</span>
               <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-md border ${
-                theme === 'ai' ? 'bg-fuchsia-500/20 text-cyan-300 border-cyan-400/40 animate-pulse' :
+                theme === 'ai' ? 'bg-fuchsia-500/20 text-cyan-300 border-cyan-400/40' :
                 theme === 'light' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
                 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
               }`}>
-                {theme === 'ai' ? '⚡ NEURAL AI HUB' : 'EMPLOYEE PORTAL'}
+                EMPLOYEE PORTAL
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] font-bold opacity-80">
-              <Building2 className={`w-3.5 h-3.5 ${theme === 'ai' ? 'text-cyan-400' : 'text-indigo-400'}`} />
+              <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
               <span>{tenantName || rawTenant}</span>
             </div>
           </div>
@@ -295,12 +297,12 @@ function UsersPortalContent() {
           <div className={`flex items-center p-1 rounded-xl border ${
             theme === 'light' ? 'bg-slate-100 border-slate-200' :
             theme === 'dark' ? 'bg-slate-800 border-slate-700' :
-            'bg-[#190938] border-fuchsia-500/40 shadow-inner'
+            'bg-[#190938] border-fuchsia-500/40'
           }`}>
             <button
               onClick={() => setTheme('light')}
               className={`p-1.5 rounded-lg transition ${theme === 'light' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-400 hover:text-white'}`}
-              title="Light Mode"
+              title="Bright Light Mode"
             >
               <Sun className="w-3.5 h-3.5" />
             </button>
@@ -313,8 +315,8 @@ function UsersPortalContent() {
             </button>
             <button
               onClick={() => setTheme('ai')}
-              className={`p-1.5 rounded-lg transition ${theme === 'ai' ? 'bg-gradient-to-r from-fuchsia-600 to-cyan-500 text-white shadow-[0_0_10px_rgba(217,70,239,0.5)]' : 'text-slate-400 hover:text-white'}`}
-              title="Supercharged AI Neural Mode"
+              className={`p-1.5 rounded-lg transition ${theme === 'ai' ? 'bg-gradient-to-r from-fuchsia-600 to-cyan-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
+              title="AI Neural Mode"
             >
               <Sparkles className="w-3.5 h-3.5" />
             </button>
@@ -322,10 +324,10 @@ function UsersPortalContent() {
 
           <a
             href={`/${rawTenant}/login`}
-            className={`text-xs font-bold transition px-3 py-1.5 rounded-xl border ${
-              theme === 'ai' ? 'border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20' :
-              theme === 'light' ? 'border-slate-300 text-slate-700 hover:bg-slate-100' :
-              'border-slate-700 text-slate-300 hover:bg-slate-800'
+            className={`text-xs font-bold transition px-3.5 py-1.5 rounded-xl border ${
+              theme === 'light' ? 'border-slate-300 text-slate-800 hover:bg-slate-100' :
+              theme === 'dark' ? 'border-slate-700 text-slate-300 hover:bg-slate-800' :
+              'border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20'
             }`}
           >
             כניסת מנהלים וטכנאי IT
@@ -333,14 +335,14 @@ function UsersPortalContent() {
         </div>
       </header>
 
-      {/* Main Workspace */}
+      {/* Main Support Workspace */}
       <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* User Details Sidebar */}
         <aside className={`lg:col-span-4 rounded-3xl p-5 space-y-4 border transition-colors ${cardBg[theme]}`}>
           <div className="border-b pb-3 border-inherit/30">
             <h2 className="text-xs font-black flex items-center gap-2">
-              <User className={`w-4 h-4 ${theme === 'ai' ? 'text-cyan-400' : 'text-indigo-400'}`} />
+              <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
               <span>פרטי הפונה ומיקום מטה</span>
             </h2>
             <p className="text-[11px] opacity-70 mt-0.5">זאק יצרף פרטים אלו אוטומטית לכרטיס הקריאה</p>
@@ -381,7 +383,7 @@ function UsersPortalContent() {
             </div>
 
             <div>
-              <label className={`block font-bold mb-1 flex items-center gap-1.5 ${theme === 'ai' ? 'text-cyan-300' : 'text-indigo-400'}`}>
+              <label className="block font-bold mb-1 flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
                 <MapPin className="w-3.5 h-3.5" />
                 <span>עיר / מטה / סניף (City / HQ)</span>
               </label>
@@ -401,23 +403,18 @@ function UsersPortalContent() {
           
           {/* Desk Header */}
           <div className={`p-4 border-b flex items-center justify-between ${
-            theme === 'ai' ? 'bg-[#150734]/80 border-fuchsia-500/20' :
             theme === 'light' ? 'bg-slate-50 border-slate-200' :
-            'bg-slate-900/60 border-slate-800'
+            theme === 'dark' ? 'bg-slate-900/60 border-slate-800' :
+            'bg-[#150734]/80 border-fuchsia-500/20'
           }`}>
             <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-md ${
-                theme === 'ai' ? 'bg-gradient-to-tr from-fuchsia-600 to-cyan-400 ring-2 ring-cyan-300/40 shadow-fuchsia-500/30' :
-                'bg-gradient-to-tr from-indigo-500 to-purple-600'
-              }`}>
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-md bg-gradient-to-tr from-indigo-500 to-purple-600">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div>
                 <div className="text-xs font-black flex items-center gap-1.5">
-                  <span className={theme === 'ai' ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-300 via-fuchsia-300 to-white' : ''}>
-                    Zack AI Assistant
-                  </span>
-                  <span className={`w-2 h-2 rounded-full ${theme === 'ai' ? 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]' : 'bg-emerald-400'} animate-pulse`} />
+                  <span>Zack AI Assistant</span>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 </div>
                 <div className="text-[10px] opacity-70 font-bold">סיווג תקלות חכם, ניתוב תורים ו-SLA</div>
               </div>
@@ -433,7 +430,7 @@ function UsersPortalContent() {
               >
                 {m.sender === 'bot' && (
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
-                    theme === 'ai' ? 'bg-fuchsia-950/60 border-fuchsia-500/40 text-cyan-300 shadow-[0_0_10px_rgba(217,70,239,0.3)]' :
+                    theme === 'light' ? 'bg-indigo-50 border-indigo-200 text-indigo-600' :
                     'bg-indigo-600/20 border-indigo-500/30 text-indigo-400'
                   }`}>
                     <Bot className="w-4 h-4" />
@@ -451,10 +448,7 @@ function UsersPortalContent() {
                 </div>
 
                 {m.sender === 'user' && (
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
-                    theme === 'ai' ? 'bg-cyan-950/60 border-cyan-500/40 text-fuchsia-300' :
-                    'bg-purple-600/20 border-purple-500/30 text-purple-400'
-                  }`}>
+                  <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border bg-purple-600/20 border-purple-500/30 text-purple-400">
                     <User className="w-4 h-4" />
                   </div>
                 )}
@@ -463,7 +457,7 @@ function UsersPortalContent() {
 
             {analyzing && (
               <div className={`flex items-center gap-2 text-xs font-bold p-3.5 rounded-2xl border w-fit ${
-                theme === 'ai' ? 'bg-[#290e5c]/80 border-cyan-400/50 text-cyan-300 shadow-[0_0_15px_rgba(34,211,238,0.2)]' :
+                theme === 'light' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' :
                 'bg-indigo-950/30 border-indigo-500/30 text-indigo-400'
               }`}>
                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -473,27 +467,26 @@ function UsersPortalContent() {
 
             {/* Smart Parsed Ticket Preview Card */}
             {ticketPreview && (
-              <div className={`p-5 rounded-2xl border space-y-3.5 shadow-xl ${
-                theme === 'ai'
-                  ? 'bg-gradient-to-r from-[#290d5e] to-[#16063b] border-fuchsia-500/50 shadow-[0_0_25px_rgba(217,70,239,0.25)]'
-                  : 'bg-indigo-950/20 border-indigo-500/40'
+              <div className={`p-5 rounded-2xl border space-y-3.5 shadow-md ${
+                theme === 'light' ? 'bg-indigo-50/60 border-indigo-200 text-slate-900' :
+                'bg-indigo-950/30 border-indigo-500/40 text-white'
               }`}>
                 <div className="flex items-center justify-between border-b pb-2.5 border-inherit/30">
                   <div className="flex items-center gap-2">
-                    <Sparkles className={`w-4 h-4 ${theme === 'ai' ? 'text-cyan-400' : 'text-indigo-400'}`} />
+                    <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     <span className="text-xs font-black">כרטיס קריאה מוכן לאישור</span>
                   </div>
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                    ticketPreview.urgency === 'Critical' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
-                    ticketPreview.urgency === 'High' ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40' :
-                    'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                    ticketPreview.urgency === 'Critical' ? 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300' :
+                    ticketPreview.urgency === 'High' ? 'bg-orange-100 text-orange-800 border border-orange-300 dark:bg-orange-950/60 dark:text-orange-300' :
+                    'bg-indigo-100 text-indigo-800 border border-indigo-300 dark:bg-indigo-950/60 dark:text-indigo-300'
                   }`}>
                     {ticketPreview.urgency} Priority
                   </span>
                 </div>
 
                 <div className="text-xs space-y-1.5">
-                  <div className="font-bold text-sm">{ticketPreview.title}</div>
+                  <div className="font-black text-sm">{ticketPreview.title}</div>
                   <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 opacity-80">
                     <div>קטגוריה: <span className="font-bold opacity-100">{ticketPreview.category}</span></div>
                     <div>צוות מטפל: <span className="font-bold opacity-100">{ticketPreview.assigned_team}</span></div>
@@ -506,11 +499,7 @@ function UsersPortalContent() {
                   type="button"
                   onClick={handleConfirmCreateTicket}
                   disabled={submittingTicket}
-                  className={`w-full py-2.5 rounded-xl text-xs font-black shadow-md transition flex items-center justify-center gap-2 ${
-                    theme === 'ai'
-                      ? 'bg-gradient-to-r from-fuchsia-500 via-purple-600 to-cyan-500 hover:opacity-90 text-white shadow-[0_0_20px_rgba(217,70,239,0.4)]'
-                      : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white'
-                  }`}
+                  className="w-full py-2.5 rounded-xl text-xs font-black shadow-md transition flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   <span>{submittingTicket ? 'פותח קריאה במוקד...' : 'אשר ופתח קריאת שירות זו'}</span>
@@ -523,9 +512,7 @@ function UsersPortalContent() {
 
           {/* Chat Message Input */}
           <form onSubmit={handleSendMessage} className={`p-3.5 border-t flex items-center gap-2 ${
-            theme === 'ai' ? 'bg-[#12062b] border-fuchsia-500/20' :
-            theme === 'light' ? 'bg-slate-50 border-slate-200' :
-            'bg-slate-900/50 border-slate-800'
+            theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/50 border-slate-800'
           }`}>
             <input
               type="text"
@@ -538,11 +525,7 @@ function UsersPortalContent() {
             <button
               type="submit"
               disabled={analyzing || !inputMessage.trim()}
-              className={`px-5 py-2.5 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 ${
-                theme === 'ai'
-                  ? 'bg-gradient-to-r from-fuchsia-600 to-cyan-500 hover:opacity-90 text-white shadow-fuchsia-500/30'
-                  : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white'
-              }`}
+              className="px-5 py-2.5 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
             >
               <span>שלח ל-Zack</span>
               <Send className="w-3.5 h-3.5 rtl:rotate-180" />
@@ -555,18 +538,12 @@ function UsersPortalContent() {
 
       {/* SUCCESS MODAL POPUP (6-DIGIT TICKET CONFIRMATION) */}
       {createdTicketNumber && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-3xl p-6 sm:p-8 space-y-6 text-center border animate-in fade-in zoom-in-95 duration-200 ${
-            theme === 'ai'
-              ? 'bg-[#150734] border-fuchsia-500/50 text-cyan-50 shadow-[0_0_50px_rgba(217,70,239,0.35)]'
-              : 'bg-[#111827] border-slate-800 text-white shadow-2xl'
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className={`w-full max-w-md rounded-3xl p-6 sm:p-8 space-y-6 text-center border shadow-2xl animate-in fade-in zoom-in-95 duration-200 ${
+            theme === 'light' ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#111827] border-slate-800 text-white'
           }`}>
             
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto shadow-lg ${
-              theme === 'ai'
-                ? 'bg-fuchsia-950/80 border border-fuchsia-400 text-cyan-300 shadow-fuchsia-500/40'
-                : 'bg-emerald-950/60 border border-emerald-500/40 text-emerald-400 shadow-emerald-500/10'
-            }`}>
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 text-emerald-700 dark:bg-emerald-950/60 dark:border-emerald-500/40 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-md">
               <CheckCircle2 className="w-8 h-8" />
             </div>
 
@@ -577,20 +554,20 @@ function UsersPortalContent() {
 
             {/* Ticket 6-Digit Badge */}
             <div className={`p-4 rounded-2xl border space-y-2 ${
-              theme === 'ai' ? 'bg-[#1f0b4a] border-cyan-400/40 shadow-inner' : 'bg-slate-900/90 border-slate-800'
+              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/90 border-slate-800'
             }`}>
               <span className="text-[11px] font-bold opacity-75">מספר קריאת שירות למעקב</span>
               <div className="flex items-center justify-center gap-2">
-                <span className={`text-2xl font-black font-mono tracking-wider ${theme === 'ai' ? 'text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-fuchsia-400' : 'text-indigo-400'}`}>
+                <span className="text-2xl font-black font-mono tracking-wider text-indigo-600 dark:text-indigo-400">
                   #{createdTicketNumber}
                 </span>
                 <button
                   type="button"
                   onClick={copyTicketNumber}
-                  className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 transition"
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 transition"
                   title="העתק מספר קריאה"
                 >
-                  {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -598,11 +575,7 @@ function UsersPortalContent() {
             <button
               type="button"
               onClick={() => setCreatedTicketNumber(null)}
-              className={`w-full py-3 rounded-xl text-xs font-black shadow-md transition ${
-                theme === 'ai'
-                  ? 'bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-500 text-white shadow-fuchsia-500/30'
-                  : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-              }`}
+              className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-black shadow-md transition"
             >
               סגור ופתח פנייה חדשה
             </button>
@@ -617,7 +590,7 @@ function UsersPortalContent() {
 
 export default function TenantUsersPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0B0F19]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
       <UsersPortalContent />
     </Suspense>
   );

@@ -30,10 +30,17 @@ import {
   ArrowRight,
   Shield,
   Activity,
-  Layers
+  UserCheck,
+  FolderLock,
+  Layers,
+  Search,
+  Filter,
+  BarChart3,
+  TrendingUp,
+  AlertTriangle
 } from 'lucide-react';
 
-type TabType = 'dashboard' | 'integrations' | 'general' | 'sla' | 'teams' | 'ai' | 'webhooks';
+type TabType = 'dashboard' | 'directory' | 'integrations' | 'sla' | 'teams' | 'ai' | 'webhooks';
 type ThemeMode = 'light' | 'dark' | 'ai';
 
 interface TenantSettings {
@@ -62,10 +69,21 @@ interface TenantInfo {
   created_at: string;
 }
 
-function TenantManageConsole() {
+interface LocalUser {
+  id: string;
+  name: string;
+  email: string;
+  role: 'manager' | 'admin' | 'user';
+  group: string;
+  status: 'active' | 'pending';
+}
+
+function EnterpriseManageConsole() {
   const [theme, setTheme] = useState<ThemeMode>('light');
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [showSsoModal, setShowSsoModal] = useState<boolean>(false);
+  const [directorySubTab, setDirectorySubTab] = useState<'users' | 'groups'>('users');
+  
   const params = useParams();
   const rawTenant = (params?.tenant as string) || '';
   const tenantSlug = rawTenant.toLowerCase();
@@ -75,6 +93,13 @@ function TenantManageConsole() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Directory state
+  const [usersList, setUsersList] = useState<LocalUser[]>([
+    { id: '1', name: 'מנהל ראשי', email: 'it-admin@company.com', role: 'manager', group: 'IT Leadership', status: 'active' },
+    { id: '2', name: 'טכנאי תמיכה', email: 'support@company.com', role: 'admin', group: 'Tier 1 Support', status: 'active' },
+  ]);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [settings, setSettings] = useState<TenantSettings>({
     sso_enabled: false,
@@ -122,6 +147,12 @@ function TenantManageConsole() {
 
       if (tenantRes.data) {
         setTenant(tenantRes.data);
+        if (tenantRes.data.admin_email) {
+          setUsersList((prev) => [
+            { id: '1', name: tenantRes.data.name + ' Admin', email: tenantRes.data.admin_email, role: 'manager', group: 'Security Principals', status: 'active' },
+            ...prev.slice(1)
+          ]);
+        }
       }
 
       if (settingsRes.data) {
@@ -200,7 +231,6 @@ function TenantManageConsole() {
     });
   };
 
-  // Color theme definitions with clean contrast
   const themeBg = {
     light: 'bg-[#F8FAFC] text-slate-900',
     dark: 'bg-[#0B0F19] text-slate-100',
@@ -208,27 +238,15 @@ function TenantManageConsole() {
   };
 
   const cardBg = {
-    light: 'bg-white border-slate-200 shadow-sm text-slate-900',
+    light: 'bg-white border-slate-200 shadow-xs text-slate-900',
     dark: 'bg-[#111827] border-slate-800 shadow-lg text-slate-100',
     ai: 'bg-[#130D2C]/90 border-indigo-500/40 shadow-xl text-slate-100'
-  };
-
-  const headerCardBg = {
-    light: 'bg-white border-slate-200 text-slate-900 shadow-xs',
-    dark: 'bg-[#111827] border-slate-800 text-slate-100',
-    ai: 'bg-[#180E38] border-indigo-500/40 text-white'
   };
 
   const inputBg = {
     light: 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600',
     dark: 'bg-[#1F2937] border-slate-700 text-slate-100 placeholder-slate-500 focus:border-indigo-400',
     ai: 'bg-[#1B1439] border-indigo-500/40 text-indigo-100 placeholder-indigo-300/40 focus:border-cyan-400'
-  };
-
-  const disabledInputBg = {
-    light: 'bg-slate-100 border-slate-200 text-slate-800 font-bold',
-    dark: 'bg-slate-800/80 border-slate-700 text-slate-200 font-bold',
-    ai: 'bg-[#22164A] border-indigo-500/30 text-indigo-200 font-bold'
   };
 
   const sidebarBg = {
@@ -240,7 +258,7 @@ function TenantManageConsole() {
   return (
     <div dir="rtl" className={`min-h-screen font-sans antialiased flex flex-col transition-colors duration-300 ${themeBg[theme]}`}>
       
-      {/* Top Bar Header */}
+      {/* Top Navigation Bar */}
       <header className={`h-16 border-b sticky top-0 z-30 px-6 flex items-center justify-between backdrop-blur-md transition-colors duration-300 ${
         theme === 'light' ? 'bg-white/95 border-slate-200 shadow-2xs' :
         theme === 'dark' ? 'bg-[#0E1424]/95 border-slate-800' :
@@ -252,9 +270,9 @@ function TenantManageConsole() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className={`text-base font-black tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>SmartQ Manage</span>
+              <span className={`text-base font-black tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>SmartQ Identity & Ops</span>
               <span className="px-2 py-0.5 text-[10px] font-extrabold bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20 rounded-md">
-                WORKSPACE CONSOLE
+                ADMIN CONSOLE
               </span>
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-400 font-bold">
@@ -269,7 +287,7 @@ function TenantManageConsole() {
             href={`/${tenant?.id || rawTenant}/admins`}
             className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-black text-slate-800 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 rounded-xl border border-slate-300 dark:border-slate-700 transition"
           >
-            <span>תור טכנאי IT</span>
+            <span>תור קריאות IT</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
 
@@ -312,13 +330,13 @@ function TenantManageConsole() {
         </div>
       </header>
 
-      {/* Main Workspace Layout */}
+      {/* Main Framework Layout */}
       <div className="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* Sidebar Navigation */}
+        {/* Okta-Style Sidebar */}
         <aside className={`lg:col-span-3 rounded-2xl border p-3 space-y-1.5 sticky top-22 ${sidebarBg[theme]}`}>
           <div className="px-3 py-2 text-[11px] font-black text-slate-500 uppercase tracking-wider">
-            תפריט סביבת עבודה
+            מרכז שליטה ובקרה
           </div>
 
           <button
@@ -330,7 +348,7 @@ function TenantManageConsole() {
             }`}
           >
             <LayoutDashboard className="w-4 h-4" />
-            <span>דשבורד וסקירה כללית</span>
+            <span>דשבורד ואנליטיקות</span>
           </button>
 
           <button
@@ -343,7 +361,7 @@ function TenantManageConsole() {
           >
             <div className="flex items-center gap-2.5">
               <Plug className="w-4 h-4" />
-              <span>אינטגרציות ו-SSO</span>
+              <span>Applications & SSO</span>
             </div>
             {settings.sso_enabled && (
               <span className="w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-emerald-300" />
@@ -351,16 +369,20 @@ function TenantManageConsole() {
           </button>
 
           <button
-            onClick={() => setActiveTab('general')}
+            onClick={() => setActiveTab('directory')}
             className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl text-xs font-bold transition ${
-              activeTab === 'general'
+              activeTab === 'directory'
                 ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
                 : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/60'
             }`}
           >
-            <Building2 className="w-4 h-4" />
-            <span>פרטי ארגון ודומיין</span>
+            <UserCheck className="w-4 h-4" />
+            <span>Directory (משתמשים וקבוצות)</span>
           </button>
+
+          <div className="px-3 pt-3 pb-1 text-[11px] font-black text-slate-500 uppercase tracking-wider">
+            תצורת מערכת
+          </div>
 
           <button
             onClick={() => setActiveTab('sla')}
@@ -383,7 +405,7 @@ function TenantManageConsole() {
             }`}
           >
             <Users className="w-4 h-4" />
-            <span>צוותים מטפלים ותורים</span>
+            <span>צוותי תמיכה וניתוב</span>
           </button>
 
           <button
@@ -395,7 +417,7 @@ function TenantManageConsole() {
             }`}
           >
             <Cpu className="w-4 h-4" />
-            <span>הנחיות Zack AI מותאמות</span>
+            <span>הנחיות Zack AI</span>
           </button>
 
           <button
@@ -411,39 +433,39 @@ function TenantManageConsole() {
           </button>
         </aside>
 
-        {/* Content Panel */}
+        {/* Content View */}
         <main className="lg:col-span-9 space-y-6">
           
           {/* Header Action Banner */}
-          <div className={`p-5 rounded-2xl border flex items-center justify-between transition-colors ${headerCardBg[theme]}`}>
+          <div className={`p-5 rounded-2xl border flex items-center justify-between ${cardBg[theme]}`}>
             <div>
               <h1 className="text-base font-black">
-                {activeTab === 'dashboard' && `דשבורד ניהול וסקירה - ${tenant?.name || rawTenant}`}
-                {activeTab === 'integrations' && 'מרכז אינטגרציות וחיבורי ארגון'}
-                {activeTab === 'general' && 'פרטי הארגון והגדרות בסיס'}
-                {activeTab === 'sla' && 'מדיניות זמני מענה (SLA Policies)'}
+                {activeTab === 'dashboard' && `דשבורד ואנליטיקות פעילות - ${tenant?.name || rawTenant}`}
+                {activeTab === 'directory' && 'ניהול משתמשים, תפקידים וקבוצות (Directory)'}
+                {activeTab === 'integrations' && 'מרכז אינטגרציות וספקי זהויות (Applications & SSO)'}
+                {activeTab === 'sla' && 'מדיניות זמני מענה (SLA Target Policies)'}
                 {activeTab === 'teams' && 'ניהול צוותים מטפלים מורשים'}
                 {activeTab === 'ai' && 'הנחיות וידע מותאם אישית ל-Zack AI'}
-                {activeTab === 'webhooks' && 'חיבורי Webhook והתרעות'}
+                {activeTab === 'webhooks' && 'חיבורי Webhook להתרעות'}
               </h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5">
-                שליטה מלאה בהגדרות הסביבה, אבטחה וניתוב קריאות
+                ניהול זהויות, בקרת גישה (RBAC) ותפעול שוטף
               </p>
             </div>
 
             <div className="flex items-center gap-3">
               {saveSuccess && (
-                <span className="text-xs font-black text-emerald-700 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 px-3.5 py-1.5 rounded-xl border border-emerald-300 dark:border-emerald-800 flex items-center gap-1.5">
+                <span className="text-xs font-black text-emerald-700 bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300 px-3.5 py-1.5 rounded-xl border border-emerald-300 flex items-center gap-1.5">
                   <Check className="w-4 h-4" />
-                  השינויים נשמרו בהצלחה!
+                  השינויים נשמרו!
                 </span>
               )}
-              {activeTab !== 'integrations' && activeTab !== 'dashboard' && (
+              {activeTab !== 'integrations' && activeTab !== 'dashboard' && activeTab !== 'directory' && (
                 <button
                   type="button"
                   onClick={() => handleSaveSettings()}
                   disabled={saving}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/20 transition"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-black shadow-md transition"
                 >
                   <Save className="w-4 h-4" />
                   <span>{saving ? 'שומר...' : 'שמור שינויים'}</span>
@@ -452,90 +474,208 @@ function TenantManageConsole() {
             </div>
           </div>
 
-          {/* TAB 1: Dashboard Overview */}
+          {/* TAB 1: Enterprise Dashboard & Analytics */}
           {activeTab === 'dashboard' && (
             <div className="space-y-6">
               
-              {/* Stat Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className={`p-5 rounded-2xl border ${cardBg[theme]}`}>
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                    <span className="text-xs font-bold">מצב SSO ואימות ארגוני</span>
+              {/* Metric KPI Widgets */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className={`p-4 rounded-2xl border ${cardBg[theme]}`}>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-1.5">
+                    <span>סטטוס אימות SSO</span>
                     <ShieldCheck className="w-4 h-4 text-indigo-600" />
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="text-sm font-black">
                     {settings.sso_enabled ? (
-                      <span className="text-sm font-black text-emerald-600 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4" /> פעיל (Microsoft Entra ID)
+                      <span className="text-emerald-600 flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4" /> Entra ID SAML
                       </span>
                     ) : (
-                      <span className="text-sm font-black text-slate-500 flex items-center gap-1.5">
-                        <XCircle className="w-4 h-4 text-slate-400" /> לא מוגדר / כניסה מקומית
-                      </span>
+                      <span className="text-slate-500">כניסה מקומית</span>
                     )}
                   </div>
                 </div>
 
-                <div className={`p-5 rounded-2xl border ${cardBg[theme]}`}>
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                    <span className="text-xs font-bold">צוותים פעילים במערכת</span>
+                <div className={`p-4 rounded-2xl border ${cardBg[theme]}`}>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-1.5">
+                    <span>משתמשים פעילים</span>
                     <Users className="w-4 h-4 text-purple-600" />
                   </div>
                   <div className="text-lg font-black text-slate-900 dark:text-white">
-                    {settings.allowed_teams.length} צוותי IT
+                    {usersList.length} רשומים
                   </div>
                 </div>
 
-                <div className={`p-5 rounded-2xl border ${cardBg[theme]}`}>
-                  <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-2">
-                    <span className="text-xs font-bold">יעד מענה לקריאה קריטית</span>
-                    <Clock className="w-4 h-4 text-rose-600" />
+                <div className={`p-4 rounded-2xl border ${cardBg[theme]}`}>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-1.5">
+                    <span>עמידה ביעד SLA</span>
+                    <TrendingUp className="w-4 h-4 text-emerald-600" />
                   </div>
-                  <div className="text-lg font-black text-rose-600">
-                    עד {settings.sla_critical_hours} שעות
+                  <div className="text-lg font-black text-emerald-600">
+                    98.4%
+                  </div>
+                </div>
+
+                <div className={`p-4 rounded-2xl border ${cardBg[theme]}`}>
+                  <div className="flex items-center justify-between text-slate-500 text-xs font-bold mb-1.5">
+                    <span>זמן פתרון ממוצע</span>
+                    <Clock className="w-4 h-4 text-indigo-600" />
+                  </div>
+                  <div className="text-lg font-black text-indigo-600">
+                    42 דקות
                   </div>
                 </div>
               </div>
 
-              {/* Quick Actions Panel */}
+              {/* Analytics & Activity Graph Panel */}
               <div className={`p-6 rounded-2xl border space-y-4 ${cardBg[theme]}`}>
-                <h3 className="text-xs font-black border-b pb-3 text-slate-900 dark:text-white">פעולות מהירות לסביבה</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                  <button
-                    onClick={() => setActiveTab('integrations')}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 hover:bg-indigo-50/60 dark:bg-slate-800/50 dark:hover:bg-indigo-950/30 transition text-right flex items-center justify-between group"
-                  >
-                    <div>
-                      <div className="font-black text-slate-900 dark:text-white group-hover:text-indigo-600">הגדרת אינטגרציית SSO</div>
-                      <div className="text-[11px] text-slate-500 font-medium mt-0.5">חיבור SAML 2.0 מול Microsoft Entra ID</div>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 rtl:rotate-180" />
-                  </button>
+                <div className="flex items-center justify-between border-b pb-3">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-indigo-600" />
+                    <h3 className="text-xs font-black">התפלגות קריאות שירות וביצועי צוותים</h3>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-400">30 ימים אחרונים</span>
+                </div>
 
-                  <a
-                    href={`/${tenant?.id || rawTenant}/admins`}
-                    className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 hover:bg-purple-50/60 dark:bg-slate-800/50 dark:hover:bg-purple-950/30 transition text-right flex items-center justify-between group"
-                  >
-                    <div>
-                      <div className="font-black text-slate-900 dark:text-white group-hover:text-purple-600">מעבר לתור טכנאים (Admins)</div>
-                      <div className="text-[11px] text-slate-500 font-medium mt-0.5">צפייה וטיפול בקריאות שירות פתוחות</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border space-y-2">
+                    <div className="text-[11px] font-bold text-slate-500">Tier 1 Helpdesk</div>
+                    <div className="text-xl font-black text-indigo-600">142 פניות</div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-indigo-600 h-full w-[70%]" />
                     </div>
-                    <ExternalLink className="w-4 h-4 text-slate-400 group-hover:text-purple-600" />
-                  </a>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border space-y-2">
+                    <div className="text-[11px] font-bold text-slate-500">System & Cloud Ops</div>
+                    <div className="text-xl font-black text-purple-600">58 פניות</div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-purple-600 h-full w-[40%]" />
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border space-y-2">
+                    <div className="text-[11px] font-bold text-slate-500">Network & Identity</div>
+                    <div className="text-xl font-black text-emerald-600">29 פניות</div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-emerald-600 h-full w-[25%]" />
+                    </div>
+                  </div>
                 </div>
               </div>
 
             </div>
           )}
 
-          {/* TAB 2: Integrations & SSO Suite */}
+          {/* TAB 2: Directory (Users & Groups) */}
+          {activeTab === 'directory' && (
+            <div className={`p-6 rounded-2xl border space-y-5 ${cardBg[theme]}`}>
+              <div className="flex items-center justify-between border-b pb-4">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setDirectorySubTab('users')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                      directorySubTab === 'users' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    משתמשים (Users)
+                  </button>
+                  <button
+                    onClick={() => setDirectorySubTab('groups')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+                      directorySubTab === 'groups' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    קבוצות אבטחה (Groups)
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 absolute right-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="חפש משתמש או אימייל..."
+                      className={`pr-8 pl-3 py-1.5 text-xs rounded-xl border ${inputBg[theme]}`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Users Table */}
+              {directorySubTab === 'users' && (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-right text-xs">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 font-black">
+                        <th className="py-2.5 px-3">שם משתמש</th>
+                        <th className="py-2.5 px-3">כתובת אימייל</th>
+                        <th className="py-2.5 px-3">תפקיד במערכת (Role)</th>
+                        <th className="py-2.5 px-3">שיוך קבוצתי</th>
+                        <th className="py-2.5 px-3">סטטוס</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-semibold">
+                      {usersList.map((u) => (
+                        <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition">
+                          <td className="py-3 px-3 font-black text-slate-900 dark:text-white">{u.name}</td>
+                          <td className="py-3 px-3 font-mono text-slate-600 dark:text-slate-300">{u.email}</td>
+                          <td className="py-3 px-3">
+                            <span className={`px-2.5 py-1 rounded-md text-[10px] font-black ${
+                              u.role === 'manager' 
+                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-300' 
+                                : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-300'
+                            }`}>
+                              {u.role.toUpperCase()}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-slate-500">{u.group}</td>
+                          <td className="py-3 px-3">
+                            <span className="flex items-center gap-1 text-emerald-600 text-[11px] font-bold">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Groups Table */}
+              {directorySubTab === 'groups' && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="p-4 rounded-xl border border-purple-200 bg-purple-50/40 dark:bg-purple-950/20 dark:border-purple-900/40 space-y-2">
+                    <div className="font-black text-purple-900 dark:text-purple-300">SmartQ-Managers</div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">שליטה מלאה בקונסולת הניהול, אינטגרציות SSO והגדרות אבטחה.</p>
+                    <span className="text-[10px] font-mono text-slate-400 block pt-1">מיפוי: Entra Group Object ID</span>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-indigo-200 bg-indigo-50/40 dark:bg-indigo-950/20 dark:border-indigo-900/40 space-y-2">
+                    <div className="font-black text-indigo-900 dark:text-indigo-300">SmartQ-Admins</div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">גישה לתור קריאות שירות וטיפול בפניות טכנולוגיות.</p>
+                    <span className="text-[10px] font-mono text-slate-400 block pt-1">מיפוי: Entra Group Object ID</span>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-800/40 dark:border-slate-700 space-y-2">
+                    <div className="font-black text-slate-900 dark:text-white">SmartQ-Users</div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">גישה לפורטל פתיחת קריאות שירות עבור כלל עובדי החברה.</p>
+                    <span className="text-[10px] font-mono text-slate-400 block pt-1">מיפוי: All Employees / Group ID</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: Integrations & SSO Suite (Okta Style) */}
           {activeTab === 'integrations' && (
             <div className="space-y-6">
-              
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-black text-slate-900 dark:text-white">אינטגרציות אבטחה וספקי זהויות (IdP)</h2>
-                  <p className="text-xs text-slate-500 font-medium">נהל חיבורי SSO, סנכרון משתמשים והרשאות ארגוניות</p>
+                  <h2 className="text-sm font-black text-slate-900 dark:text-white">אינטגרציות אבטחה וספקי זהויות (Identity Providers)</h2>
+                  <p className="text-xs text-slate-500 font-medium">חיבור סביבת הארגון ל-Microsoft Entra ID, Okta ופרוטוקול SAML 2.0</p>
                 </div>
 
                 <button
@@ -548,15 +688,15 @@ function TenantManageConsole() {
                 </button>
               </div>
 
-              {/* Integrations Grid */}
+              {/* Integrations Catalog */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 
-                {/* Microsoft Entra ID Card */}
-                <div className={`p-6 rounded-2xl border relative flex flex-col justify-between ${cardBg[theme]}`}>
+                {/* Entra Card */}
+                <div className={`p-6 rounded-2xl border flex flex-col justify-between ${cardBg[theme]}`}>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-xl bg-white dark:bg-slate-800 border flex items-center justify-center">
                           <svg className="w-5 h-5" viewBox="0 0 23 23">
                             <path fill="#f35325" d="M1 1h10v10H1z"/>
                             <path fill="#81bc06" d="M12 1h10v10H12z"/>
@@ -572,7 +712,7 @@ function TenantManageConsole() {
 
                       {settings.sso_enabled ? (
                         <span className="px-2.5 py-1 text-[10px] font-black rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-300">
-                          מחובר ופעיל
+                          פעיל ומחובר
                         </span>
                       ) : (
                         <span className="px-2.5 py-1 text-[10px] font-black rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-300">
@@ -582,13 +722,13 @@ function TenantManageConsole() {
                     </div>
 
                     <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                      הזדהות עובדים וטכנאים באמצעות חשבון Microsoft ארגוני עם חלוקת הרשאות אוטומטית לפי קבוצות אבטחה (Security Groups).
+                      אימות משתמשים וטכנאים בחשבון Office 365 עם סנכרון הרשאות אוטומטי מבוסס Security Groups.
                     </p>
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                  <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                     <span className="text-[11px] font-bold text-slate-400">
-                      {settings.saml_login_url ? 'הוגדרו פרמטרי SAML' : 'טרם הוזנו פרטים'}
+                      {settings.saml_login_url ? 'הוגדרו מזהי קבוצות ו-URL' : 'טרם הוזנו פרטים'}
                     </span>
                     <button
                       type="button"
@@ -600,12 +740,12 @@ function TenantManageConsole() {
                   </div>
                 </div>
 
-                {/* Okta Card (Coming Soon) */}
-                <div className={`p-6 rounded-2xl border opacity-75 flex flex-col justify-between ${cardBg[theme]}`}>
+                {/* Okta Card */}
+                <div className={`p-6 rounded-2xl border opacity-80 flex flex-col justify-between ${cardBg[theme]}`}>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border flex items-center justify-center font-black text-indigo-600">
+                        <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 flex items-center justify-center font-black text-indigo-600">
                           <Shield className="w-5 h-5" />
                         </div>
                         <div>
@@ -614,18 +754,18 @@ function TenantManageConsole() {
                         </div>
                       </div>
                       <span className="px-2 py-0.5 text-[10px] font-bold rounded-md bg-slate-100 dark:bg-slate-800 text-slate-500">
-                        בקרוב
+                        Enterprise Addon
                       </span>
                     </div>
 
                     <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                      חיבור SSO ישיר לחשבון ה-Okta הארגוני עבור כל עובדי החברה וצוותי ה-IT.
+                      התחברות SSO מול שרתי ה-Okta הארגוניים של החברה.
                     </p>
                   </div>
 
-                  <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800/80">
+                  <div className="pt-4 mt-4 border-t border-slate-100 dark:border-slate-800">
                     <button disabled className="px-3.5 py-1.5 text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-xl cursor-not-allowed">
-                      זמין בחבילת Enterprise
+                      זמין לחשבונות Enterprise
                     </button>
                   </div>
                 </div>
@@ -634,32 +774,7 @@ function TenantManageConsole() {
             </div>
           )}
 
-          {/* TAB 3: General Tenant Info */}
-          {activeTab === 'general' && (
-            <div className={`p-6 rounded-2xl border space-y-5 ${cardBg[theme]}`}>
-              <h3 className="text-xs font-black border-b pb-3 text-slate-900 dark:text-white">פרטי סביבת הלקוח והדומיין</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                <div className="space-y-1.5">
-                  <label className="block font-bold text-slate-700 dark:text-slate-300">שם הארגון</label>
-                  <input type="text" disabled value={tenant?.name || ''} className={`w-full px-3.5 py-2.5 rounded-xl border ${disabledInputBg[theme]}`} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block font-bold text-slate-700 dark:text-slate-300">מזהה סביבה (Slug ב-URL)</label>
-                  <input type="text" disabled value={tenant?.id || rawTenant} className={`w-full px-3.5 py-2.5 rounded-xl border ${disabledInputBg[theme]}`} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block font-bold text-slate-700 dark:text-slate-300">דומיין מורשה</label>
-                  <input type="text" disabled value={tenant?.domain || ''} className={`w-full px-3.5 py-2.5 rounded-xl border ${disabledInputBg[theme]}`} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block font-bold text-slate-700 dark:text-slate-300">אימייל מנהל ראשי</label>
-                  <input type="text" disabled value={tenant?.admin_email || ''} className={`w-full px-3.5 py-2.5 rounded-xl border ${disabledInputBg[theme]}`} />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB 4: SLA Policies */}
+          {/* TAB 4: SLA */}
           {activeTab === 'sla' && (
             <div className={`p-6 rounded-2xl border space-y-4 ${cardBg[theme]}`}>
               <h3 className="text-xs font-black border-b pb-3 text-slate-900 dark:text-white">מדיניות זמני מענה לקריאות שירות (בשעות)</h3>
@@ -750,7 +865,7 @@ function TenantManageConsole() {
             </div>
           )}
 
-          {/* TAB 6: AI Brain */}
+          {/* TAB 6: AI */}
           {activeTab === 'ai' && (
             <div className={`p-6 rounded-2xl border space-y-4 ${cardBg[theme]}`}>
               <h3 className="text-xs font-black border-b pb-3 text-slate-900 dark:text-white">הנחיות וידע מותאם אישית ל-Zack AI</h3>
@@ -784,9 +899,9 @@ function TenantManageConsole() {
         </main>
       </div>
 
-      {/* FULL INTEGRATION CONFIGURATION MODAL / SUB-PAGE */}
+      {/* FULL INTEGRATION POPUP MODAL (Okta / Azure SAML Suite) */}
       {showSsoModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-3xl bg-white dark:bg-[#111827] border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl p-6 sm:p-8 space-y-6 max-h-[90vh] overflow-y-auto text-slate-900 dark:text-slate-100">
             
             {/* Modal Header */}
@@ -813,8 +928,8 @@ function TenantManageConsole() {
             {/* Master Toggle */}
             <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
               <div>
-                <div className="text-xs font-black text-slate-900 dark:text-white">סטטוס אינטגרציית SSO</div>
-                <div className="text-[11px] text-slate-500 font-medium">הפעל כדי לאפשר כניסה עם חשבון Microsoft בדף הלוגין</div>
+                <div className="text-xs font-black text-slate-900 dark:text-white">הפעל אינטגרציית SSO</div>
+                <div className="text-[11px] text-slate-500 font-medium">כאשר פעיל, כפתור ההתחברות באמצעות Entra ID יופיע בדף הלוגין</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -966,7 +1081,7 @@ function TenantManageConsole() {
 export default function TenantManagePage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
-      <TenantManageConsole />
+      <EnterpriseManageConsole />
     </Suspense>
   );
 }

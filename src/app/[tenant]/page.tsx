@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { supabase } from '@/lib/supabaseClient';
 
 export default async function TenantRootPage({ params }: { params: Promise<{ tenant: string }> }) {
@@ -6,6 +7,7 @@ export default async function TenantRootPage({ params }: { params: Promise<{ ten
   const rawTenant = resolvedParams?.tenant || '';
   const tenantSlug = rawTenant.toLowerCase();
 
+  // בדיקת קיום הארגון
   const { data: tenant, error } = await supabase
     .from('tenants')
     .select('id, status')
@@ -16,6 +18,21 @@ export default async function TenantRootPage({ params }: { params: Promise<{ ten
     notFound();
   }
 
-  // הפניה ישירה לקונסולת ה-Manage של הארגון
-  redirect(`/${rawTenant}/manage`);
+  // בדיקת Session
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get('smartq_session')?.value;
+
+  if (sessionCookie) {
+    try {
+      const session = JSON.parse(Buffer.from(sessionCookie, 'base64').toString('utf-8'));
+      if (session?.tenantId?.toLowerCase() === tenantSlug) {
+        redirect(`/${rawTenant}/manage`);
+      }
+    } catch {
+      // המשך ללוגין במקרה של שגיאה
+    }
+  }
+
+  // הפניה אוטומטית לדף הלוגין של הארגון
+  redirect(`/${rawTenant}/login?returnTo=/${rawTenant}/manage`);
 }

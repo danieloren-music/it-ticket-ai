@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. נתיבים ציבוריים פתוחים לחלוטין
+  // 1. נתיבים פתוחים לחלוטין (אתר ראשי, קבצים סטטיים, פלטפורמה, ו-API)
   if (
     pathname.startsWith('/home') ||
     pathname.startsWith('/_next') ||
@@ -16,19 +16,20 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. זיהוי נתיבי ארגון: /[tenant]/manage, /[tenant]/admins, /[tenant]/users, /[tenant]/login
+  // 2. זיהוי נתיב Tenant: /[tenant]/manage, /[tenant]/admins, /[tenant]/users, /[tenant]/login
   const match = pathname.match(/^\/([^\/]+)(?:\/(manage|admins|users|login))?/);
 
   if (match) {
-    const routeTenant = match[1].toLowerCase();
+    const rawTenant = match[1];
+    const routeTenant = rawTenant.toLowerCase();
     const routeType = match[2] || 'root';
 
-    // דף לוגין ופורטל משתמשים פתוחים לגישה
-    if (routeType === 'login' || routeType === 'users' || routeType === 'root') {
+    // דף הלוגין עצמו פתוח לגישה
+    if (routeType === 'login') {
       return NextResponse.next();
     }
 
-    // קריאת עוגיית ה-Session
+    // קריאת עוגיית Session
     const sessionCookie = req.cookies.get('smartq_session')?.value;
     let session: { role: 'manager' | 'admin' | 'user'; tenantId: string; email: string } | null = null;
 
@@ -42,26 +43,37 @@ export function middleware(req: NextRequest) {
 
     const isMatchingTenant = session?.tenantId?.toLowerCase() === routeTenant;
 
-    // 3. אכיפת הרשאות:
-    // נתיב Manage: רק מנהל (Manager) של אותו ארגון מורשה
+    // הפניה ללוגין אם אין Session מאומת לאותו ארגון
+    const redirectToLogin = () => {
+      const loginUrl = new URL(`/${rawTenant}/login`, req.url);
+      loginUrl.searchParams.set('returnTo', pathname);
+      return NextResponse.redirect(loginUrl);
+    };
+
+    // 3. אכיפת הרשאות (RBAC):
+    
+    // נתיב Manage: רק מנהל (Manager) מורשה
     if (routeType === 'manage') {
       if (!session || !isMatchingTenant || session.role !== 'manager') {
-        const loginUrl = new URL(`/${match[1]}/login`, req.url);
-        loginUrl.searchParams.set('returnTo', pathname);
-        return NextResponse.redirect(loginUrl);
+        return redirectToLogin();
       }
     }
 
-    // נתיב Admins: מנהל או טכנאי IT של אותו ארגון מורשים
+    // נתיב Admins: מנהל או טכנאי IT מורשים
     if (routeType === 'admins') {
       if (
         !session ||
         !isMatchingTenant ||
         (session.role !== 'manager' && session.role !== 'admin')
       ) {
-        const loginUrl = new URL(`/${match[1]}/login`, req.url);
-        loginUrl.searchParams.set('returnTo', pathname);
-        return NextResponse.redirect(loginUrl);
+        return redirectToLogin();
+      }
+    }
+
+    // נתיב Users: דורש הזדהות מול Entra ID / כניסה מקומית (User, Admin, Manager)
+    if (routeType === 'users') {
+      if (!session || !isMatchingTenant) {
+        return redirectToLogin();
       }
     }
   }

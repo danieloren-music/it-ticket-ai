@@ -21,7 +21,10 @@ import {
   Building2,
   Sun,
   Moon,
-  Sparkles
+  Sparkles,
+  MapPin,
+  Phone,
+  Copy
 } from 'lucide-react';
 
 type ThemeMode = 'light' | 'dark' | 'ai';
@@ -66,16 +69,21 @@ interface Message {
 
 interface Ticket {
   id: string;
+  ticket_number?: string;
   created_at: string;
   title: string;
   description: string;
   category: string;
   urgency: string;
   status: string;
-  system_impacted: string;
+  system_impacted?: string;
   assigned_team: string;
-  reporter_name: string;
-  reporter_email: string;
+  user_name?: string;
+  user_email?: string;
+  reporter_name?: string;
+  reporter_email?: string;
+  user_city?: string;
+  user_phone?: string;
   tenant_id: string;
 }
 
@@ -89,7 +97,8 @@ const QUICK_PROMPTS = [
 function TenantPortalContent() {
   const [theme, setTheme] = useState<ThemeMode>('light');
   const params = useParams();
-  const tenantSlug = (params?.tenant as string) || 'demo';
+  const rawTenant = (params?.tenant as string) || 'demo';
+  const tenantSlug = rawTenant.toLowerCase();
 
   const searchParams = useSearchParams();
   const ssoName = searchParams.get('name') || '';
@@ -120,22 +129,27 @@ function TenantPortalContent() {
     assigned_team: 'Helpdesk Tier 1',
     reporter_name: '',
     reporter_email: '',
+    user_city: '',
+    user_phone: '',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [isLoadingTickets, setIsLoadingTickets] = useState(true);
+  const [createdTicketNumber, setCreatedTicketNumber] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
   const formSectionRef = useRef<HTMLDivElement>(null);
 
+  // זיהוי Session של המשתמש והסביבה
   useEffect(() => {
-    const fetchTenant = async () => {
+    const fetchTenantAndSession = async () => {
       const { data } = await supabase
         .from('tenants')
         .select('*')
-        .eq('id', tenantSlug)
+        .ilike('id', tenantSlug)
         .single();
 
       if (data) {
@@ -143,15 +157,36 @@ function TenantPortalContent() {
       } else {
         setTenant({
           id: tenantSlug,
-          name: tenantSlug.toUpperCase(),
+          name: rawTenant.toUpperCase(),
           domain: '',
           admin_email: '',
         });
       }
+
+      // קריאת Session מעוגייה אם קיימת
+      const matchCookie = document.cookie
+        .split('; ')
+        .find((row) => row.startsWith('smartq_session='));
+
+      if (matchCookie) {
+        try {
+          const rawVal = matchCookie.split('=')[1];
+          const decoded = JSON.parse(atob(rawVal));
+          if (decoded.email) {
+            setCurrentUser({ name: decoded.name || decoded.email.split('@')[0], email: decoded.email, dept: decoded.city || '' });
+            setFormData((prev) => ({
+              ...prev,
+              reporter_name: decoded.name || prev.reporter_name,
+              reporter_email: decoded.email || prev.reporter_email,
+              user_city: decoded.city || prev.user_city,
+            }));
+          }
+        } catch {}
+      }
     };
 
-    fetchTenant();
-  }, [tenantSlug]);
+    fetchTenantAndSession();
+  }, [tenantSlug, rawTenant]);
 
   useEffect(() => {
     if (ssoName || ssoEmail) {
@@ -183,7 +218,7 @@ function TenantPortalContent() {
     const { data, error } = await supabase
       .from('tickets')
       .select('*')
-      .eq('tenant_id', tenantSlug)
+      .ilike('tenant_id', tenantSlug)
       .order('created_at', { ascending: false });
 
     if (!error && data) setTickets(data);
@@ -211,7 +246,9 @@ function TenantPortalContent() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           messages: newMessages.map(({ role, content }) => ({ role, content })),
-          currentFormData: formData 
+          currentFormData: formData,
+          description: messageContent,
+          tenantSlug
         }),
       });
 
@@ -220,14 +257,15 @@ function TenantPortalContent() {
 
       setFormData((prev) => ({
         ...prev,
-        title: data.title || prev.title,
-        description: data.description || prev.description,
+        title: data.title || data.summary || prev.title || messageContent.slice(0, 60),
+        description: data.description || prev.description || messageContent,
         category: data.category || prev.category,
         urgency: data.urgency || prev.urgency,
         system_impacted: data.system_impacted || prev.system_impacted,
-        assigned_team: data.assigned_team || prev.assigned_team,
+        assigned_team: data.assigned_team || data.assignedTeam || prev.assigned_team,
         reporter_name: currentUser?.name || data.reporter_name || prev.reporter_name,
         reporter_email: currentUser?.email || data.reporter_email || prev.reporter_email,
+        user_city: data.city || prev.user_city,
       }));
 
       if (data.follow_up_question) {
@@ -268,20 +306,35 @@ function TenantPortalContent() {
     setIsSubmitting(true);
     setFeedbackMsg(null);
 
+    const generated6Digits = Math.floor(100000 + Math.random() * 900000).toString();
+    const finalReporterName = currentUser?.name || formData.reporter_name || 'עובד ארגון';
+    const finalReporterEmail = currentUser?.email || formData.reporter_email || `user@${tenantSlug}.com`;
+
     try {
-      const { error } = await supabase.from('tickets').insert([
+      const { data, error } = await supabase.from('tickets').insert([
         {
-          ...formData,
           tenant_id: tenantSlug,
-          reporter_name: currentUser?.name || formData.reporter_name,
-          reporter_email: currentUser?.email || formData.reporter_email,
+          ticket_number: generated6Digits,
+          title: formData.title,
+          description: formData.description,
+          category: formData.category,
+          urgency: formData.urgency,
+          assigned_team: formData.assigned_team,
+          user_name: finalReporterName,
+          user_email: finalReporterEmail,
+          reporter_name: finalReporterName,
+          reporter_email: finalReporterEmail,
+          user_city: formData.user_city || 'מטה ראשי',
+          user_phone: formData.user_phone || '',
           status: 'Open',
         },
-      ]);
+      ]).select().single();
 
       if (error) throw error;
 
-      setFeedbackMsg({ text: 'הקריאה נשלחה בהצלחה לצוות המטפל בארגון!', type: 'success' });
+      const finalTicketNum = data?.ticket_number || generated6Digits;
+      setCreatedTicketNumber(finalTicketNum);
+
       setFormData({
         title: '',
         description: '',
@@ -291,11 +344,13 @@ function TenantPortalContent() {
         assigned_team: 'Helpdesk Tier 1',
         reporter_name: currentUser?.name || '',
         reporter_email: currentUser?.email || '',
+        user_city: '',
+        user_phone: '',
       });
       setIsReadyForReview(false);
       setMessages((prev) => [
         ...prev,
-        { id: 'done-' + Date.now(), role: 'assistant', content: 'הקריאה שוגרה בהצלחה. יש משהו נוסף שאוכל לעזור בו?', isStreaming: true }
+        { id: 'done-' + Date.now(), role: 'assistant', content: `קריאה #${finalTicketNum} שוגרה בהצלחה. יש משהו נוסף שאוכל לעזור בו?`, isStreaming: true }
       ]);
       fetchTickets();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -303,6 +358,14 @@ function TenantPortalContent() {
       setFeedbackMsg({ text: 'שגיאה בשמירת הקריאה: ' + err.message, type: 'error' });
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const copyTicketNumber = () => {
+    if (createdTicketNumber) {
+      navigator.clipboard.writeText(createdTicketNumber);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -355,7 +418,7 @@ function TenantPortalContent() {
               </div>
               <div className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-400 font-bold">
                 <Building2 className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
-                <span>{tenant?.name || tenantSlug}</span>
+                <span>{tenant?.name || rawTenant}</span>
               </div>
             </div>
           </div>
@@ -395,7 +458,7 @@ function TenantPortalContent() {
               </div>
             ) : (
               <a
-                href="/api/auth/saml/login"
+                href={`/${rawTenant}/login`}
                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
                   theme === 'light' ? 'text-slate-800 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border-slate-200' : 'text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-700'
                 }`}
@@ -537,7 +600,7 @@ function TenantPortalContent() {
               className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-bold text-xs sm:text-sm transition shadow-sm flex items-center justify-center gap-1.5"
             >
               <span>שלח</span>
-              <Send className="w-3.5 h-3.5" />
+              <Send className="w-3.5 h-3.5 rtl:rotate-180" />
             </button>
           </form>
         </div>
@@ -561,7 +624,7 @@ function TenantPortalContent() {
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
               <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                אישור ושיגור קריאה ({tenant?.name})
+                אישור ושיגור קריאה ({tenant?.name || rawTenant})
               </h2>
             </div>
             <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
@@ -645,6 +708,37 @@ function TenantPortalContent() {
               </div>
             </div>
 
+            {/* פרטי מיקום וטלפון שהתווספו */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 flex items-center gap-1 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>
+                  <MapPin className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>עיר / מטה / סניף (City / HQ)</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.user_city}
+                  onChange={(e) => setFormData({ ...formData, user_city: e.target.value })}
+                  placeholder="למשל: מטה חיפה / נהריה / תל אביב"
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                />
+              </div>
+
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 flex items-center gap-1 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>
+                  <Phone className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>טלפון / שלוחה</span>
+                </label>
+                <input
+                  type="tel"
+                  value={formData.user_phone}
+                  onChange={(e) => setFormData({ ...formData, user_phone: e.target.value })}
+                  placeholder="050-0000000"
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                />
+              </div>
+            </div>
+
             <div>
               <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>פירוט הפנייה *</label>
               <textarea
@@ -687,7 +781,7 @@ function TenantPortalContent() {
                 className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/20 transition"
               >
                 <Check className="w-4 h-4" />
-                {isSubmitting ? 'שומר קריאה...' : 'פתח קריאה ב-SmartQ'}
+                <span>{isSubmitting ? 'שומר קריאה...' : 'פתח קריאה ב-SmartQ'}</span>
               </button>
             </div>
           </form>
@@ -721,7 +815,12 @@ function TenantPortalContent() {
                   'bg-indigo-950/30 hover:bg-indigo-950/60 border-indigo-500/20'
                 }`}>
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className={`text-xs font-bold line-clamp-1 ${theme === 'light' ? 'text-slate-900' : 'text-slate-100'}`}>{t.title}</h3>
+                    <div>
+                      <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10px] ml-1.5">
+                        #{t.ticket_number || t.id.slice(0, 6)}
+                      </span>
+                      <h3 className={`text-xs font-bold inline ${theme === 'light' ? 'text-slate-900' : 'text-slate-100'}`}>{t.title}</h3>
+                    </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getUrgencyBadge(t.urgency)}`}>
                       {t.urgency}
                     </span>
@@ -748,11 +847,56 @@ function TenantPortalContent() {
           )}
         </section>
       </div>
+
+      {/* POPUP MODAL (6-DIGIT TICKET NUMBER) */}
+      {createdTicketNumber && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className={`w-full max-w-md rounded-3xl p-6 sm:p-8 space-y-6 text-center border shadow-2xl animate-in fade-in zoom-in-95 duration-200 ${
+            theme === 'light' ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#111827] border-slate-800 text-white'
+          }`}>
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 text-emerald-700 dark:bg-emerald-950/60 dark:border-emerald-500/40 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-md">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-lg font-black">קריאת השירות נפתחה בהצלחה!</h3>
+              <p className="text-xs opacity-75 font-medium">הפנייה נותבה ישירות לתור צוות ה-IT המתאים בארגון</p>
+            </div>
+
+            <div className={`p-4 rounded-2xl border space-y-2 ${
+              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/90 border-slate-800'
+            }`}>
+              <span className="text-[11px] font-bold opacity-75">מספר קריאת שירות למעקב</span>
+              <div className="flex items-center justify-center gap-2">
+                <span className="text-2xl font-black font-mono tracking-wider text-indigo-600 dark:text-indigo-400">
+                  #{createdTicketNumber}
+                </span>
+                <button
+                  type="button"
+                  onClick={copyTicketNumber}
+                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 transition"
+                  title="העתק מספר קריאה"
+                >
+                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCreatedTicketNumber(null)}
+              className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-black shadow-md transition"
+            >
+              סגור
+            </button>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
-export default function TenantPage() {
+export default function TenantUsersPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
       <TenantPortalContent />

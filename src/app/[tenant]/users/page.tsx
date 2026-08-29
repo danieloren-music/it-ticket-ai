@@ -1,597 +1,761 @@
 'use client';
 
 import { useState, useEffect, useRef, Suspense } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
 import { 
-  Building2, 
   Send, 
-  Sparkles, 
-  Bot, 
-  User, 
+  RefreshCw, 
   CheckCircle2, 
   Clock, 
-  AlertCircle, 
-  MapPin, 
-  Phone, 
-  Mail, 
-  RefreshCw,
-  X,
-  Copy,
-  Check,
+  AlertCircle,
+  Layers, 
+  User, 
+  Check, 
+  SlidersHorizontal,
+  Zap,
+  ArrowDown,
+  LogIn,
   ShieldCheck,
+  Building2,
   Sun,
   Moon,
-  Zap,
-  ArrowLeft
+  Sparkles
 } from 'lucide-react';
 
 type ThemeMode = 'light' | 'dark' | 'ai';
 
-interface ChatMessage {
+function TypewriterMessage({ text, onComplete }: { text: string; onComplete?: () => void }) {
+  const [displayedText, setDisplayedText] = useState('');
+  const indexRef = useRef(0);
+
+  useEffect(() => {
+    setDisplayedText('');
+    indexRef.current = 0;
+
+    const interval = setInterval(() => {
+      if (indexRef.current < text.length) {
+        setDisplayedText((prev) => prev + text.charAt(indexRef.current));
+        indexRef.current++;
+      } else {
+        clearInterval(interval);
+        if (onComplete) onComplete();
+      }
+    }, 16);
+
+    return () => clearInterval(interval);
+  }, [text]);
+
+  return <span>{displayedText}</span>;
+}
+
+interface TenantInfo {
   id: string;
-  sender: 'bot' | 'user';
-  text: string;
+  name: string;
+  domain: string;
+  admin_email: string;
 }
 
-interface ParsedTicketPreview {
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  isStreaming?: boolean;
+}
+
+interface Ticket {
+  id: string;
+  created_at: string;
   title: string;
-  category: string;
-  urgency: 'Critical' | 'High' | 'Medium' | 'Low';
-  assigned_team: string;
   description: string;
+  category: string;
+  urgency: string;
+  status: string;
+  system_impacted: string;
+  assigned_team: string;
+  reporter_name: string;
+  reporter_email: string;
+  tenant_id: string;
 }
 
-function UsersPortalContent() {
-  // 1. Default is strictly Light (Bright)
+const QUICK_PROMPTS = [
+  'נשפך לי קפה על מקלדת הלפטופ',
+  'לא מצליח להתחבר ל-VPN מהבית',
+  'צריך הרשאה לתיקייה משותפת',
+  'המסך החיצוני מהבהב ומציג קווים'
+];
+
+function TenantPortalContent() {
   const [theme, setTheme] = useState<ThemeMode>('light');
   const params = useParams();
-  const rawTenant = (params?.tenant as string) || '';
-  const tenantSlug = rawTenant.toLowerCase();
+  const tenantSlug = (params?.tenant as string) || 'demo';
 
-  const [tenantName, setTenantName] = useState<string>('');
-  
-  // User Profile States
-  const [userName, setUserName] = useState<string>('');
-  const [userEmail, setUserEmail] = useState<string>('');
-  const [userPhone, setUserPhone] = useState<string>('');
-  const [userCity, setUserCity] = useState<string>('');
-  const [isIdentified, setIsIdentified] = useState<boolean>(false);
+  const searchParams = useSearchParams();
+  const ssoName = searchParams.get('name') || '';
+  const ssoEmail = searchParams.get('email') || '';
+  const ssoDept = searchParams.get('dept') || '';
 
-  const [inputMessage, setInputMessage] = useState<string>('');
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: 'welcome',
-      sender: 'bot',
-      text: 'שלום! אני Zack, מומחה ה-AI של מוקד ה-IT. תאר לי את התקלה או הבקשה שלך, ואני אבצע אבחון מיידי, סיווג ופתיחת קריאה מול הצוות המתאים.'
+  const [tenant, setTenant] = useState<TenantInfo | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; dept: string } | null>(null);
+
+  const [messages, setMessages] = useState<Message[]>([
+    { 
+      id: 'init-msg',
+      role: 'assistant', 
+      content: 'היי, אני Zack מבית SmartQ. ספר לי מה התקלה או הבקשה שלך ואדאג למלא את כל פרטי הקריאה עבורך.',
+      isStreaming: true
     }
   ]);
+  const [userInput, setUserInput] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isReadyForReview, setIsReadyForReview] = useState(false);
 
-  const [analyzing, setAnalyzing] = useState(false);
-  const [ticketPreview, setTicketPreview] = useState<ParsedTicketPreview | null>(null);
-  const [submittingTicket, setSubmittingTicket] = useState(false);
-  const [createdTicketNumber, setCreatedTicketNumber] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    category: 'Hardware',
+    urgency: 'Medium',
+    system_impacted: '',
+    assigned_team: 'Helpdesk Tier 1',
+    reporter_name: '',
+    reporter_email: '',
+  });
 
-  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [isLoadingTickets, setIsLoadingTickets] = useState(true);
+
+  const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
+  const formSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    async function initPortal() {
-      if (!tenantSlug) return;
+    const fetchTenant = async () => {
+      const { data } = await supabase
+        .from('tenants')
+        .select('*')
+        .eq('id', tenantSlug)
+        .single();
 
-      const { data: tenant } = await supabase.from('tenants').select('*').ilike('id', tenantSlug).single();
-      if (tenant) {
-        setTenantName(tenant.name);
+      if (data) {
+        setTenant(data);
       } else {
-        setTenantName(rawTenant.toUpperCase());
+        setTenant({
+          id: tenantSlug,
+          name: tenantSlug.toUpperCase(),
+          domain: '',
+          admin_email: '',
+        });
       }
+    };
 
-      const matchCookie = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith('smartq_session='));
-
-      if (matchCookie) {
-        try {
-          const rawVal = matchCookie.split('=')[1];
-          const decoded = JSON.parse(atob(rawVal));
-          if (decoded.email) {
-            setUserEmail(decoded.email);
-            setUserName(decoded.name || decoded.email.split('@')[0]);
-            if (decoded.city) setUserCity(decoded.city);
-            setIsIdentified(true);
-          }
-        } catch {}
-      }
-    }
-
-    initPortal();
-  }, [tenantSlug, rawTenant]);
+    fetchTenant();
+  }, [tenantSlug]);
 
   useEffect(() => {
-    chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, ticketPreview]);
+    if (ssoName || ssoEmail) {
+      setCurrentUser({ name: ssoName, email: ssoEmail, dept: ssoDept });
+      setFormData((prev) => ({
+        ...prev,
+        reporter_name: ssoName || prev.reporter_name,
+        reporter_email: ssoEmail || prev.reporter_email,
+      }));
+      setMessages([
+        {
+          id: 'welcome-sso',
+          role: 'assistant',
+          content: `שלום ${ssoName}! זיהיתי שהתחברת מחשבון הארגון${ssoDept ? ` (${ssoDept})` : ''}. ספר לי מה התקלה ואשייך אותה ישירות אליך.`,
+          isStreaming: true
+        }
+      ]);
+    }
+  }, [ssoName, ssoEmail, ssoDept]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputMessage.trim() || analyzing) return;
+  useEffect(() => {
+    if (chatMessagesContainerRef.current) {
+      chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
+    }
+  }, [messages, isAiLoading]);
 
-    const currentText = inputMessage.trim();
-    setInputMessage('');
+  const fetchTickets = async () => {
+    setIsLoadingTickets(true);
+    const { data, error } = await supabase
+      .from('tickets')
+      .select('*')
+      .eq('tenant_id', tenantSlug)
+      .order('created_at', { ascending: false });
 
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now().toString(), sender: 'user', text: currentText }
-    ]);
+    if (!error && data) setTickets(data);
+    setIsLoadingTickets(false);
+  };
 
-    setAnalyzing(true);
-    setTicketPreview(null);
+  useEffect(() => {
+    fetchTickets();
+  }, [tenantSlug]);
+
+  const handleSendMessage = async (textToSend?: string) => {
+    const messageContent = textToSend || userInput;
+    if (!messageContent.trim() || isAiLoading) return;
+
+    const userMsgId = 'user-' + Date.now();
+    const newMessages: Message[] = [...messages, { id: userMsgId, role: 'user', content: messageContent }];
+    setMessages(newMessages);
+    setUserInput('');
+    setIsAiLoading(true);
+    setFeedbackMsg(null);
 
     try {
-      const parseRes = await fetch('/api/ai-parse', {
+      const res = await fetch('/api/ai-parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          description: currentText,
-          tenantSlug
-        })
+        body: JSON.stringify({ 
+          messages: newMessages.map(({ role, content }) => ({ role, content })),
+          currentFormData: formData 
+        }),
       });
 
-      const aiData = await parseRes.json().catch(() => ({}));
+      if (!res.ok) throw new Error('שגיאה בתקשורת מול Zack');
+      const data = await res.json();
 
-      const parsed: ParsedTicketPreview = {
-        title: aiData.summary || currentText.slice(0, 80),
-        category: aiData.category || 'כללי / Helpdesk',
-        urgency: aiData.urgency || 'Medium',
-        assigned_team: aiData.assignedTeam || 'Helpdesk Tier 1',
-        description: currentText
-      };
+      setFormData((prev) => ({
+        ...prev,
+        title: data.title || prev.title,
+        description: data.description || prev.description,
+        category: data.category || prev.category,
+        urgency: data.urgency || prev.urgency,
+        system_impacted: data.system_impacted || prev.system_impacted,
+        assigned_team: data.assigned_team || prev.assigned_team,
+        reporter_name: currentUser?.name || data.reporter_name || prev.reporter_name,
+        reporter_email: currentUser?.email || data.reporter_email || prev.reporter_email,
+      }));
 
-      setTicketPreview(parsed);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          sender: 'bot',
-          text: `אבחנתי את הפנייה שלך! סיווגתי אותה כ-${parsed.category} ברמת דחיפות ${parsed.urgency}. בדוק את כרטיס הקריאה מטה ולחץ על "פתח קריאת שירות" כדי לשלוח אותה לצוות ${parsed.assigned_team}.`
-        }
-      ]);
-    } catch {
-      const fallbackParsed: ParsedTicketPreview = {
-        title: currentText.slice(0, 80),
-        category: 'Helpdesk Support',
-        urgency: 'Medium',
-        assigned_team: 'Helpdesk Tier 1',
-        description: currentText
-      };
-      setTicketPreview(fallbackParsed);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          sender: 'bot',
-          text: 'ניתחתי את בקשתך. תוכל לאשר את פתיחת הקריאה ישירות מהכרטיס מטה.'
-        }
-      ]);
+      if (data.follow_up_question) {
+        setMessages((prev) => [
+          ...prev, 
+          { 
+            id: 'ai-' + Date.now(), 
+            role: 'assistant', 
+            content: data.follow_up_question,
+            isStreaming: true 
+          }
+        ]);
+      } else {
+        setIsReadyForReview(true);
+        setMessages((prev) => [
+          ...prev, 
+          { 
+            id: 'ai-' + Date.now(), 
+            role: 'assistant', 
+            content: 'מילאתי את כל פרטי הקריאה בטופס. גולל אותך לבדיקה ואישור.',
+            isStreaming: true 
+          }
+        ]);
+
+        setTimeout(() => {
+          formSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 1000);
+      }
+    } catch (err: any) {
+      setFeedbackMsg({ text: err.message || 'שגיאה בפענוח הנתונים', type: 'error' });
     } finally {
-      setAnalyzing(false);
+      setIsAiLoading(false);
     }
   };
 
-  const handleConfirmCreateTicket = async () => {
-    if (!ticketPreview) return;
-    setSubmittingTicket(true);
-
-    const generated6Digits = Math.floor(100000 + Math.random() * 900000).toString();
-    const finalName = userName.trim() || 'עובד ארגון';
-    const finalEmail = userEmail.trim() || `user@${tenantSlug || 'company.com'}`;
-    const finalCity = userCity.trim() || 'מטה ראשי';
-    const finalPhone = userPhone.trim() || '';
+  const handleSubmitTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setFeedbackMsg(null);
 
     try {
-      const { data, error } = await supabase
-        .from('tickets')
-        .insert({
+      const { error } = await supabase.from('tickets').insert([
+        {
+          ...formData,
           tenant_id: tenantSlug,
-          ticket_number: generated6Digits,
-          title: ticketPreview.title,
-          description: ticketPreview.description,
-          user_name: finalName,
-          user_email: finalEmail,
-          user_phone: finalPhone,
-          user_city: finalCity,
-          category: ticketPreview.category,
-          urgency: ticketPreview.urgency,
-          assigned_team: ticketPreview.assigned_team,
-          status: 'Open'
-        })
-        .select()
-        .single();
+          reporter_name: currentUser?.name || formData.reporter_name,
+          reporter_email: currentUser?.email || formData.reporter_email,
+          status: 'Open',
+        },
+      ]);
 
       if (error) throw error;
 
-      const finalTicketNum = data?.ticket_number || generated6Digits;
-      setCreatedTicketNumber(finalTicketNum);
-      setTicketPreview(null);
+      setFeedbackMsg({ text: 'הקריאה נשלחה בהצלחה לצוות המטפל בארגון!', type: 'success' });
+      setFormData({
+        title: '',
+        description: '',
+        category: 'Hardware',
+        urgency: 'Medium',
+        system_impacted: '',
+        assigned_team: 'Helpdesk Tier 1',
+        reporter_name: currentUser?.name || '',
+        reporter_email: currentUser?.email || '',
+      });
+      setIsReadyForReview(false);
+      setMessages((prev) => [
+        ...prev,
+        { id: 'done-' + Date.now(), role: 'assistant', content: 'הקריאה שוגרה בהצלחה. יש משהו נוסף שאוכל לעזור בו?', isStreaming: true }
+      ]);
+      fetchTickets();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
-      alert('שגיאה בפתיחת הקריאה: ' + err.message);
+      setFeedbackMsg({ text: 'שגיאה בשמירת הקריאה: ' + err.message, type: 'error' });
     } finally {
-      setSubmittingTicket(false);
+      setIsSubmitting(false);
     }
   };
 
-  const copyTicketNumber = () => {
-    if (createdTicketNumber) {
-      navigator.clipboard.writeText(createdTicketNumber);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  const getUrgencyBadge = (urgency: string) => {
+    switch (urgency) {
+      case 'Critical': return 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800';
+      case 'High': return 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800';
+      case 'Medium': return 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800';
+      default: return 'bg-slate-200 text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
     }
   };
 
-  // Theme Styling
   const themeBg = {
     light: 'bg-[#F8FAFC] text-slate-900',
     dark: 'bg-[#0B0F19] text-slate-100',
-    ai: 'bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-[#1e0847] via-[#0b051e] to-[#04010d] text-cyan-50'
-  };
-
-  const headerBg = {
-    light: 'bg-white/95 border-slate-200 shadow-2xs',
-    dark: 'bg-[#0E1424]/90 border-slate-800',
-    ai: 'bg-[#110729]/80 border-fuchsia-500/30 backdrop-blur-xl shadow-lg shadow-purple-950/40'
+    ai: 'bg-radial-at-t from-[#160B2E] via-[#090D1A] to-[#04060B] text-slate-100'
   };
 
   const cardBg = {
-    light: 'bg-white border-slate-200 text-slate-900 shadow-sm',
-    dark: 'bg-[#111827] border-slate-800 text-slate-100 shadow-xl',
-    ai: 'bg-gradient-to-b from-[#180b38]/90 to-[#0d0522]/90 border-cyan-500/30 text-cyan-100 shadow-[0_0_35px_rgba(168,85,247,0.15)] backdrop-blur-2xl'
+    light: 'bg-white border-slate-200 shadow-sm text-slate-900',
+    dark: 'bg-[#111827] border-slate-800 shadow-xl text-slate-100',
+    ai: 'bg-[#120D26]/70 border-indigo-500/40 shadow-2xl shadow-indigo-500/10 backdrop-blur-xl text-slate-100'
   };
 
-  const inputStyle = {
+  const inputBg = {
     light: 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-600',
-    dark: 'bg-slate-800/90 border-slate-700 text-white placeholder-slate-500 focus:border-indigo-500',
-    ai: 'bg-[#1e0d47]/80 border-cyan-400/40 text-cyan-100 placeholder-fuchsia-300/40 focus:border-cyan-300'
-  };
-
-  const botBubbleBg = {
-    light: 'bg-slate-100 border border-slate-200 text-slate-800',
-    dark: 'bg-slate-800/90 border border-slate-700/80 text-slate-200',
-    ai: 'bg-[#200d4d]/90 border border-fuchsia-500/40 text-fuchsia-100'
-  };
-
-  const userBubbleBg = {
-    light: 'bg-indigo-600 text-white shadow-xs',
-    dark: 'bg-indigo-600 text-white',
-    ai: 'bg-gradient-to-r from-fuchsia-600 via-purple-600 to-cyan-600 text-white font-bold shadow-lg shadow-fuchsia-600/30'
+    dark: 'bg-[#1F2937] border-slate-700 text-slate-100 placeholder-slate-500 focus:border-indigo-400',
+    ai: 'bg-[#1C1438]/80 border-indigo-500/30 text-indigo-100 placeholder-indigo-300/40 focus:border-cyan-400'
   };
 
   return (
-    <div dir="rtl" className={`min-h-screen font-sans antialiased flex flex-col justify-between transition-colors duration-300 ${themeBg[theme]}`}>
-      
-      {/* Top Header */}
-      <header className={`h-16 border-b sticky top-0 z-30 px-6 flex items-center justify-between backdrop-blur-md transition-colors duration-300 ${headerBg[theme]}`}>
-        <div className="flex items-center gap-3.5">
-          <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-white border border-slate-100">
-            <Image src="/smartq-logo.png" alt="SmartQ" width={36} height={36} className="object-contain" priority />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-black tracking-tight">SmartQ Support</span>
-              <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-md border ${
-                theme === 'ai' ? 'bg-fuchsia-500/20 text-cyan-300 border-cyan-400/40' :
-                theme === 'light' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' :
-                'bg-indigo-500/20 text-indigo-400 border-indigo-500/30'
-              }`}>
-                EMPLOYEE PORTAL
-              </span>
+    <main dir="rtl" className={`min-h-screen font-sans antialiased transition-colors duration-300 ${themeBg[theme]}`}>
+      {/* Top Navbar */}
+      <header className={`sticky top-0 z-30 border-b backdrop-blur-md transition-colors duration-300 ${
+        theme === 'light' ? 'bg-white/95 border-slate-200 shadow-2xs' : 
+        theme === 'dark' ? 'bg-[#0E1424]/90 border-slate-800' : 
+        'bg-[#0C081D]/80 border-indigo-500/30 shadow-lg shadow-indigo-500/10'
+      }`}>
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-white border border-slate-100">
+              <Image src="/smartq-logo.png" alt="SmartQ" width={36} height={36} className="object-contain" priority />
             </div>
-            <div className="flex items-center gap-1.5 text-[11px] font-bold opacity-80">
-              <Building2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
-              <span>{tenantName || rawTenant}</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className={`text-lg font-black tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>SmartQ</span>
+                <span className="px-2 py-0.5 text-[10px] font-extrabold text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-md shadow-2xs uppercase">
+                  AI DESK
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-400 font-bold">
+                <Building2 className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+                <span>{tenant?.name || tenantSlug}</span>
+              </div>
             </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Theme Switcher */}
-          <div className={`flex items-center p-1 rounded-xl border ${
-            theme === 'light' ? 'bg-slate-100 border-slate-200' :
-            theme === 'dark' ? 'bg-slate-800 border-slate-700' :
-            'bg-[#190938] border-fuchsia-500/40'
-          }`}>
-            <button
-              onClick={() => setTheme('light')}
-              className={`p-1.5 rounded-lg transition ${theme === 'light' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-400 hover:text-white'}`}
-              title="Bright Light Mode"
-            >
-              <Sun className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setTheme('dark')}
-              className={`p-1.5 rounded-lg transition ${theme === 'dark' ? 'bg-slate-700 text-indigo-400 shadow-xs' : 'text-slate-400 hover:text-white'}`}
-              title="Dark Mode"
-            >
-              <Moon className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => setTheme('ai')}
-              className={`p-1.5 rounded-lg transition ${theme === 'ai' ? 'bg-gradient-to-r from-fuchsia-600 to-cyan-500 text-white shadow-md' : 'text-slate-400 hover:text-white'}`}
-              title="AI Neural Mode"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-            </button>
           </div>
 
-          <a
-            href={`/${rawTenant}/login`}
-            className={`text-xs font-bold transition px-3.5 py-1.5 rounded-xl border ${
-              theme === 'light' ? 'border-slate-300 text-slate-800 hover:bg-slate-100' :
-              theme === 'dark' ? 'border-slate-700 text-slate-300 hover:bg-slate-800' :
-              'border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/20'
-            }`}
-          >
-            כניסת מנהלים וטכנאי IT
-          </a>
+          <div className="flex items-center gap-2.5">
+            {/* Theme Capsule */}
+            <div className={`flex items-center p-1 rounded-xl border ${
+              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800 border-slate-700'
+            }`}>
+              <button
+                onClick={() => setTheme('light')}
+                className={`p-1.5 rounded-lg transition ${theme === 'light' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-400 hover:text-white'}`}
+                title="Light Mode"
+              >
+                <Sun className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setTheme('dark')}
+                className={`p-1.5 rounded-lg transition ${theme === 'dark' ? 'bg-slate-700 text-indigo-400 shadow-xs' : 'text-slate-400 hover:text-white'}`}
+                title="Dark Mode"
+              >
+                <Moon className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setTheme('ai')}
+                className={`p-1.5 rounded-lg transition ${theme === 'ai' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}
+                title="AI Neural Mode"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {currentUser ? (
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-xs font-bold">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{currentUser.name}</span>
+              </div>
+            ) : (
+              <a
+                href="/api/auth/saml/login"
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
+                  theme === 'light' ? 'text-slate-800 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border-slate-200' : 'text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-700'
+                }`}
+              >
+                <LogIn className="w-3.5 h-3.5 text-indigo-600" />
+                <span>התחבר SSO</span>
+              </a>
+            )}
+
+            <button 
+              onClick={fetchTickets}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition ${
+                theme === 'light' ? 'text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200' : 'text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700'
+              }`}
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTickets ? 'animate-spin text-indigo-600' : ''}`} />
+              רענון
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Main Support Workspace */}
-      <main className="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        
-        {/* User Details Sidebar */}
-        <aside className={`lg:col-span-4 rounded-3xl p-5 space-y-4 border transition-colors ${cardBg[theme]}`}>
-          <div className="border-b pb-3 border-inherit/30">
-            <h2 className="text-xs font-black flex items-center gap-2">
-              <User className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-              <span>פרטי הפונה ומיקום מטה</span>
-            </h2>
-            <p className="text-[11px] opacity-70 mt-0.5">זאק יצרף פרטים אלו אוטומטית לכרטיס הקריאה</p>
-          </div>
+      {/* Main Container */}
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-12 space-y-6">
+        {/* Quick Prompts */}
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          {QUICK_PROMPTS.map((prompt, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handleSendMessage(prompt)}
+              className={`text-[11px] font-bold px-3.5 py-1.5 rounded-xl border transition shadow-2xs flex items-center gap-1.5 ${
+                theme === 'light' ? 'bg-white hover:bg-indigo-50 border-slate-200 hover:border-indigo-300 text-slate-800 hover:text-indigo-700' :
+                theme === 'dark' ? 'bg-[#111827] hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white' :
+                'bg-[#181136] hover:bg-indigo-950 border-indigo-500/30 text-indigo-200 hover:text-white'
+              }`}
+            >
+              <Zap className="w-3 h-3 text-indigo-600" />
+              {prompt}
+            </button>
+          ))}
+        </div>
 
-          <div className="space-y-3 text-xs">
-            <div>
-              <label className="block font-bold mb-1 opacity-90">שם מלא</label>
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="למשל: דניאל אורן"
-                className={`w-full px-3.5 py-2.5 rounded-xl border font-medium transition ${inputStyle[theme]}`}
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1 opacity-90">אימייל ארגוני</label>
-              <input
-                type="email"
-                value={userEmail}
-                onChange={(e) => setUserEmail(e.target.value)}
-                placeholder="user@company.com"
-                className={`w-full px-3.5 py-2.5 rounded-xl border font-medium transition ${inputStyle[theme]}`}
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1 opacity-90">טלפון / שלוחה</label>
-              <input
-                type="tel"
-                value={userPhone}
-                onChange={(e) => setUserPhone(e.target.value)}
-                placeholder="050-0000000"
-                className={`w-full px-3.5 py-2.5 rounded-xl border font-medium transition ${inputStyle[theme]}`}
-              />
-            </div>
-
-            <div>
-              <label className="block font-bold mb-1 flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
-                <MapPin className="w-3.5 h-3.5" />
-                <span>עיר / מטה / סניף (City / HQ)</span>
-              </label>
-              <input
-                type="text"
-                value={userCity}
-                onChange={(e) => setUserCity(e.target.value)}
-                placeholder="למשל: מטה חיפה / נהריה / תל אביב"
-                className={`w-full px-3.5 py-2.5 rounded-xl border font-semibold transition ${inputStyle[theme]}`}
-              />
-            </div>
-          </div>
-        </aside>
-
-        {/* Zack AI Interactive Chat Desk */}
-        <section className={`lg:col-span-8 rounded-3xl flex flex-col h-[650px] border overflow-hidden transition-colors ${cardBg[theme]}`}>
-          
-          {/* Desk Header */}
-          <div className={`p-4 border-b flex items-center justify-between ${
-            theme === 'light' ? 'bg-slate-50 border-slate-200' :
-            theme === 'dark' ? 'bg-slate-900/60 border-slate-800' :
-            'bg-[#150734]/80 border-fuchsia-500/20'
+        {/* Zack Chat Interface */}
+        <div className={`rounded-2xl border overflow-hidden flex flex-col h-[480px] transition-all duration-300 ${
+          theme === 'light' ? 'bg-white border-slate-200 shadow-xl' :
+          theme === 'dark' ? 'bg-[#111827] border-slate-800 shadow-2xl' :
+          'bg-[#120D28]/90 border-indigo-500/40 shadow-2xl shadow-indigo-500/20 backdrop-blur-xl'
+        }`}>
+          <div className={`px-5 py-3.5 border-b flex items-center justify-between ${
+            theme === 'light' ? 'bg-slate-50/80 border-slate-200' :
+            theme === 'dark' ? 'bg-slate-900 border-slate-800' :
+            'bg-indigo-950/40 border-indigo-500/30'
           }`}>
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-md bg-gradient-to-tr from-indigo-500 to-purple-600">
-                <Sparkles className="w-4 h-4" />
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center text-white shadow-md font-black text-xs">
+                Z
               </div>
-              <div>
-                <div className="text-xs font-black flex items-center gap-1.5">
-                  <span>Zack AI Assistant</span>
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                </div>
-                <div className="text-[10px] opacity-70 font-bold">סיווג תקלות חכם, ניתוב תורים ו-SLA</div>
+              <div className="flex items-center gap-2">
+                <h3 className={`font-bold text-sm ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Zack AI</h3>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
               </div>
             </div>
+
+            {isReadyForReview && (
+              <button
+                type="button"
+                onClick={() => formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                className="flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-lg transition"
+              >
+                <span>הפרטים מוכנים – עבור לטופס</span>
+                <ArrowDown className="w-3 h-3" />
+              </button>
+            )}
           </div>
 
           {/* Messages Flow */}
-          <div className="flex-1 p-5 overflow-y-auto space-y-4">
+          <div ref={chatMessagesContainerRef} className={`flex-1 p-5 overflow-y-auto space-y-4 ${
+            theme === 'light' ? 'bg-slate-50/40' : 'bg-[#090E1A]/40'
+          }`}>
             {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`flex gap-3 text-xs leading-relaxed ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
-                {m.sender === 'bot' && (
-                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border ${
-                    theme === 'light' ? 'bg-indigo-50 border-indigo-200 text-indigo-600' :
-                    'bg-indigo-600/20 border-indigo-500/30 text-indigo-400'
-                  }`}>
-                    <Bot className="w-4 h-4" />
-                  </div>
-                )}
-
-                <div
-                  className={`max-w-[80%] p-4 rounded-2xl ${
-                    m.sender === 'user'
-                      ? `${userBubbleBg[theme]} rounded-tl-xs`
-                      : `${botBubbleBg[theme]} rounded-tr-xs`
-                  }`}
-                >
-                  <p className="whitespace-pre-wrap">{m.text}</p>
+              <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'justify-start flex-row-reverse' : 'justify-start'}`}>
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black shadow-2xs ${
+                  m.role === 'user' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white' : 'bg-gradient-to-tr from-indigo-600 to-purple-500 text-white'
+                }`}>
+                  {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : 'Z'}
                 </div>
-
-                {m.sender === 'user' && (
-                  <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border bg-purple-600/20 border-purple-500/30 text-purple-400">
-                    <User className="w-4 h-4" />
-                  </div>
-                )}
+                <div className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed max-w-[85%] shadow-2xs font-medium ${
+                  m.role === 'user' 
+                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-br-none' 
+                    : theme === 'light'
+                      ? 'bg-white text-slate-900 rounded-bl-none border border-slate-200'
+                      : 'bg-slate-800/90 text-slate-100 rounded-bl-none border border-slate-700'
+                }`}>
+                  {m.role === 'assistant' && m.isStreaming ? (
+                    <TypewriterMessage 
+                      text={m.content} 
+                      onComplete={() => {
+                        setMessages((prev) => 
+                          prev.map((msg) => msg.id === m.id ? { ...msg, isStreaming: false } : msg)
+                        );
+                      }} 
+                    />
+                  ) : (
+                    m.content
+                  )}
+                </div>
               </div>
             ))}
-
-            {analyzing && (
-              <div className={`flex items-center gap-2 text-xs font-bold p-3.5 rounded-2xl border w-fit ${
-                theme === 'light' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' :
-                'bg-indigo-950/30 border-indigo-500/30 text-indigo-400'
+            
+            {isAiLoading && (
+              <div className={`flex items-center gap-3 text-xs p-2.5 rounded-2xl w-fit border ${
+                theme === 'light' ? 'text-indigo-800 bg-indigo-50 border-indigo-100 font-bold' : 'text-indigo-300 bg-indigo-950/60 border-indigo-800'
               }`}>
-                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                <span>Zack AI מאבחן את הפנייה ובונה כרטיס שירות...</span>
+                <div className="flex gap-1">
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
+                </div>
+                <span>Zack מסנכרן את פרטי הקריאה...</span>
               </div>
             )}
-
-            {/* Smart Parsed Ticket Preview Card */}
-            {ticketPreview && (
-              <div className={`p-5 rounded-2xl border space-y-3.5 shadow-md ${
-                theme === 'light' ? 'bg-indigo-50/60 border-indigo-200 text-slate-900' :
-                'bg-indigo-950/30 border-indigo-500/40 text-white'
-              }`}>
-                <div className="flex items-center justify-between border-b pb-2.5 border-inherit/30">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-                    <span className="text-xs font-black">כרטיס קריאה מוכן לאישור</span>
-                  </div>
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                    ticketPreview.urgency === 'Critical' ? 'bg-rose-100 text-rose-800 border border-rose-300 dark:bg-rose-950/60 dark:text-rose-300' :
-                    ticketPreview.urgency === 'High' ? 'bg-orange-100 text-orange-800 border border-orange-300 dark:bg-orange-950/60 dark:text-orange-300' :
-                    'bg-indigo-100 text-indigo-800 border border-indigo-300 dark:bg-indigo-950/60 dark:text-indigo-300'
-                  }`}>
-                    {ticketPreview.urgency} Priority
-                  </span>
-                </div>
-
-                <div className="text-xs space-y-1.5">
-                  <div className="font-black text-sm">{ticketPreview.title}</div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 opacity-80">
-                    <div>קטגוריה: <span className="font-bold opacity-100">{ticketPreview.category}</span></div>
-                    <div>צוות מטפל: <span className="font-bold opacity-100">{ticketPreview.assigned_team}</span></div>
-                    <div>פונה: <span className="font-bold opacity-100">{userName || 'עובד ארגון'}</span></div>
-                    <div>עיר/מטה: <span className="font-bold opacity-100">{userCity || 'מטה ראשי'}</span></div>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleConfirmCreateTicket}
-                  disabled={submittingTicket}
-                  className="w-full py-2.5 rounded-xl text-xs font-black shadow-md transition flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>{submittingTicket ? 'פותח קריאה במוקד...' : 'אשר ופתח קריאת שירות זו'}</span>
-                </button>
-              </div>
-            )}
-
-            <div ref={chatBottomRef} />
           </div>
 
-          {/* Chat Message Input */}
-          <form onSubmit={handleSendMessage} className={`p-3.5 border-t flex items-center gap-2 ${
-            theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/50 border-slate-800'
+          {/* Chat Input */}
+          <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className={`p-3 border-t flex gap-2 ${
+            theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
           }`}>
             <input
               type="text"
-              required
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="תאר את התקלה (לדוגמה: נעילת חשבון, בעיית VPN, הגדרת מדפסת...)..."
-              className={`flex-1 px-4 py-2.5 rounded-xl border text-xs font-medium transition ${inputStyle[theme]}`}
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+              placeholder="כתוב כאן ל-Zack מה התקלה..."
+              className={`flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
             />
             <button
               type="submit"
-              disabled={analyzing || !inputMessage.trim()}
-              className="px-5 py-2.5 rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
+              disabled={isAiLoading || !userInput.trim()}
+              className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-bold text-xs sm:text-sm transition shadow-sm flex items-center justify-center gap-1.5"
             >
-              <span>שלח ל-Zack</span>
-              <Send className="w-3.5 h-3.5 rtl:rotate-180" />
+              <span>שלח</span>
+              <Send className="w-3.5 h-3.5" />
             </button>
           </form>
+        </div>
+      </div>
 
-        </section>
-
-      </main>
-
-      {/* SUCCESS MODAL POPUP (6-DIGIT TICKET CONFIRMATION) */}
-      {createdTicketNumber && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-3xl p-6 sm:p-8 space-y-6 text-center border shadow-2xl animate-in fade-in zoom-in-95 duration-200 ${
-            theme === 'light' ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#111827] border-slate-800 text-white'
+      {/* Form Review Section */}
+      <div ref={formSectionRef} className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {feedbackMsg && (
+          <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-semibold shadow-2xs ${
+            feedbackMsg.type === 'success' 
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
+              : 'bg-rose-50 text-rose-800 border-rose-200'
           }`}>
-            
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 text-emerald-700 dark:bg-emerald-950/60 dark:border-emerald-500/40 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-md">
-              <CheckCircle2 className="w-8 h-8" />
+            {feedbackMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
+            {feedbackMsg.text}
+          </div>
+        )}
+
+        <div className={`p-6 sm:p-8 rounded-2xl border space-y-6 transition-all duration-300 ${cardBg[theme]}`}>
+          <div className={`flex items-center justify-between border-b pb-3 ${theme === 'light' ? 'border-slate-200' : 'border-slate-800'}`}>
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
+              <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+                אישור ושיגור קריאה ({tenant?.name})
+              </h2>
+            </div>
+            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
+              SmartQ Core
+            </span>
+          </div>
+
+          <form onSubmit={handleSubmitTicket} className="space-y-4">
+            <div>
+              <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>נושא הפנייה *</label>
+              <input
+                type="text"
+                required
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                placeholder="נושא הפנייה..."
+                className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+              />
             </div>
 
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-black">קריאת השירות נפתחה בהצלחה!</h3>
-              <p className="text-xs opacity-75 font-medium">הפנייה נותבה ישירות לתור צוות ה-IT המתאים</p>
-            </div>
-
-            {/* Ticket 6-Digit Badge */}
-            <div className={`p-4 rounded-2xl border space-y-2 ${
-              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/90 border-slate-800'
-            }`}>
-              <span className="text-[11px] font-bold opacity-75">מספר קריאת שירות למעקב</span>
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-2xl font-black font-mono tracking-wider text-indigo-600 dark:text-indigo-400">
-                  #{createdTicketNumber}
-                </span>
-                <button
-                  type="button"
-                  onClick={copyTicketNumber}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 transition"
-                  title="העתק מספר קריאה"
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>קטגוריה</label>
+                <select
+                  value={formData.category}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className={`w-full px-3 py-2 text-xs rounded-xl border font-semibold focus:outline-none transition ${inputBg[theme]}`}
                 >
-                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                </button>
+                  <option value="Hardware">חומרה (Hardware)</option>
+                  <option value="Software & SaaS">תוכנה וענן (Software)</option>
+                  <option value="Network & Connectivity">תקשורת ו-VPN</option>
+                  <option value="Access & IAM">הרשאות וזהויות (IAM)</option>
+                  <option value="Cloud & Infrastructure">תשתיות ענן (Cloud)</option>
+                  <option value="Cyber Security">אבטחת מידע</option>
+                  <option value="Workstation & Peripherals">ציוד קצה ועמדות</option>
+                  <option value="Database & BI">בסיסי נתונים ו-BI</option>
+                  <option value="General IT Request">בקשת IT כללית</option>
+                </select>
+              </div>
+
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>דחיפות SLA</label>
+                <select
+                  value={formData.urgency}
+                  onChange={(e) => setFormData({ ...formData, urgency: e.target.value })}
+                  className={`w-full px-3 py-2 text-xs rounded-xl border font-semibold focus:outline-none transition ${inputBg[theme]}`}
+                >
+                  <option value="Low">Low (נמוכה)</option>
+                  <option value="Medium">Medium (בינונית)</option>
+                  <option value="High">High (גבוהה)</option>
+                  <option value="Critical">Critical (קריטית)</option>
+                </select>
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setCreatedTicketNumber(null)}
-              className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-black shadow-md transition"
-            >
-              סגור ופתח פנייה חדשה
-            </button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>רכיב / מערכת</label>
+                <input
+                  type="text"
+                  value={formData.system_impacted}
+                  onChange={(e) => setFormData({ ...formData, system_impacted: e.target.value })}
+                  placeholder="לדוגמה: VPN, מחשב נייד, SAP..."
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                />
+              </div>
 
-          </div>
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>צוות מטפל</label>
+                <select
+                  value={formData.assigned_team}
+                  onChange={(e) => setFormData({ ...formData, assigned_team: e.target.value })}
+                  className={`w-full px-3 py-2 text-xs font-bold rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                >
+                  <option value="Helpdesk Tier 1">Helpdesk Tier 1</option>
+                  <option value="System & Cloud Team">System & Cloud Team</option>
+                  <option value="Network & Security">Network & Security</option>
+                  <option value="IT Applications & BI">IT Applications & BI</option>
+                  <option value="Identity & Access">Identity & Access</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>פירוט הפנייה *</label>
+              <textarea
+                required
+                rows={3}
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="פירוט הבקשה..."
+                className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition leading-relaxed ${inputBg[theme]}`}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>שם המדווח</label>
+                <input
+                  type="text"
+                  value={formData.reporter_name}
+                  onChange={(e) => setFormData({ ...formData, reporter_name: e.target.value })}
+                  placeholder="שם מלא"
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                />
+              </div>
+              <div>
+                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>אימייל לחזרה</label>
+                <input
+                  type="email"
+                  value={formData.reporter_email}
+                  onChange={(e) => setFormData({ ...formData, reporter_email: e.target.value })}
+                  placeholder="name@company.com"
+                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={isSubmitting || !formData.title.trim()}
+                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/20 transition"
+              >
+                <Check className="w-4 h-4" />
+                {isSubmitting ? 'שומר קריאה...' : 'פתח קריאה ב-SmartQ'}
+              </button>
+            </div>
+          </form>
         </div>
-      )}
 
-    </div>
+        {/* Tickets Queue */}
+        <section className={`p-6 rounded-2xl border space-y-4 transition-all duration-300 ${cardBg[theme]}`}>
+          <div className={`flex items-center justify-between border-b pb-3 ${theme === 'light' ? 'border-slate-200' : 'border-slate-800'}`}>
+            <div className="flex items-center gap-2">
+              <Layers className="w-4 h-4 text-indigo-600" />
+              <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>קריאות פתוחות בארגון ({tickets.length})</h2>
+            </div>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">מעקב וסטטוס</span>
+          </div>
+
+          {isLoadingTickets ? (
+            <div className="flex items-center justify-center py-6 text-slate-500 text-xs gap-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />
+              טוען קריאות...
+            </div>
+          ) : tickets.length === 0 ? (
+            <div className="text-center py-6 text-slate-500 text-xs font-medium">
+              אין כרגע קריאות פתוחות בסביבה זו.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {tickets.map((t) => (
+                <div key={t.id} className={`p-3.5 border rounded-xl space-y-2 transition ${
+                  theme === 'light' ? 'bg-slate-50/80 hover:bg-slate-50 border-slate-200' :
+                  theme === 'dark' ? 'bg-slate-800/40 hover:bg-slate-800 border-slate-700/60' :
+                  'bg-indigo-950/30 hover:bg-indigo-950/60 border-indigo-500/20'
+                }`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className={`text-xs font-bold line-clamp-1 ${theme === 'light' ? 'text-slate-900' : 'text-slate-100'}`}>{t.title}</h3>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getUrgencyBadge(t.urgency)}`}>
+                      {t.urgency}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                    {t.description}
+                  </p>
+
+                  <div className={`pt-2 border-t flex items-center justify-between text-[10px] ${
+                    theme === 'light' ? 'border-slate-200 text-slate-500 font-medium' : 'border-slate-700/50 text-slate-500'
+                  }`}>
+                    <span className="bg-indigo-50 text-indigo-700 font-bold px-1.5 py-0.5 rounded border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800">
+                      {t.assigned_team || 'Helpdesk'}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-slate-500" />
+                      {new Date(t.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </main>
   );
 }
 
-export default function TenantUsersPage() {
+export default function TenantPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
-      <UsersPortalContent />
+      <TenantPortalContent />
     </Suspense>
   );
 }

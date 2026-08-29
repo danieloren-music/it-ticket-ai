@@ -162,7 +162,7 @@ function NewRequestContent() {
         });
       }
 
-      // קריאת Session של המשתמש המחובר מה-Cookie
+      // קריאת Session קיים מה-Cookie
       const matchCookie = document.cookie
         .split('; ')
         .find((row) => row.startsWith('smartq_session='));
@@ -179,10 +179,10 @@ function NewRequestContent() {
             setCurrentUser({ name: resolvedName, email: decoded.email, dept: resolvedCity, phone: resolvedPhone });
             setFormData((prev) => ({
               ...prev,
-              reporter_name: resolvedName,
-              reporter_email: decoded.email,
-              user_city: resolvedCity,
-              user_phone: resolvedPhone,
+              reporter_name: prev.reporter_name || resolvedName,
+              reporter_email: prev.reporter_email || decoded.email,
+              user_city: prev.user_city || resolvedCity,
+              user_phone: prev.user_phone || resolvedPhone,
             }));
           }
         } catch {}
@@ -200,14 +200,6 @@ function NewRequestContent() {
         reporter_name: ssoName,
         reporter_email: ssoEmail,
       }));
-      setMessages([
-        {
-          id: 'welcome-sso',
-          role: 'assistant',
-          content: `שלום ${ssoName}! זיהיתי שהתחברת מחשבון הארגון${ssoDept ? ` (${ssoDept})` : ''}. ספר לי מה התקלה ואשייך אותה ישירות אליך.`,
-          isStreaming: true
-        }
-      ]);
     }
   }, [ssoName, ssoEmail, ssoDept]);
 
@@ -233,6 +225,7 @@ function NewRequestContent() {
     fetchTickets();
   }, [tenantSlug]);
 
+  // Handle Send Message -> Allows Zack to extract reporter_name & reporter_email from conversation
   const handleSendMessage = async (textToSend?: string) => {
     const messageContent = textToSend || userInput;
     if (!messageContent.trim() || isAiLoading) return;
@@ -259,19 +252,25 @@ function NewRequestContent() {
       if (!res.ok) throw new Error('שגיאה בתקשורת מול Zack');
       const data = await res.json();
 
-      setFormData((prev) => ({
-        ...prev,
-        title: data.title || prev.title || messageContent.slice(0, 60),
-        description: data.description || prev.description || messageContent,
-        category: data.category || prev.category,
-        urgency: data.urgency || prev.urgency,
-        system_impacted: data.system_impacted || prev.system_impacted,
-        assigned_team: data.assigned_team || data.assignedTeam || prev.assigned_team,
-        reporter_name: currentUser?.name || prev.reporter_name || '',
-        reporter_email: currentUser?.email || prev.reporter_email || '',
-        user_city: currentUser?.dept || data.user_city || prev.user_city || 'מטה ראשי',
-        user_phone: currentUser?.phone || prev.user_phone || ''
-      }));
+      setFormData((prev) => {
+        // Dynamic detection: if AI found a reporter_name/email in conversation, use it. Otherwise fallback to current user/previous value
+        const updatedName = data.reporter_name || prev.reporter_name || currentUser?.name || '';
+        const updatedEmail = data.reporter_email || prev.reporter_email || currentUser?.email || '';
+
+        return {
+          ...prev,
+          title: data.title || prev.title || messageContent.slice(0, 60),
+          description: data.description || prev.description || messageContent,
+          category: data.category || prev.category,
+          urgency: data.urgency || prev.urgency,
+          system_impacted: data.system_impacted || prev.system_impacted,
+          assigned_team: data.assigned_team || data.assignedTeam || prev.assigned_team,
+          reporter_name: updatedName,
+          reporter_email: updatedEmail,
+          user_city: data.user_city || prev.user_city || currentUser?.dept || 'מטה ראשי',
+          user_phone: prev.user_phone || currentUser?.phone || ''
+        };
+      });
 
       if (data.follow_up_question) {
         setMessages((prev) => [
@@ -312,8 +311,8 @@ function NewRequestContent() {
     setFeedbackMsg(null);
 
     const generated6Digits = Math.floor(100000 + Math.random() * 900000).toString();
-    const finalReporterName = currentUser?.name || formData.reporter_name || 'עובד ארגון';
-    const finalReporterEmail = currentUser?.email || formData.reporter_email || `user@${tenantSlug}.co.il`;
+    const finalReporterName = formData.reporter_name || currentUser?.name || 'עובד ארגון';
+    const finalReporterEmail = formData.reporter_email || currentUser?.email || `user@${tenantSlug}.co.il`;
 
     try {
       const { data, error } = await supabase.from('tickets').insert([
@@ -713,7 +712,6 @@ function NewRequestContent() {
               </div>
             </div>
 
-            {/* פרטי מיקום וטלפון */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className={`block text-xs font-bold mb-1.5 flex items-center gap-1 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>

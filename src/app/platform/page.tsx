@@ -12,19 +12,19 @@ import {
   X, 
   Save, 
   Trash2, 
-  RefreshCw,
-  BarChart3,
-  Shield,
-  Activity,
-  Settings,
-  Users,
-  Globe,
-  Edit2,
-  Clock,
-  UserPlus,
-  Lock,
-  Eye,
-  EyeOff
+  RefreshCw, 
+  BarChart3, 
+  Shield, 
+  Activity, 
+  Settings, 
+  Users, 
+  Globe, 
+  Edit2, 
+  Clock, 
+  UserPlus, 
+  Eye, 
+  EyeOff,
+  KeyRound
 } from 'lucide-react';
 
 interface Tenant {
@@ -66,7 +66,7 @@ export default function PlatformMasterConsole() {
 
   // Tenant Modal State
   const [isTenantModalOpen, setIsTenantModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [tenantModalMode, setTenantModalMode] = useState<'create' | 'edit'>('create');
   const [savingTenant, setSavingTenant] = useState(false);
   const [tenantFormData, setTenantFormData] = useState({
     id: '',
@@ -76,8 +76,9 @@ export default function PlatformMasterConsole() {
     status: 'Active'
   });
 
-  // Platform User Modal State
+  // Platform User Modal State (Add / Edit)
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [userModalMode, setUserModalMode] = useState<'create' | 'edit'>('create');
   const [savingUser, setSavingUser] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [userFormData, setUserFormData] = useState({
@@ -114,7 +115,7 @@ export default function PlatformMasterConsole() {
   }, []);
 
   const handleOpenCreateTenantModal = () => {
-    setModalMode('create');
+    setTenantModalMode('create');
     setTenantFormData({
       id: '',
       name: '',
@@ -126,7 +127,7 @@ export default function PlatformMasterConsole() {
   };
 
   const handleOpenEditTenantModal = (t: Tenant) => {
-    setModalMode('edit');
+    setTenantModalMode('edit');
     setTenantFormData({
       id: t.id,
       name: t.name,
@@ -172,6 +173,36 @@ export default function PlatformMasterConsole() {
     }
   };
 
+  const handleOpenCreateUserModal = () => {
+    setUserModalMode('create');
+    setUserFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      role: 'Super Admin',
+      department: 'Cloud Operations'
+    });
+    setIsUserModalOpen(true);
+  };
+
+  const handleOpenEditUserModal = (u: PlatformUser) => {
+    setUserModalMode('edit');
+    const nameParts = u.full_name.split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+
+    setUserFormData({
+      firstName,
+      lastName,
+      email: u.email,
+      password: '',
+      role: u.role || 'Super Admin',
+      department: u.department || 'Cloud Operations'
+    });
+    setIsUserModalOpen(true);
+  };
+
   const handleSavePlatformUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userFormData.email || !userFormData.firstName) return;
@@ -185,24 +216,16 @@ export default function PlatformMasterConsole() {
         body: JSON.stringify({
           email: userFormData.email,
           fullName,
-          password: userFormData.password,
+          password: userFormData.password || (userModalMode === 'create' ? 'SmartQ2026!' : undefined),
           role: userFormData.role,
           department: userFormData.department
         })
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to create platform user');
+      if (!res.ok) throw new Error(data.error || 'Failed to save platform user');
 
       setIsUserModalOpen(false);
-      setUserFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        password: '',
-        role: 'Super Admin',
-        department: 'Cloud Operations'
-      });
       fetchData();
     } catch (err: any) {
       alert('Error: ' + err.message);
@@ -332,17 +355,6 @@ export default function PlatformMasterConsole() {
               >
                 <Plus className="w-4 h-4" />
                 <span>Onboard New Organization</span>
-              </button>
-            )}
-
-            {activeTab === 'users' && (
-              <button
-                type="button"
-                onClick={() => setIsUserModalOpen(true)}
-                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-2"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>+ Add Platform User</span>
               </button>
             )}
           </div>
@@ -479,10 +491,10 @@ export default function PlatformMasterConsole() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsUserModalOpen(true)}
-                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5"
+                  onClick={handleOpenCreateUserModal}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5"
                 >
-                  <UserPlus className="w-3.5 h-3.5" />
+                  <UserPlus className="w-4 h-4" />
                   <span>+ New User</span>
                 </button>
               </div>
@@ -496,6 +508,7 @@ export default function PlatformMasterConsole() {
                       <th className="py-3 px-4">Platform Role</th>
                       <th className="py-3 px-4">Department</th>
                       <th className="py-3 px-4">Access Level</th>
+                      <th className="py-3 px-4 text-center">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200 font-semibold bg-white">
@@ -514,6 +527,15 @@ export default function PlatformMasterConsole() {
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             Authorized
                           </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <button
+                            onClick={() => handleOpenEditUserModal(u)}
+                            className="p-1.5 rounded-lg border border-slate-200 hover:bg-indigo-50 hover:text-indigo-600 text-slate-600 transition"
+                            title="Edit User & Credentials"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -550,7 +572,7 @@ export default function PlatformMasterConsole() {
                   <Sparkles className="w-4 h-4 text-purple-600" />
                 </div>
                 <div className="text-3xl font-black text-purple-600">99.8%</div>
-                <p className="text-[11px] text-slate-400 font-semibold">Gemini 3.5 Flash Lite Engine</p>
+                <p className="text-[11px] text-slate-400 font-semibold">Gemini Flash Engine</p>
               </div>
 
               <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-3 shadow-xs">
@@ -604,7 +626,7 @@ export default function PlatformMasterConsole() {
                 </div>
                 <div>
                   <h2 className="text-sm font-black text-slate-900">
-                    {modalMode === 'create' ? 'Onboard New Customer Organization' : 'Edit Organization Profile'}
+                    {tenantModalMode === 'create' ? 'Onboard New Customer Organization' : 'Edit Organization Profile'}
                   </h2>
                   <p className="text-[11px] text-slate-500 font-bold">Configure tenant slug, primary domain, and default admin</p>
                 </div>
@@ -626,7 +648,7 @@ export default function PlatformMasterConsole() {
                     setTenantFormData((prev) => ({
                       ...prev,
                       name: val,
-                      id: modalMode === 'create' && !prev.id ? val.toLowerCase().replace(/[^a-z0-9]/g, '') : prev.id
+                      id: tenantModalMode === 'create' && !prev.id ? val.toLowerCase().replace(/[^a-z0-9]/g, '') : prev.id
                     }));
                   }}
                   placeholder="e.g. Rafael Advanced Defense Systems"
@@ -640,7 +662,7 @@ export default function PlatformMasterConsole() {
                   <input
                     type="text"
                     required
-                    disabled={modalMode === 'edit'}
+                    disabled={tenantModalMode === 'edit'}
                     value={tenantFormData.id}
                     onChange={(e) => setTenantFormData({ ...tenantFormData, id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
                     placeholder="e.g. rafael"
@@ -659,7 +681,7 @@ export default function PlatformMasterConsole() {
                       setTenantFormData((prev) => ({
                         ...prev,
                         domain: domainVal,
-                        adminEmail: modalMode === 'create' ? `admin@${domainVal}` : prev.adminEmail
+                        adminEmail: tenantModalMode === 'create' ? `admin@${domainVal}` : prev.adminEmail
                       }));
                     }}
                     placeholder="e.g. rafael.co.il"
@@ -702,7 +724,7 @@ export default function PlatformMasterConsole() {
         </div>
       )}
 
-      {/* MODAL: ADD PLATFORM USER */}
+      {/* MODAL: ADD / EDIT PLATFORM USER */}
       {isUserModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-3xl p-7 space-y-6 border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
@@ -713,7 +735,9 @@ export default function PlatformMasterConsole() {
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-slate-900">Add New Platform User</h2>
+                  <h2 className="text-sm font-black text-slate-900">
+                    {userModalMode === 'create' ? 'Add New Platform User' : 'Edit Platform User & Role'}
+                  </h2>
                   <p className="text-[11px] text-slate-500 font-bold">Assign vendor backend credentials and permission tier</p>
                 </div>
               </div>
@@ -754,22 +778,25 @@ export default function PlatformMasterConsole() {
                 <input
                   type="email"
                   required
+                  disabled={userModalMode === 'edit'}
                   value={userFormData.email}
                   onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
                   placeholder="user@smartq.ai"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-mono font-semibold focus:outline-none focus:border-indigo-600"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 disabled:bg-slate-100 text-slate-900 font-mono font-semibold focus:outline-none focus:border-indigo-600"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block mb-1 text-slate-800">Master Password *</label>
+                  <label className="block mb-1 text-slate-800">
+                    {userModalMode === 'edit' ? 'Reset Password (Optional)' : 'Master Password *'}
+                  </label>
                   <div className="relative">
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={userFormData.password}
                       onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
-                      placeholder="Default: SmartQ2026!"
+                      placeholder={userModalMode === 'edit' ? 'Leave empty to keep current' : 'Default: SmartQ2026!'}
                       className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-semibold focus:outline-none focus:border-indigo-600"
                     />
                     <button
@@ -823,7 +850,7 @@ export default function PlatformMasterConsole() {
                   className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black shadow-md transition flex items-center gap-1.5"
                 >
                   <Save className="w-4 h-4" />
-                  <span>{savingUser ? 'Saving...' : 'Save Platform User'}</span>
+                  <span>{savingUser ? 'Saving...' : userModalMode === 'edit' ? 'Update User' : 'Save Platform User'}</span>
                 </button>
               </div>
             </form>

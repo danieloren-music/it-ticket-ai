@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import SmartQEnterpriseHome from './home/page';
 
 export default function RootPage() {
-  redirect('/home');
+  return <SmartQEnterpriseHome />;
 }

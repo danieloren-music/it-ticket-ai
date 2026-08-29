@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function middleware(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. נתיבים פתוחים לחלוטין
+  // 1. נתיבים ציבוריים פתוחים לחלוטין
   if (
     pathname.startsWith('/home') ||
     pathname.startsWith('/_next') ||
@@ -16,27 +16,19 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. זיהוי נתיב Tenant: /[tenant]/manage, /[tenant]/admins, /[tenant]/users, /[tenant]/login
+  // 2. זיהוי נתיבי ארגון: /[tenant]/manage, /[tenant]/admins, /[tenant]/users, /[tenant]/login
   const match = pathname.match(/^\/([^\/]+)(?:\/(manage|admins|users|login))?/);
 
   if (match) {
-    const routeTenant = match[1];
+    const routeTenant = match[1].toLowerCase();
     const routeType = match[2] || 'root';
 
-    // אם זה דף ההתחברות עצמו - תמיד לאפשר כניסה
-    if (routeType === 'login') {
+    // דף לוגין ופורטל משתמשים פתוחים לגישה
+    if (routeType === 'login' || routeType === 'users' || routeType === 'root') {
       return NextResponse.next();
     }
 
-    // בדיקת קיום הארגון
-    const origin = req.nextUrl.origin;
-    const verifyRes = await fetch(`${origin}/api/tenants/verify?tenant=${routeTenant}`);
-
-    if (!verifyRes.ok) {
-      return new NextResponse('Tenant Not Found', { status: 404 });
-    }
-
-    // קריאת נתוני Session Cookie
+    // קריאת עוגיית ה-Session
     const sessionCookie = req.cookies.get('smartq_session')?.value;
     let session: { role: 'manager' | 'admin' | 'user'; tenantId: string; email: string } | null = null;
 
@@ -48,24 +40,26 @@ export async function middleware(req: NextRequest) {
       }
     }
 
+    const isMatchingTenant = session?.tenantId?.toLowerCase() === routeTenant;
+
     // 3. אכיפת הרשאות:
-    // נתיב Manage: דורש הרשאת manager
+    // נתיב Manage: רק מנהל (Manager) של אותו ארגון מורשה
     if (routeType === 'manage') {
-      if (!session || session.tenantId !== routeTenant || session.role !== 'manager') {
-        const loginUrl = new URL(`/${routeTenant}/login`, req.url);
+      if (!session || !isMatchingTenant || session.role !== 'manager') {
+        const loginUrl = new URL(`/${match[1]}/login`, req.url);
         loginUrl.searchParams.set('returnTo', pathname);
         return NextResponse.redirect(loginUrl);
       }
     }
 
-    // נתיב Admins: דורש הרשאת admin או manager
+    // נתיב Admins: מנהל או טכנאי IT של אותו ארגון מורשים
     if (routeType === 'admins') {
       if (
         !session ||
-        session.tenantId !== routeTenant ||
+        !isMatchingTenant ||
         (session.role !== 'manager' && session.role !== 'admin')
       ) {
-        const loginUrl = new URL(`/${routeTenant}/login`, req.url);
+        const loginUrl = new URL(`/${match[1]}/login`, req.url);
         loginUrl.searchParams.set('returnTo', pathname);
         return NextResponse.redirect(loginUrl);
       }

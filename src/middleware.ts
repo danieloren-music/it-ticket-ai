@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. נתיבים סטטיים וציבוריים
+  // 1. נתיבים סטטיים וציבוריים מוחלטים
   if (
     pathname.startsWith('/home') ||
     pathname.startsWith('/_next') ||
@@ -29,12 +29,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // הפניה אחורית עבור /users ישן אל /new-request
+  // הפניה מנתיב users הישן אל new-request
   if (subRoute === 'users') {
     return NextResponse.redirect(new URL(`/${rawTenant}/new-request`, req.url));
   }
 
-  // 3. פענוח עוגיית Session
+  // 3. קריאת עוגיית Session
   const sessionCookie = req.cookies.get('smartq_session')?.value;
   let session: { role?: 'manager' | 'admin' | 'user'; tenantId?: string; email?: string } | null = null;
 
@@ -58,9 +58,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${rawTenant}/access-denied`, req.url));
   };
 
-  // 4. אכיפת הרשאות:
+  // 4. אכיפת הרשאות מלאה:
 
-  // נתיב הבסיס /[tenant] -> מפנה ישירות ל-new-request
+  // נתיב הבסיס /[tenant]
   if (!subRoute) {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(`/${rawTenant}/new-request`);
@@ -68,14 +68,14 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${rawTenant}/new-request`, req.url));
   }
 
-  // נתיב new-request: דורש משתמש מחובר (User / Admin / Manager)
+  // נתיב new-request (דרוש משתמש מחובר)
   if (subRoute === 'new-request') {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(pathname);
     }
   }
 
-  // נתיב admins: דורש טכנאי או מנהל (Admin / Manager)
+  // נתיב admins (דרוש טכנאי או מנהל)
   if (subRoute === 'admins') {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(pathname);
@@ -85,7 +85,7 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // נתיב manage: דורש מנהל בלבד (Manager)
+  // נתיב manage (דרוש מנהל בלבד)
   if (subRoute === 'manage') {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(pathname);

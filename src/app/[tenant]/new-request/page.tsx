@@ -94,7 +94,7 @@ const QUICK_PROMPTS = [
   'המסך החיצוני מהבהב ומציג קווים'
 ];
 
-function TenantPortalContent() {
+function NewRequestContent() {
   const [theme, setTheme] = useState<ThemeMode>('light');
   const params = useParams();
   const rawTenant = (params?.tenant as string) || 'demo';
@@ -106,7 +106,7 @@ function TenantPortalContent() {
   const ssoDept = searchParams.get('dept') || '';
 
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; dept: string } | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; dept: string; phone?: string } | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([
     { 
@@ -162,7 +162,7 @@ function TenantPortalContent() {
         });
       }
 
-      // חילוץ פרטי Session של המשתמש המחובר
+      // קריאת Session של המשתמש המחובר מה-Cookie
       const matchCookie = document.cookie
         .split('; ')
         .find((row) => row.startsWith('smartq_session='));
@@ -173,12 +173,16 @@ function TenantPortalContent() {
           const decoded = JSON.parse(atob(rawVal));
           if (decoded.email) {
             const resolvedName = decoded.name || decoded.email.split('@')[0];
-            setCurrentUser({ name: resolvedName, email: decoded.email, dept: decoded.city || '' });
+            const resolvedCity = decoded.city || 'מטה ראשי';
+            const resolvedPhone = decoded.phone || '';
+
+            setCurrentUser({ name: resolvedName, email: decoded.email, dept: resolvedCity, phone: resolvedPhone });
             setFormData((prev) => ({
               ...prev,
               reporter_name: resolvedName,
               reporter_email: decoded.email,
-              user_city: decoded.city || prev.user_city,
+              user_city: resolvedCity,
+              user_phone: resolvedPhone,
             }));
           }
         } catch {}
@@ -265,7 +269,8 @@ function TenantPortalContent() {
         assigned_team: data.assigned_team || data.assignedTeam || prev.assigned_team,
         reporter_name: currentUser?.name || prev.reporter_name || '',
         reporter_email: currentUser?.email || prev.reporter_email || '',
-        user_city: data.user_city || prev.user_city,
+        user_city: currentUser?.dept || data.user_city || prev.user_city || 'מטה ראשי',
+        user_phone: currentUser?.phone || prev.user_phone || ''
       }));
 
       if (data.follow_up_question) {
@@ -308,7 +313,7 @@ function TenantPortalContent() {
 
     const generated6Digits = Math.floor(100000 + Math.random() * 900000).toString();
     const finalReporterName = currentUser?.name || formData.reporter_name || 'עובד ארגון';
-    const finalReporterEmail = currentUser?.email || formData.reporter_email || `user@${tenantSlug}.com`;
+    const finalReporterEmail = currentUser?.email || formData.reporter_email || `user@${tenantSlug}.co.il`;
 
     try {
       const { data, error } = await supabase.from('tickets').insert([
@@ -320,10 +325,10 @@ function TenantPortalContent() {
           category: formData.category,
           urgency: formData.urgency,
           assigned_team: formData.assigned_team,
-          user_name: finalReporterName,
-          user_email: finalReporterEmail,
           reporter_name: finalReporterName,
           reporter_email: finalReporterEmail,
+          user_name: finalReporterName,
+          user_email: finalReporterEmail,
           user_city: formData.user_city || 'מטה ראשי',
           user_phone: formData.user_phone || '',
           status: 'Open',
@@ -344,8 +349,8 @@ function TenantPortalContent() {
         assigned_team: 'Helpdesk Tier 1',
         reporter_name: currentUser?.name || '',
         reporter_email: currentUser?.email || '',
-        user_city: '',
-        user_phone: '',
+        user_city: currentUser?.dept || '',
+        user_phone: currentUser?.phone || '',
       });
       setIsReadyForReview(false);
       setMessages((prev) => [
@@ -452,7 +457,7 @@ function TenantPortalContent() {
             </div>
 
             {currentUser ? (
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-xs font-bold">
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-xs font-black shadow-xs">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{currentUser.name}</span>
               </div>
@@ -896,10 +901,10 @@ function TenantPortalContent() {
   );
 }
 
-export default function TenantUsersPage() {
+export default function TenantNewRequestPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
-      <TenantPortalContent />
+      <NewRequestContent />
     </Suspense>
   );
 }

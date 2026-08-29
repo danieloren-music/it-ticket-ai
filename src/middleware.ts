@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. נתיבים סטטיים וציבוריים מוחלטים
+  // 1. נתיבים סטטיים וציבוריים
   if (
     pathname.startsWith('/home') ||
     pathname.startsWith('/_next') ||
@@ -16,7 +16,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. זיהוי נתיבי ארגון: /[tenant], /[tenant]/users, /[tenant]/admins, /[tenant]/manage, /[tenant]/login
+  // 2. זיהוי נתיבי ארגון
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) return NextResponse.next();
 
@@ -24,12 +24,17 @@ export function middleware(req: NextRequest) {
   const routeTenant = rawTenant.toLowerCase();
   const subRoute = segments[1] || '';
 
-  // דף הלוגין עצמו פתוח לגישה חופשית
-  if (subRoute === 'login') {
+  // דפי Login ו-Access-Denied פתוחים
+  if (subRoute === 'login' || subRoute === 'access-denied') {
     return NextResponse.next();
   }
 
-  // 3. קריאה ופענוח של עוגיית ה-Session
+  // הפניה אחורית עבור /users ישן אל /new-request
+  if (subRoute === 'users') {
+    return NextResponse.redirect(new URL(`/${rawTenant}/new-request`, req.url));
+  }
+
+  // 3. פענוח עוגיית Session
   const sessionCookie = req.cookies.get('smartq_session')?.value;
   let session: { role?: 'manager' | 'admin' | 'user'; tenantId?: string; email?: string } | null = null;
 
@@ -49,34 +54,44 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(loginUrl);
   };
 
-  // 4. אכיפת הרשאות מלאה (RBAC):
+  const redirectToAccessDenied = () => {
+    return NextResponse.redirect(new URL(`/${rawTenant}/access-denied`, req.url));
+  };
 
-  // נתיב הבסיס /[tenant]
+  // 4. אכיפת הרשאות:
+
+  // נתיב הבסיס /[tenant] -> מפנה ישירות ל-new-request
   if (!subRoute) {
     if (!session || !isMatchingTenant) {
-      return redirectToLogin(`/${rawTenant}/manage`);
+      return redirectToLogin(`/${rawTenant}/new-request`);
     }
-    return NextResponse.redirect(new URL(`/${rawTenant}/manage`, req.url));
+    return NextResponse.redirect(new URL(`/${rawTenant}/new-request`, req.url));
   }
 
-  // נתיב Manage: מנהל (Manager) בלבד
-  if (subRoute === 'manage') {
-    if (!session || !isMatchingTenant || session.role !== 'manager') {
-      return redirectToLogin(pathname);
-    }
-  }
-
-  // נתיב Admins: מנהל (Manager) או טכנאי (Admin)
-  if (subRoute === 'admins') {
-    if (!session || !isMatchingTenant || (session.role !== 'manager' && session.role !== 'admin')) {
-      return redirectToLogin(pathname);
-    }
-  }
-
-  // נתיב Users: משתמש מאומת (User, Admin, Manager)
-  if (subRoute === 'users') {
+  // נתיב new-request: דורש משתמש מחובר (User / Admin / Manager)
+  if (subRoute === 'new-request') {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(pathname);
+    }
+  }
+
+  // נתיב admins: דורש טכנאי או מנהל (Admin / Manager)
+  if (subRoute === 'admins') {
+    if (!session || !isMatchingTenant) {
+      return redirectToLogin(pathname);
+    }
+    if (session.role !== 'manager' && session.role !== 'admin') {
+      return redirectToAccessDenied();
+    }
+  }
+
+  // נתיב manage: דורש מנהל בלבד (Manager)
+  if (subRoute === 'manage') {
+    if (!session || !isMatchingTenant) {
+      return redirectToLogin(pathname);
+    }
+    if (session.role !== 'manager') {
+      return redirectToAccessDenied();
     }
   }
 

@@ -13,16 +13,16 @@ import {
   Layers, 
   User, 
   Check, 
-  SlidersHorizontal,
-  Zap,
-  ArrowDown,
-  LogIn,
-  ShieldCheck,
-  Building2,
-  MapPin,
-  Phone,
-  Copy
+  SlidersHorizontal, 
+  Zap, 
+  ArrowDown, 
+  LogIn, 
+  ShieldCheck, 
+  Building2, 
+  Copy 
 } from 'lucide-react';
+
+type LanguageMode = 'he' | 'en';
 
 function TypewriterMessage({ text, onComplete }: { text: string; onComplete?: () => void }) {
   const [displayedText, setDisplayedText] = useState('');
@@ -40,7 +40,7 @@ function TypewriterMessage({ text, onComplete }: { text: string; onComplete?: ()
         clearInterval(interval);
         if (onComplete) onComplete();
       }
-    }, 16);
+    }, 14);
 
     return () => clearInterval(interval);
   }, [text]);
@@ -82,7 +82,14 @@ interface Ticket {
   tenant_id: string;
 }
 
-const QUICK_PROMPTS = [
+const QUICK_PROMPTS_HE = [
+  'נשפך לי קפה על מקלדת הלפטופ',
+  'לא מצליח להתחבר ל-VPN מהבית',
+  'צריך הרשאה לתיקייה משותפת',
+  'המסך החיצוני מרצד ומציג קווים'
+];
+
+const QUICK_PROMPTS_EN = [
   'Spilled coffee on laptop keyboard',
   'Cannot connect to corporate VPN from home',
   'Need access permission for shared directory',
@@ -90,6 +97,7 @@ const QUICK_PROMPTS = [
 ];
 
 function SelfServiceContent() {
+  const [lang, setLang] = useState<LanguageMode>('he');
   const params = useParams();
   const rawTenant = (params?.tenant as string) || 'demo';
   const tenantSlug = rawTenant.toLowerCase();
@@ -102,11 +110,15 @@ function SelfServiceContent() {
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
   const [currentUser, setCurrentUser] = useState<{ name: string; email: string; dept: string; phone?: string } | null>(null);
 
+  const initialWelcome = lang === 'he' 
+    ? 'היי, אני Tony מבית SmartQ. ספר לי מה התקלה או הבקשה שלך ואדאג למלא ולנתב את הקריאה עבורך.'
+    : 'Hi! I am Tony from SmartQ. Describe your IT issue or request and I will automatically structure and route your ticket.';
+
   const [messages, setMessages] = useState<Message[]>([
     { 
       id: 'init-msg',
       role: 'assistant', 
-      content: 'Hi! I am Zack from SmartQ. Describe your IT issue or request and I will automatically structure and route your ticket.',
+      content: initialWelcome,
       isStreaming: true
     }
   ]);
@@ -137,6 +149,21 @@ function SelfServiceContent() {
   const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
   const formSectionRef = useRef<HTMLDivElement>(null);
 
+  const handleToggleLanguage = (newLang: LanguageMode) => {
+    setLang(newLang);
+    const welcome = newLang === 'he' 
+      ? 'היי, אני Tony מבית SmartQ. ספר לי מה התקלה או הבקשה שלך ואדאג למלא ולנתב את הקריאה עבורך.'
+      : 'Hi! I am Tony from SmartQ. Describe your IT issue or request and I will automatically structure and route your ticket.';
+    setMessages([
+      {
+        id: 'welcome-' + Date.now(),
+        role: 'assistant',
+        content: welcome,
+        isStreaming: true
+      }
+    ]);
+  };
+
   useEffect(() => {
     const fetchTenantAndSession = async () => {
       const { data } = await supabase
@@ -166,7 +193,7 @@ function SelfServiceContent() {
           const decoded = JSON.parse(atob(rawVal));
           if (decoded.email) {
             const resolvedName = decoded.name || decoded.email.split('@')[0];
-            const resolvedCity = decoded.city || 'Headquarters';
+            const resolvedCity = decoded.city || (lang === 'he' ? 'מטה ראשי' : 'Headquarters');
             const resolvedPhone = decoded.phone || '';
 
             setCurrentUser({ name: resolvedName, email: decoded.email, dept: resolvedCity, phone: resolvedPhone });
@@ -183,7 +210,7 @@ function SelfServiceContent() {
     };
 
     fetchTenantAndSession();
-  }, [tenantSlug, rawTenant]);
+  }, [tenantSlug, rawTenant, lang]);
 
   useEffect(() => {
     if (ssoName || ssoEmail) {
@@ -237,11 +264,12 @@ function SelfServiceContent() {
           messages: newMessages.map(({ role, content }) => ({ role, content })),
           currentFormData: formData,
           description: messageContent,
-          tenantSlug
+          tenantSlug,
+          language: lang
         }),
       });
 
-      if (!res.ok) throw new Error('Communication error with Zack AI');
+      if (!res.ok) throw new Error(lang === 'he' ? 'שגיאה בתקשורת מול Tony' : 'Communication error with Tony AI');
       const data = await res.json();
 
       setFormData((prev) => {
@@ -258,7 +286,7 @@ function SelfServiceContent() {
           assigned_team: data.assigned_team || data.assignedTeam || prev.assigned_team,
           reporter_name: updatedName,
           reporter_email: updatedEmail,
-          user_city: data.user_city || prev.user_city || currentUser?.dept || 'Headquarters',
+          user_city: data.user_city || prev.user_city || currentUser?.dept || (lang === 'he' ? 'מטה ראשי' : 'Headquarters'),
           user_phone: prev.user_phone || currentUser?.phone || ''
         };
       });
@@ -280,7 +308,9 @@ function SelfServiceContent() {
           { 
             id: 'ai-' + Date.now(), 
             role: 'assistant', 
-            content: 'I have populated the ticket details below. Scrolling down for your final confirmation.',
+            content: lang === 'he' 
+              ? 'מילאתי את כל פרטי הקריאה בטופס. גולל אותך לבדיקה ואישור.' 
+              : 'I have populated the ticket details below. Scrolling down for your final confirmation.',
             isStreaming: true 
           }
         ]);
@@ -302,7 +332,7 @@ function SelfServiceContent() {
     setFeedbackMsg(null);
 
     const generated6Digits = Math.floor(100000 + Math.random() * 900000).toString();
-    const finalReporterName = formData.reporter_name || currentUser?.name || 'Enterprise Employee';
+    const finalReporterName = formData.reporter_name || currentUser?.name || (lang === 'he' ? 'עובד ארגון' : 'Enterprise Employee');
     const finalReporterEmail = formData.reporter_email || currentUser?.email || `user@${tenantSlug}.com`;
 
     try {
@@ -319,7 +349,7 @@ function SelfServiceContent() {
           reporter_email: finalReporterEmail,
           user_name: finalReporterName,
           user_email: finalReporterEmail,
-          user_city: formData.user_city || 'Headquarters',
+          user_city: formData.user_city || (lang === 'he' ? 'מטה ראשי' : 'Headquarters'),
           user_phone: formData.user_phone || '',
           status: 'Open',
         },
@@ -345,7 +375,14 @@ function SelfServiceContent() {
       setIsReadyForReview(false);
       setMessages((prev) => [
         ...prev,
-        { id: 'done-' + Date.now(), role: 'assistant', content: `Ticket #${finalTicketNum} was created successfully! Anything else I can assist with?`, isStreaming: true }
+        { 
+          id: 'done-' + Date.now(), 
+          role: 'assistant', 
+          content: lang === 'he' 
+            ? `קריאה #${finalTicketNum} שוגרה בהצלחה. יש משהו נוסף שאוכל לעזור בו?` 
+            : `Ticket #${finalTicketNum} was created successfully! Anything else I can assist with?`, 
+          isStreaming: true 
+        }
       ]);
       fetchTickets();
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -364,9 +401,12 @@ function SelfServiceContent() {
     }
   };
 
+  const isHebrew = lang === 'he';
+
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased">
-      {/* Header */}
+    <main dir={isHebrew ? 'rtl' : 'ltr'} className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased">
+      
+      {/* Top Navbar */}
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -377,7 +417,7 @@ function SelfServiceContent() {
               <div className="flex items-center gap-2">
                 <span className="text-lg font-black tracking-tight text-slate-900">SmartQ</span>
                 <span className="px-2 py-0.5 text-[10px] font-extrabold text-white bg-indigo-600 rounded-md uppercase">
-                  SELF-SERVICE
+                  {isHebrew ? 'שירות עצמי' : 'SELF-SERVICE'}
                 </span>
               </div>
               <div className="flex items-center gap-1 text-[11px] text-slate-500 font-bold">
@@ -388,6 +428,28 @@ function SelfServiceContent() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {/* Language Switcher Capsule */}
+            <div className="flex items-center p-0.5 rounded-xl border border-slate-200 bg-slate-100 text-xs font-black">
+              <button
+                onClick={() => handleToggleLanguage('he')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition ${
+                  isHebrew ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>🇮🇱</span>
+                <span>עברית</span>
+              </button>
+              <button
+                onClick={() => handleToggleLanguage('en')}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition ${
+                  !isHebrew ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>🇺🇸</span>
+                <span>EN</span>
+              </button>
+            </div>
+
             {currentUser ? (
               <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-xs font-black">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
@@ -399,7 +461,7 @@ function SelfServiceContent() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-800 transition"
               >
                 <LogIn className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Sign In</span>
+                <span>{isHebrew ? 'התחבר' : 'Sign In'}</span>
               </a>
             )}
 
@@ -408,7 +470,7 @@ function SelfServiceContent() {
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTickets ? 'animate-spin text-indigo-600' : ''}`} />
-              Refresh
+              <span>{isHebrew ? 'רענון' : 'Refresh'}</span>
             </button>
           </div>
         </div>
@@ -419,7 +481,7 @@ function SelfServiceContent() {
         
         {/* Quick Prompts */}
         <div className="flex flex-wrap items-center justify-center gap-2">
-          {QUICK_PROMPTS.map((prompt, i) => (
+          {(isHebrew ? QUICK_PROMPTS_HE : QUICK_PROMPTS_EN).map((prompt, i) => (
             <button
               key={i}
               type="button"
@@ -432,15 +494,17 @@ function SelfServiceContent() {
           ))}
         </div>
 
-        {/* Zack Chat Interface */}
+        {/* Tony Chat Interface */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden flex flex-col h-[480px]">
           <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-md font-black text-xs">
-                Z
+                T
               </div>
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm text-slate-900">Zack AI Support Agent</h3>
+                <h3 className="font-bold text-sm text-slate-900">
+                  {isHebrew ? 'Tony – סוכן תמיכה חכם' : 'Tony AI Support Agent'}
+                </h3>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
               </div>
             </div>
@@ -451,7 +515,7 @@ function SelfServiceContent() {
                 onClick={() => formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
                 className="flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-lg transition"
               >
-                <span>Ready for Review</span>
+                <span>{isHebrew ? 'הפרטים מוכנים – עבור לטופס' : 'Ready for Review'}</span>
                 <ArrowDown className="w-3 h-3" />
               </button>
             )}
@@ -459,11 +523,15 @@ function SelfServiceContent() {
 
           <div ref={chatMessagesContainerRef} className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/40">
             {messages.map((m) => (
-              <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div key={m.id} className={`flex gap-3 ${
+                m.role === 'user' 
+                  ? isHebrew ? 'justify-start flex-row-reverse' : 'justify-end' 
+                  : 'justify-start'
+              }`}>
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black shadow-2xs ${
                   m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-white'
                 }`}>
-                  {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : 'Z'}
+                  {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : 'T'}
                 </div>
                 <div className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed max-w-[85%] shadow-2xs font-medium ${
                   m.role === 'user' 
@@ -493,7 +561,7 @@ function SelfServiceContent() {
                   <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
                   <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
                 </div>
-                <span>Zack is analyzing your request...</span>
+                <span>{isHebrew ? 'Tony מעבד את פרטי הפנייה...' : 'Tony is analyzing your request...'}</span>
               </div>
             )}
           </div>
@@ -503,7 +571,7 @@ function SelfServiceContent() {
               type="text"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              placeholder="Describe your IT request or problem to Zack..."
+              placeholder={isHebrew ? 'תאר ל-Tony מה התקלה או הבקשה שלך...' : 'Describe your IT request or problem to Tony...'}
               className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600"
             />
             <button
@@ -511,8 +579,8 @@ function SelfServiceContent() {
               disabled={isAiLoading || !userInput.trim()}
               className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-bold text-xs sm:text-sm transition shadow-sm flex items-center justify-center gap-1.5"
             >
-              <span>Send</span>
-              <Send className="w-3.5 h-3.5" />
+              <span>{isHebrew ? 'שלח' : 'Send'}</span>
+              <Send className={`w-3.5 h-3.5 ${isHebrew ? 'rotate-180' : ''}`} />
             </button>
           </form>
         </div>
@@ -536,76 +604,78 @@ function SelfServiceContent() {
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
               <h2 className="text-sm font-bold text-slate-900">
-                Ticket Details Confirmation ({tenant?.name || rawTenant})
+                {isHebrew ? `אישור ושיגור קריאה (${tenant?.name || rawTenant})` : `Ticket Details Confirmation (${tenant?.name || rawTenant})`}
               </h2>
             </div>
             <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
-              Verified by Zack
+              {isHebrew ? 'אומת ע״י Tony' : 'Verified by Tony'}
             </span>
           </div>
 
           <form onSubmit={handleSubmitTicket} className="space-y-4 text-xs font-bold">
             <div>
-              <label className="block mb-1.5 text-slate-800">Ticket Subject / Title *</label>
+              <label className="block mb-1.5 text-slate-800">
+                {isHebrew ? 'נושא הפנייה *' : 'Ticket Subject / Title *'}
+              </label>
               <input
                 type="text"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="Brief summary of the issue..."
+                placeholder={isHebrew ? 'נושא הפנייה בקצרה...' : 'Brief summary of the issue...'}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block mb-1.5 text-slate-800">Category</label>
+                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'קטגוריה' : 'Category'}</label>
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:outline-none focus:border-indigo-600"
                 >
-                  <option value="Hardware">Hardware (Laptops, Monitors, Peripherals)</option>
-                  <option value="Software & SaaS">Software & SaaS (Office, Zoom, Slack)</option>
-                  <option value="Network & Connectivity">Network & VPN</option>
-                  <option value="Access & IAM">Access & Identity (IAM)</option>
-                  <option value="Cloud & Infrastructure">Cloud & Infrastructure</option>
-                  <option value="Cyber Security">Cyber Security</option>
-                  <option value="Workstation & Peripherals">Workstation & Peripherals</option>
-                  <option value="Database & BI">Database & BI</option>
-                  <option value="General IT Request">General IT Request</option>
+                  <option value="Hardware">{isHebrew ? 'חומרה (מחשבים, מסכים, ציוד קצה)' : 'Hardware (Laptops, Monitors, Peripherals)'}</option>
+                  <option value="Software & SaaS">{isHebrew ? 'תוכנה וענן (Office, Zoom, Slack)' : 'Software & SaaS (Office, Zoom, Slack)'}</option>
+                  <option value="Network & Connectivity">{isHebrew ? 'תקשורת ו-VPN' : 'Network & VPN'}</option>
+                  <option value="Access & IAM">{isHebrew ? 'הרשאות וזהויות (IAM)' : 'Access & Identity (IAM)'}</option>
+                  <option value="Cloud & Infrastructure">{isHebrew ? 'תשתיות וענן' : 'Cloud & Infrastructure'}</option>
+                  <option value="Cyber Security">{isHebrew ? 'אבטחת מידע וסייבר' : 'Cyber Security'}</option>
+                  <option value="Workstation & Peripherals">{isHebrew ? 'עמדות עבודה וציוד היקפי' : 'Workstation & Peripherals'}</option>
+                  <option value="Database & BI">{isHebrew ? 'בסיסי נתונים ו-BI' : 'Database & BI'}</option>
+                  <option value="General IT Request">{isHebrew ? 'בקשת IT כללית' : 'General IT Request'}</option>
                 </select>
               </div>
 
               <div>
-                <label className="block mb-1.5 text-slate-800">SLA Urgency</label>
+                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'דחיפות SLA' : 'SLA Urgency'}</label>
                 <select
                   value={formData.urgency}
                   onChange={(e) => setFormData({ ...formData, urgency: e.target.value })}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:outline-none focus:border-indigo-600"
                 >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
+                  <option value="Low">{isHebrew ? 'נמוכה (Low)' : 'Low'}</option>
+                  <option value="Medium">{isHebrew ? 'בינונית (Medium)' : 'Medium'}</option>
+                  <option value="High">{isHebrew ? 'גבוהה (High)' : 'High'}</option>
+                  <option value="Critical">{isHebrew ? 'קריטית (Critical)' : 'Critical'}</option>
                 </select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block mb-1.5 text-slate-800">System Impacted</label>
+                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'רכיב / מערכת שנפגעה' : 'System Impacted'}</label>
                 <input
                   type="text"
                   value={formData.system_impacted}
                   onChange={(e) => setFormData({ ...formData, system_impacted: e.target.value })}
-                  placeholder="e.g. Laptop, VPN Client, SAP, Email..."
+                  placeholder={isHebrew ? 'לדוגמה: מחשב נייד, לקוח VPN, SAP, מייל...' : 'e.g. Laptop, VPN Client, SAP, Email...'}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
 
               <div>
-                <label className="block mb-1.5 text-slate-800">Assigned IT Team</label>
+                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'צוות IT מטפל' : 'Assigned IT Team'}</label>
                 <select
                   value={formData.assigned_team}
                   onChange={(e) => setFormData({ ...formData, assigned_team: e.target.value })}
@@ -622,18 +692,18 @@ function SelfServiceContent() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block mb-1.5 text-slate-800">Location / Headquarters</label>
+                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'עיר / מטה / סניף' : 'Location / Headquarters'}</label>
                 <input
                   type="text"
                   value={formData.user_city}
                   onChange={(e) => setFormData({ ...formData, user_city: e.target.value })}
-                  placeholder="e.g. Haifa HQ / Tel Aviv Campus"
+                  placeholder={isHebrew ? 'למשל: מטה חיפה / קמפוס תל אביב' : 'e.g. Haifa HQ / Tel Aviv Campus'}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
 
               <div>
-                <label className="block mb-1.5 text-slate-800">Contact Phone / Extension</label>
+                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'טלפון / שלוחה לחזרה' : 'Contact Phone / Extension'}</label>
                 <input
                   type="tel"
                   value={formData.user_phone}
@@ -645,30 +715,30 @@ function SelfServiceContent() {
             </div>
 
             <div>
-              <label className="block mb-1.5 text-slate-800">Detailed Description *</label>
+              <label className="block mb-1.5 text-slate-800">{isHebrew ? 'פירוט מלא של התקלה *' : 'Detailed Description *'}</label>
               <textarea
                 required
                 rows={3}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Detailed explanation of what occurred..."
+                placeholder={isHebrew ? 'פירוט מלא של מה שאירע...' : 'Detailed explanation of what occurred...'}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-medium leading-relaxed"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block mb-1.5 text-slate-800">Reporter Full Name</label>
+                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'שם המדווח' : 'Reporter Full Name'}</label>
                 <input
                   type="text"
                   value={formData.reporter_name}
                   onChange={(e) => setFormData({ ...formData, reporter_name: e.target.value })}
-                  placeholder="Full Name"
+                  placeholder={isHebrew ? 'שם מלא' : 'Full Name'}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
               <div>
-                <label className="block mb-1.5 text-slate-800">Reporter Work Email</label>
+                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'אימייל ארגוני' : 'Reporter Work Email'}</label>
                 <input
                   type="email"
                   value={formData.reporter_email}
@@ -686,30 +756,32 @@ function SelfServiceContent() {
                 className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-xs sm:text-sm font-black shadow-md transition flex items-center justify-center gap-2"
               >
                 <Check className="w-4 h-4" />
-                <span>{isSubmitting ? 'Submitting Ticket...' : 'Dispatch Ticket to SmartQ'}</span>
+                <span>{isSubmitting ? (isHebrew ? 'משגר קריאה...' : 'Submitting Ticket...') : (isHebrew ? 'שגר קריאה ל-SmartQ' : 'Dispatch Ticket to SmartQ')}</span>
               </button>
             </div>
           </form>
         </div>
 
-        {/* Active Tickets */}
+        {/* Active Tickets Section */}
         <section className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-indigo-600" />
-              <h2 className="text-sm font-bold text-slate-900">Active Organization Tickets ({tickets.length})</h2>
+              <h2 className="text-sm font-bold text-slate-900">
+                {isHebrew ? `קריאות פתוחות בארגון (${tickets.length})` : `Active Organization Tickets (${tickets.length})`}
+              </h2>
             </div>
-            <span className="text-xs text-slate-400 font-bold">Real-time status</span>
+            <span className="text-xs text-slate-400 font-bold">{isHebrew ? 'סטטוס בזמן אמת' : 'Real-time status'}</span>
           </div>
 
           {isLoadingTickets ? (
             <div className="py-8 text-center text-xs text-slate-500 font-bold">
               <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2 text-indigo-600" />
-              Loading tickets...
+              {isHebrew ? 'טוען קריאות...' : 'Loading tickets...'}
             </div>
           ) : tickets.length === 0 ? (
             <div className="text-center py-8 text-xs text-slate-500 font-bold">
-              No open tickets found for this organization.
+              {isHebrew ? 'אין כרגע קריאות פתוחות בסביבה זו.' : 'No open tickets found for this organization.'}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
@@ -717,7 +789,7 @@ function SelfServiceContent() {
                 <div key={t.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50/60 hover:bg-white transition space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="font-mono font-black text-indigo-600 text-xs mr-2">
+                      <span className={`font-mono font-black text-indigo-600 text-xs ${isHebrew ? 'ml-2' : 'mr-2'}`}>
                         #{t.ticket_number || t.id.slice(0, 6)}
                       </span>
                       <h3 className="text-xs font-bold inline text-slate-900">{t.title}</h3>
@@ -737,7 +809,7 @@ function SelfServiceContent() {
                     </span>
                     <span className="flex items-center gap-1 font-mono">
                       <Clock className="w-3 h-3 text-slate-400" />
-                      {new Date(t.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      {new Date(t.created_at).toLocaleTimeString(isHebrew ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>
@@ -756,12 +828,20 @@ function SelfServiceContent() {
             </div>
 
             <div className="space-y-1.5">
-              <h3 className="text-lg font-black text-slate-900">Ticket Created Successfully!</h3>
-              <p className="text-xs text-slate-500 font-medium">Your request has been classified and routed to the designated IT team.</p>
+              <h3 className="text-lg font-black text-slate-900">
+                {isHebrew ? 'הקריאה נפתחה בהצלחה!' : 'Ticket Created Successfully!'}
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">
+                {isHebrew 
+                  ? 'הפנייה נותבה ישירות לתור צוות ה-IT המתאים בארגון.' 
+                  : 'Your request has been classified and routed to the designated IT team.'}
+              </p>
             </div>
 
             <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
-              <span className="text-[11px] font-bold text-slate-500">Tracking Ticket Reference ID</span>
+              <span className="text-[11px] font-bold text-slate-500">
+                {isHebrew ? 'מספר קריאת שירות למעקב' : 'Tracking Ticket Reference ID'}
+              </span>
               <div className="flex items-center justify-center gap-2">
                 <span className="text-2xl font-black font-mono tracking-wider text-indigo-600">
                   #{createdTicketNumber}
@@ -782,7 +862,7 @@ function SelfServiceContent() {
               onClick={() => setCreatedTicketNumber(null)}
               className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition"
             >
-              Close
+              {isHebrew ? 'סגור' : 'Close'}
             </button>
           </div>
         </div>

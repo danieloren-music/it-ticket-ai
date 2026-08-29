@@ -1,20 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
 
-export async function GET(req: NextRequest) {
+function extractTenant(req: NextRequest, body?: any): string | null {
   const { searchParams } = new URL(req.url);
-  const tenantSlug = searchParams.get('tenantSlug') || searchParams.get('tenant') || searchParams.get('tenant_id');
+  const fromQuery = searchParams.get('tenantSlug') || searchParams.get('tenant') || searchParams.get('tenant_id');
+  if (fromQuery) return fromQuery.toLowerCase().trim();
+
+  if (body) {
+    const fromBody = body.tenantSlug || body.tenant_id || body.tenant;
+    if (fromBody) return String(fromBody).toLowerCase().trim();
+  }
+
+  const sessionCookie = req.cookies.get('smartq_session')?.value;
+  if (sessionCookie) {
+    try {
+      const decoded = JSON.parse(Buffer.from(sessionCookie, 'base64').toString('utf-8'));
+      if (decoded.tenantId) return String(decoded.tenantId).toLowerCase().trim();
+    } catch {}
+  }
+
+  return null;
+}
+
+export async function GET(req: NextRequest) {
+  const tenantSlug = extractTenant(req);
 
   if (!tenantSlug) {
     return NextResponse.json({ error: 'Tenant identifier is required' }, { status: 400 });
   }
 
-  const cleanSlug = tenantSlug.toLowerCase().trim();
-
   const { data, error } = await supabase
     .from('tenant_users')
     .select('*')
-    .ilike('tenant_id', cleanSlug)
+    .ilike('tenant_id', tenantSlug)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -27,7 +45,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const tenantSlug = body.tenantSlug || body.tenant_id || body.tenant;
+    const tenantSlug = extractTenant(req, body);
+
+    if (!tenantSlug) {
+      return NextResponse.json({ error: 'Tenant identifier is required' }, { status: 400 });
+    }
+
     const email = body.email;
     const fullName = body.fullName || body.full_name;
     const password = body.password || body.password_hash || 'SmartQ2026!';
@@ -38,17 +61,13 @@ export async function POST(req: NextRequest) {
     const phoneNumber = body.phoneNumber || body.phone_number || '';
     const isActive = body.isActive !== undefined ? body.isActive : true;
 
-    if (!tenantSlug) {
-      return NextResponse.json({ error: 'Tenant identifier is required' }, { status: 400 });
-    }
     if (!email || !fullName) {
       return NextResponse.json({ error: 'Email and Full Name are required fields' }, { status: 400 });
     }
 
     const cleanSlug = tenantSlug.toLowerCase().trim();
-    const cleanEmail = email.toLowerCase().trim();
+    const cleanEmail = String(email).toLowerCase().trim();
 
-    // Check if user exists
     const { data: existingUser } = await supabase
       .from('tenant_users')
       .select('id')
@@ -63,13 +82,13 @@ export async function POST(req: NextRequest) {
       const { data, error } = await supabase
         .from('tenant_users')
         .update({
-          full_name: fullName.trim(),
+          full_name: String(fullName).trim(),
           role,
-          password_hash: password.trim(),
-          job_title: jobTitle.trim(),
-          department: department.trim(),
-          site_location: siteLocation.trim(),
-          phone_number: phoneNumber.trim(),
+          password_hash: String(password).trim(),
+          job_title: String(jobTitle).trim(),
+          department: String(department).trim(),
+          site_location: String(siteLocation).trim(),
+          phone_number: String(phoneNumber).trim(),
           is_active: isActive,
           updated_at: new Date().toISOString()
         })
@@ -86,13 +105,13 @@ export async function POST(req: NextRequest) {
           {
             tenant_id: cleanSlug,
             email: cleanEmail,
-            password_hash: password.trim(),
-            full_name: fullName.trim(),
+            password_hash: String(password).trim(),
+            full_name: String(fullName).trim(),
             role,
-            job_title: jobTitle.trim(),
-            department: department.trim(),
-            site_location: siteLocation.trim(),
-            phone_number: phoneNumber.trim(),
+            job_title: String(jobTitle).trim(),
+            department: String(department).trim(),
+            site_location: String(siteLocation).trim(),
+            phone_number: String(phoneNumber).trim(),
             is_active: isActive
           }
         ])

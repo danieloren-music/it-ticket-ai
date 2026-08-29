@@ -6,36 +6,23 @@ import Image from 'next/image';
 import { 
   Building2, 
   Users, 
-  ShieldCheck, 
-  Layers, 
-  Plus, 
   Search, 
-  Sun, 
-  Moon, 
-  Sparkles, 
   ExternalLink, 
-  CheckCircle2, 
   X, 
   Save, 
-  Trash2, 
-  MapPin, 
-  Phone, 
-  Mail, 
   UserPlus, 
-  Lock, 
-  RefreshCw,
-  BarChart3,
-  KeyRound,
-  Shield,
-  Activity,
-  Server,
-  Settings,
-  HelpCircle,
-  AlertTriangle,
-  Clock
+  BarChart3, 
+  KeyRound, 
+  Shield, 
+  Activity, 
+  Settings, 
+  AlertTriangle, 
+  Clock, 
+  Eye, 
+  EyeOff 
 } from 'lucide-react';
 
-type RadwareNav = 'directory' | 'overview' | 'protection' | 'sso' | 'logs';
+type RadwareNav = 'directory' | 'overview' | 'protection' | 'sso';
 
 interface DirectoryUser {
   id?: string;
@@ -52,7 +39,7 @@ interface DirectoryUser {
 function ManageConsoleContent() {
   const params = useParams();
   const rawTenant = (params?.tenant as string) || '';
-  const tenantSlug = rawTenant.toLowerCase();
+  const tenantSlug = rawTenant.toLowerCase().trim();
 
   const [activeNav, setActiveNav] = useState<RadwareNav>('directory');
   const [subTab, setSubTab] = useState<'users' | 'groups'>('users');
@@ -62,15 +49,16 @@ function ManageConsoleContent() {
 
   // Add User Modal State
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [newUserData, setNewUserData] = useState({
     fullName: '',
     email: '',
     password: '',
     role: 'User' as 'User' | 'Admin' | 'Manager',
-    jobTitle: 'עובד ארגון',
-    department: 'כללי',
-    siteLocation: 'מטה ראשי',
+    jobTitle: 'Enterprise Staff',
+    department: 'Operations',
+    siteLocation: 'Headquarters',
     phoneNumber: ''
   });
 
@@ -85,11 +73,11 @@ function ManageConsoleContent() {
       } else {
         setUsers([
           {
-            email: `admin@${tenantSlug}.co.il`,
-            full_name: 'מנהל מערכת ראשי',
+            email: `admin@${tenantSlug}.com`,
+            full_name: 'Lead System Administrator',
             role: 'Manager',
             department: 'IT & Security',
-            site_location: 'מטה מרכזי',
+            site_location: 'Central Campus',
             phone_number: '050-0000000',
             is_active: true
           }
@@ -116,12 +104,14 @@ function ManageConsoleContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          tenantSlug,
+          tenantSlug: tenantSlug || rawTenant,
+          tenant_id: tenantSlug || rawTenant,
           ...newUserData
         })
       });
 
-      if (!res.ok) throw new Error('שגיאה בשמירת המשתמש');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save directory user');
 
       setIsAddUserOpen(false);
       setNewUserData({
@@ -129,14 +119,14 @@ function ManageConsoleContent() {
         email: '',
         password: '',
         role: 'User',
-        jobTitle: 'עובד ארגון',
-        department: 'כללי',
-        siteLocation: 'מטה ראשי',
+        jobTitle: 'Enterprise Staff',
+        department: 'Operations',
+        siteLocation: 'Headquarters',
         phoneNumber: ''
       });
       fetchDirectory();
     } catch (err: any) {
-      alert(err.message);
+      alert('Error: ' + err.message);
     } finally {
       setSavingUser(false);
     }
@@ -153,10 +143,10 @@ function ManageConsoleContent() {
   });
 
   return (
-    <div dir="rtl" className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans antialiased select-none">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans antialiased select-none">
       
       {/* Top Header */}
-      <header className="h-14 border-b border-slate-200 bg-white px-4 flex items-center justify-between sticky top-0 z-40">
+      <header className="h-14 border-b border-slate-200 bg-white px-5 flex items-center justify-between sticky top-0 z-40">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-slate-200 flex items-center justify-center p-1 shadow-2xs">
@@ -164,14 +154,14 @@ function ManageConsoleContent() {
             </div>
             <div className="flex items-center gap-1.5 font-bold text-xs">
               <span className="text-indigo-600 font-black text-sm">SmartQ</span>
-              <span className="text-slate-400">/</span>
+              <span className="text-slate-300">/</span>
               <span className="text-slate-800 font-extrabold uppercase">{rawTenant}</span>
             </div>
           </div>
 
           <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-lg border border-slate-200 text-xs font-bold">
             <Building2 className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="text-slate-800">{rawTenant.toUpperCase()} ENTERPRISE</span>
+            <span className="text-slate-800">{rawTenant.toUpperCase()} MANAGEMENT</span>
           </div>
 
           <div className="hidden xl:flex items-center gap-2 text-[11px] font-bold">
@@ -183,35 +173,38 @@ function ManageConsoleContent() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-indigo-600 text-white px-2.5 py-1 rounded-md text-[11px] font-black tracking-wider uppercase shadow-xs">
-            <Sparkles className="w-3 h-3" />
-            <span>AI-Xpert v2</span>
-          </div>
-
           <a
             href={`/${rawTenant}/admins`}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-black border border-slate-200 transition"
           >
-            <span>תור קריאות IT</span>
+            <span>IT Queue</span>
             <ExternalLink className="w-3 h-3" />
           </a>
 
           <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-xs">
-            AD
+            MG
           </div>
         </div>
       </header>
 
-      {/* Main Wrapper */}
+      {/* Main Content Layout */}
       <div className="flex-1 flex overflow-hidden">
         
         {/* Left Sidebar */}
         <aside className="w-14 bg-[#1E293B] border-r border-slate-800 text-slate-300 flex flex-col items-center py-4 justify-between shrink-0 z-30">
           <div className="space-y-4 w-full flex flex-col items-center">
             <button
+              onClick={() => setActiveNav('directory')}
+              className={`p-2.5 rounded-xl transition ${activeNav === 'directory' ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-700 text-slate-400 hover:text-white'}`}
+              title="Identity & Directory"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+
+            <button
               onClick={() => setActiveNav('overview')}
               className={`p-2.5 rounded-xl transition ${activeNav === 'overview' ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-700 text-slate-400 hover:text-white'}`}
-              title="סקירה כללית"
+              title="Telemetry Overview"
             >
               <BarChart3 className="w-5 h-5" />
             </button>
@@ -219,23 +212,15 @@ function ManageConsoleContent() {
             <button
               onClick={() => setActiveNav('protection')}
               className={`p-2.5 rounded-xl transition ${activeNav === 'protection' ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-700 text-slate-400 hover:text-white'}`}
-              title="מדיניות וניתוב תורים"
+              title="Routing Policies"
             >
               <Shield className="w-5 h-5" />
             </button>
 
             <button
-              onClick={() => setActiveNav('directory')}
-              className={`p-2.5 rounded-xl transition ${activeNav === 'directory' ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-700 text-slate-400 hover:text-white'}`}
-              title="משתמשי ארגון (Directory)"
-            >
-              <Users className="w-5 h-5" />
-            </button>
-
-            <button
               onClick={() => setActiveNav('sso')}
               className={`p-2.5 rounded-xl transition ${activeNav === 'sso' ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-700 text-slate-400 hover:text-white'}`}
-              title="אינטגרציית Entra SSO"
+              title="Entra SAML SSO"
             >
               <KeyRound className="w-5 h-5" />
             </button>
@@ -254,9 +239,9 @@ function ManageConsoleContent() {
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div>
               <h1 className="text-lg font-black text-slate-900">
-                {activeNav === 'directory' ? 'ניהול זהויות, משתמשים והרשאות (Directory)' : 'מרכז בקרה ותפעול (Control Center)'}
+                {activeNav === 'directory' ? 'Identity & Access Directory' : 'Management & Telemetry Console'}
               </h1>
-              <span className="text-xs font-bold text-slate-500">ארגון: {rawTenant}</span>
+              <span className="text-xs font-bold text-slate-500">Tenant: {rawTenant}</span>
             </div>
 
             {activeNav === 'directory' && (
@@ -266,12 +251,12 @@ function ManageConsoleContent() {
                 className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5"
               >
                 <UserPlus className="w-4 h-4" />
-                <span>+ הוסף משתמש ארגוני</span>
+                <span>+ Add Directory User</span>
               </button>
             )}
           </div>
 
-          {/* Directory Module View */}
+          {/* Directory Tab View */}
           {activeNav === 'directory' && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
               
@@ -283,7 +268,7 @@ function ManageConsoleContent() {
                       subTab === 'users' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-700'
                     }`}
                   >
-                    משתמשי ארגון ({users.length})
+                    Directory Users ({users.length})
                   </button>
                   <button
                     onClick={() => setSubTab('groups')}
@@ -291,32 +276,32 @@ function ManageConsoleContent() {
                       subTab === 'groups' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-700'
                     }`}
                   >
-                    קבוצות אבטחה (Security Groups)
+                    Security Groups
                   </button>
                 </div>
 
                 <div className="relative w-72">
-                  <Search className="w-4 h-4 absolute right-3 top-2.5 text-slate-400" />
+                  <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="חפש משתמש, אימייל או מטה..."
-                    className="w-full pr-9 pl-3 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-medium focus:outline-none focus:border-indigo-600"
+                    placeholder="Search by name, email or HQ..."
+                    className="w-full pl-9 pr-3.5 py-2 text-xs rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-medium focus:outline-none focus:border-indigo-600"
                   />
                 </div>
               </div>
 
               {subTab === 'users' && (
                 <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                  <table className="w-full text-right text-xs">
+                  <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-black">
-                        <th className="py-3 px-4">שם עובד מלא</th>
-                        <th className="py-3 px-4">כתובת אימייל ארגונית</th>
-                        <th className="py-3 px-4">תפקיד / הרשאה (Role)</th>
-                        <th className="py-3 px-4">מחלקה ועיר / מטה</th>
-                        <th className="py-3 px-4">סטטוס</th>
+                        <th className="py-3 px-4">Full Name</th>
+                        <th className="py-3 px-4">Corporate Email</th>
+                        <th className="py-3 px-4">Role Assignment</th>
+                        <th className="py-3 px-4">Department & Campus</th>
+                        <th className="py-3 px-4">Status</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200 font-semibold bg-white">
@@ -338,7 +323,7 @@ function ManageConsoleContent() {
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-slate-700">
-                            {u.department || 'כללי'} • {u.site_location || 'מטה ראשי'}
+                            {u.department || 'General'} • {u.site_location || 'Headquarters'}
                           </td>
                           <td className="py-3.5 px-4">
                             <span className="inline-flex items-center gap-1.5 text-[11px] font-black text-emerald-700">
@@ -357,24 +342,24 @@ function ManageConsoleContent() {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-xs">
                   <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
                     <div className="font-black text-slate-900 flex items-center justify-between">
-                      <span>קבוצת מנהלים</span>
+                      <span>Managers Group</span>
                       <span className="text-[10px] bg-purple-100 text-purple-800 px-2 py-0.5 rounded font-black">Managers</span>
                     </div>
-                    <p className="text-slate-600 text-[11px] leading-relaxed">הרשאת ניהול מלאה ל-Manage, Directory וקריאות IT.</p>
+                    <p className="text-slate-600 text-[11px] leading-relaxed">Full control over manage console, directory users and integrations.</p>
                   </div>
                   <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
                     <div className="font-black text-slate-900 flex items-center justify-between">
-                      <span>קבוצת טכנאים</span>
+                      <span>IT Admins Group</span>
                       <span className="text-[10px] bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-black">Admins</span>
                     </div>
-                    <p className="text-slate-600 text-[11px] leading-relaxed">גישה לתור הקריאות (Admins Desk) וטיפול בפניות.</p>
+                    <p className="text-slate-600 text-[11px] leading-relaxed">Access to IT Queue desk, assignee updates, and ticket resolution.</p>
                   </div>
                   <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
                     <div className="font-black text-slate-900 flex items-center justify-between">
-                      <span>קבוצת עובדי ארגון</span>
+                      <span>Corporate Staff</span>
                       <span className="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-black">Users</span>
                     </div>
-                    <p className="text-slate-600 text-[11px] leading-relaxed">הרשאה לפתיחת קריאות שירות דרך Zack AI.</p>
+                    <p className="text-slate-600 text-[11px] leading-relaxed">Authorized to create and dispatch service requests via Zack AI.</p>
                   </div>
                 </div>
               )}
@@ -386,29 +371,29 @@ function ManageConsoleContent() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs">
               <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-3 shadow-xs">
                 <div className="font-black text-slate-900 flex items-center justify-between">
-                  <span>קריאות IT שנפתחו היום</span>
+                  <span>Tickets Today</span>
                   <Activity className="w-4 h-4 text-indigo-600" />
                 </div>
                 <div className="text-3xl font-black text-indigo-600">24</div>
-                <p className="text-[11px] text-slate-500">100% נותבו אוטומטית לצוותי ה-IT המתאימים</p>
+                <p className="text-[11px] text-slate-500">100% routed automatically</p>
               </div>
 
               <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-3 shadow-xs">
                 <div className="font-black text-slate-900 flex items-center justify-between">
-                  <span>זמן מענה ממוצע (MTTR)</span>
+                  <span>Average MTTR</span>
                   <Clock className="w-4 h-4 text-emerald-600" />
                 </div>
-                <div className="text-3xl font-black text-emerald-600">12 דק׳</div>
-                <p className="text-[11px] text-slate-500">עמידה ביעד SLA של 99.4%</p>
+                <div className="text-3xl font-black text-emerald-600">12 min</div>
+                <p className="text-[11px] text-slate-500">SLA target compliance: 99.4%</p>
               </div>
 
               <div className="bg-white border border-slate-200 p-5 rounded-2xl space-y-3 shadow-xs">
                 <div className="font-black text-slate-900 flex items-center justify-between">
-                  <span>משתמשים פעילים ב-Directory</span>
+                  <span>Directory Active Identities</span>
                   <Users className="w-4 h-4 text-purple-600" />
                 </div>
                 <div className="text-3xl font-black text-purple-600">{users.length}</div>
-                <p className="text-[11px] text-slate-500">מסונכרנים מקומית וב-Entra ID</p>
+                <p className="text-[11px] text-slate-500">Synchronized locally & Entra ID</p>
               </div>
             </div>
           )}
@@ -418,10 +403,10 @@ function ManageConsoleContent() {
               <div className="border-b border-slate-200 pb-3">
                 <h2 className="text-sm font-black text-slate-900 flex items-center gap-2">
                   <KeyRound className="w-4 h-4 text-indigo-600" />
-                  <span>הגדרות Microsoft Entra ID (SAML 2.0 Single Sign-On)</span>
+                  <span>Microsoft Entra ID (SAML 2.0 Single Sign-On)</span>
                 </h2>
                 <p className="text-xs text-slate-500 mt-1 font-semibold">
-                  סנכרון זהויות וקבוצות אבטחה אוטומטי מול Azure / Entra ID
+                  Automated security group claim matching and identity assertion
                 </p>
               </div>
 
@@ -441,10 +426,10 @@ function ManageConsoleContent() {
         </main>
       </div>
 
-      {/* ADD ENTERPRISE USER MODAL */}
+      {/* ADD ENTERPRISE USER MODAL WITH PASSWORD MASKING */}
       {isAddUserOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-lg rounded-3xl p-6 sm:p-8 space-y-6 border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+          <div className="w-full max-w-lg rounded-3xl p-7 space-y-6 border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div className="flex items-center gap-2.5">
@@ -452,8 +437,8 @@ function ManageConsoleContent() {
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-black text-slate-900">הוספת משתמש חדש ל-Directory</h2>
-                  <p className="text-[11px] text-slate-500 font-bold">הקצאת חשבון ארגוני מקומי וקביעת הרשאות</p>
+                  <h2 className="text-sm font-black text-slate-900">Add New Directory Identity</h2>
+                  <p className="text-[11px] text-slate-500 font-bold">Assign corporate role, credentials, and office site</p>
                 </div>
               </div>
               <button onClick={() => setIsAddUserOpen(false)} className="opacity-70 hover:opacity-100 p-1">
@@ -464,25 +449,25 @@ function ManageConsoleContent() {
             <form onSubmit={handleCreateUser} className="space-y-4 text-xs font-bold">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block mb-1 text-slate-800">שם מלא *</label>
+                  <label className="block mb-1 text-slate-800">Full Name *</label>
                   <input
                     type="text"
                     required
                     value={newUserData.fullName}
                     onChange={(e) => setNewUserData({ ...newUserData, fullName: e.target.value })}
-                    placeholder="למשל: דניאל אורן"
+                    placeholder="e.g. Rivka Ardin"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                   />
                 </div>
 
                 <div>
-                  <label className="block mb-1 text-slate-800">אימייל ארגוני *</label>
+                  <label className="block mb-1 text-slate-800">Corporate Email *</label>
                   <input
                     type="email"
                     required
                     value={newUserData.email}
                     onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
-                    placeholder={`user@${tenantSlug}.co.il`}
+                    placeholder={`user@${tenantSlug || 'company'}.co.il`}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold font-mono"
                   />
                 </div>
@@ -490,49 +475,58 @@ function ManageConsoleContent() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block mb-1 text-slate-800">סיסמה ראשונית</label>
-                  <input
-                    type="text"
-                    value={newUserData.password}
-                    onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
-                    placeholder="ברירת מחדל: SmartQ2026!"
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
-                  />
+                  <label className="block mb-1 text-slate-800">Initial Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newUserData.password}
+                      onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
+                      placeholder="Default: SmartQ2026!"
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block mb-1 text-slate-800">תפקיד / הרשאה (Role)</label>
+                  <label className="block mb-1 text-slate-800">Role Permission</label>
                   <select
                     value={newUserData.role}
                     onChange={(e: any) => setNewUserData({ ...newUserData, role: e.target.value })}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-black"
                   >
-                    <option value="User">User (עובד ארגון - פתיחת קריאות)</option>
-                    <option value="Admin">Admin (טכנאי IT - ניהול קריאות)</option>
-                    <option value="Manager">Manager (מנהל מערכת ראשי)</option>
+                    <option value="User">User (Self-Service Access)</option>
+                    <option value="Admin">Admin (IT Desk Operator)</option>
+                    <option value="Manager">Manager (Full Tenant Administrator)</option>
                   </select>
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block mb-1 text-slate-800">מחלקה</label>
+                  <label className="block mb-1 text-slate-800">Department</label>
                   <input
                     type="text"
                     value={newUserData.department}
                     onChange={(e) => setNewUserData({ ...newUserData, department: e.target.value })}
-                    placeholder="למשל: הנדסה ותפעול"
+                    placeholder="e.g. Engineering & DevOps"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                   />
                 </div>
 
                 <div>
-                  <label className="block mb-1 text-slate-800">עיר / מטה (City / HQ)</label>
+                  <label className="block mb-1 text-slate-800">Campus / Office Site</label>
                   <input
                     type="text"
                     value={newUserData.siteLocation}
                     onChange={(e) => setNewUserData({ ...newUserData, siteLocation: e.target.value })}
-                    placeholder="למשל: מטה צפון - חיפה"
+                    placeholder="e.g. Haifa Campus"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                   />
                 </div>
@@ -544,7 +538,7 @@ function ManageConsoleContent() {
                   onClick={() => setIsAddUserOpen(false)}
                   className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
                 >
-                  ביטול
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -552,7 +546,7 @@ function ManageConsoleContent() {
                   className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black shadow-md transition flex items-center gap-1.5"
                 >
                   <Save className="w-4 h-4" />
-                  <span>{savingUser ? 'שומר...' : 'שמור משתמש ב-Directory'}</span>
+                  <span>{savingUser ? 'Saving...' : 'Save User to Directory'}</span>
                 </button>
               </div>
             </form>

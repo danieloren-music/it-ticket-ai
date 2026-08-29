@@ -20,7 +20,11 @@ import {
   Users,
   Globe,
   Edit2,
-  Clock
+  Clock,
+  UserPlus,
+  Lock,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 interface Tenant {
@@ -32,16 +36,36 @@ interface Tenant {
   created_at: string;
 }
 
-type PlatformTab = 'tenants' | 'analytics' | 'security' | 'admins';
+interface PlatformUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  department: string;
+  created_at: string;
+}
+
+type PlatformTab = 'tenants' | 'analytics' | 'security' | 'users';
+
+const PLATFORM_ROLES = [
+  'Super Admin',
+  'Global IT Director',
+  'SecOps Lead',
+  'Cloud Infrastructure Architect',
+  'Lead Support Engineer',
+  'Compliance & IAM Auditor',
+  'Read-Only Viewer'
+];
 
 export default function PlatformMasterConsole() {
   const [activeTab, setActiveTab] = useState<PlatformTab>('tenants');
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Modal State for Add / Edit Tenant
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  // Tenant Modal State
+  const [isTenantModalOpen, setIsTenantModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [savingTenant, setSavingTenant] = useState(false);
   const [tenantFormData, setTenantFormData] = useState({
@@ -52,26 +76,44 @@ export default function PlatformMasterConsole() {
     status: 'Active'
   });
 
-  const fetchTenants = async () => {
+  // Platform User Modal State
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [userFormData, setUserFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    password: '',
+    role: 'Super Admin',
+    department: 'Cloud Operations'
+  });
+
+  const fetchData = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/platform/tenants');
-      const data = await res.json();
-      if (data.tenants) {
-        setTenants(data.tenants);
-      }
+      const [tenantsRes, adminsRes] = await Promise.all([
+        fetch('/api/platform/tenants'),
+        fetch('/api/platform/admins')
+      ]);
+
+      const tenantsData = await tenantsRes.json();
+      const adminsData = await adminsRes.json();
+
+      if (tenantsData.tenants) setTenants(tenantsData.tenants);
+      if (adminsData.admins) setPlatformUsers(adminsData.admins);
     } catch (err) {
-      console.error('Error fetching tenants:', err);
+      console.error('Error fetching platform data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchTenants();
+    fetchData();
   }, []);
 
-  const handleOpenCreateModal = () => {
+  const handleOpenCreateTenantModal = () => {
     setModalMode('create');
     setTenantFormData({
       id: '',
@@ -80,10 +122,10 @@ export default function PlatformMasterConsole() {
       adminEmail: '',
       status: 'Active'
     });
-    setIsModalOpen(true);
+    setIsTenantModalOpen(true);
   };
 
-  const handleOpenEditModal = (t: Tenant) => {
+  const handleOpenEditTenantModal = (t: Tenant) => {
     setModalMode('edit');
     setTenantFormData({
       id: t.id,
@@ -92,7 +134,7 @@ export default function PlatformMasterConsole() {
       adminEmail: t.admin_email,
       status: t.status || 'Active'
     });
-    setIsModalOpen(true);
+    setIsTenantModalOpen(true);
   };
 
   const handleSaveTenant = async (e: React.FormEvent) => {
@@ -110,8 +152,8 @@ export default function PlatformMasterConsole() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to save organization');
 
-      setIsModalOpen(false);
-      fetchTenants();
+      setIsTenantModalOpen(false);
+      fetchData();
     } catch (err: any) {
       alert('Error: ' + err.message);
     } finally {
@@ -124,9 +166,48 @@ export default function PlatformMasterConsole() {
     try {
       const res = await fetch(`/api/platform/tenants?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete tenant');
-      fetchTenants();
+      fetchData();
     } catch (err: any) {
       alert(err.message);
+    }
+  };
+
+  const handleSavePlatformUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userFormData.email || !userFormData.firstName) return;
+    setSavingUser(true);
+
+    try {
+      const fullName = `${userFormData.firstName.trim()} ${userFormData.lastName.trim()}`.trim();
+      const res = await fetch('/api/platform/admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: userFormData.email,
+          fullName,
+          password: userFormData.password,
+          role: userFormData.role,
+          department: userFormData.department
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create platform user');
+
+      setIsUserModalOpen(false);
+      setUserFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        role: 'Super Admin',
+        department: 'Cloud Operations'
+      });
+      fetchData();
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSavingUser(false);
     }
   };
 
@@ -155,14 +236,14 @@ export default function PlatformMasterConsole() {
 
           <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-lg border border-slate-200 text-xs font-bold">
             <Globe className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="text-slate-800">Multi-Tenancy Global Fabric</span>
+            <span className="text-slate-800">Vendor Master Fabric</span>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1 rounded-md text-[11px] font-black tracking-wider uppercase shadow-xs">
             <Sparkles className="w-3 h-3" />
-            <span>Vendor Root</span>
+            <span>Root Admin</span>
           </div>
 
           <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs font-black">
@@ -176,7 +257,7 @@ export default function PlatformMasterConsole() {
         </div>
       </header>
 
-      {/* Main Wrapper */}
+      {/* Main Content Layout */}
       <div className="flex-1 flex overflow-hidden">
         
         {/* Left Slim Navigation */}
@@ -207,9 +288,9 @@ export default function PlatformMasterConsole() {
             </button>
 
             <button
-              onClick={() => setActiveTab('admins')}
-              className={`p-2.5 rounded-xl transition ${activeTab === 'admins' ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-700 text-slate-400 hover:text-white'}`}
-              title="Platform Administrators"
+              onClick={() => setActiveTab('users')}
+              className={`p-2.5 rounded-xl transition ${activeTab === 'users' ? 'bg-indigo-600 text-white shadow-md' : 'hover:bg-slate-700 text-slate-400 hover:text-white'}`}
+              title="Platform Users & RBAC"
             >
               <Users className="w-5 h-5" />
             </button>
@@ -231,21 +312,37 @@ export default function PlatformMasterConsole() {
           <div className="flex items-center justify-between border-b border-slate-200 pb-4">
             <div>
               <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
-                <span>{activeTab === 'tenants' ? 'Organizations & Customer Environments' : 'Vendor Cloud Analytics'}</span>
+                <span>
+                  {activeTab === 'tenants' && 'Organizations & Customer Environments'}
+                  {activeTab === 'analytics' && 'Vendor Cloud Telemetry & Metrics'}
+                  {activeTab === 'security' && 'Global Security & Compliance Policies'}
+                  {activeTab === 'users' && 'Platform Users (Backend Root RBAC)'}
+                </span>
               </h1>
               <p className="text-xs text-slate-500 font-semibold mt-0.5">
-                Centralized multi-tenant management, routing rules, and domain configuration
+                Centralized multi-tenant management, root administrators, and infrastructure monitoring
               </p>
             </div>
 
             {activeTab === 'tenants' && (
               <button
                 type="button"
-                onClick={handleOpenCreateModal}
+                onClick={handleOpenCreateTenantModal}
                 className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 <span>Onboard New Organization</span>
+              </button>
+            )}
+
+            {activeTab === 'users' && (
+              <button
+                type="button"
+                onClick={() => setIsUserModalOpen(true)}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-2"
+              >
+                <UserPlus className="w-4 h-4" />
+                <span>+ Add Platform User</span>
               </button>
             )}
           </div>
@@ -319,12 +416,12 @@ export default function PlatformMasterConsole() {
                           <td className="py-3.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-1.5">
                               <a
-                                href={`/${t.id}/new-request`}
+                                href={`/${t.id}/self-service`}
                                 target="_blank"
                                 rel="noreferrer"
                                 className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-md text-[10px] font-black transition"
                               >
-                                Users
+                                SelfService
                               </a>
                               <a
                                 href={`/${t.id}/admins`}
@@ -347,7 +444,7 @@ export default function PlatformMasterConsole() {
                           <td className="py-3.5 px-4 text-center">
                             <div className="flex items-center justify-center gap-2">
                               <button
-                                onClick={() => handleOpenEditModal(t)}
+                                onClick={() => handleOpenEditTenantModal(t)}
                                 className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 transition"
                                 title="Edit Tenant"
                               >
@@ -369,6 +466,60 @@ export default function PlatformMasterConsole() {
                 </div>
               )}
 
+            </div>
+          )}
+
+          {/* Platform Users Tab (Backend Users RBAC) */}
+          {activeTab === 'users' && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+                <div>
+                  <h2 className="text-sm font-black text-slate-900">Platform Users & Identity Access</h2>
+                  <p className="text-xs text-slate-500 font-semibold">Vendor root team identities for SmartQ platform</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsUserModalOpen(true)}
+                  className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition flex items-center gap-1.5"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>+ New User</span>
+                </button>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-800 border-b border-slate-200 font-black">
+                      <th className="py-3 px-4">Full Name</th>
+                      <th className="py-3 px-4">Email Address</th>
+                      <th className="py-3 px-4">Platform Role</th>
+                      <th className="py-3 px-4">Department</th>
+                      <th className="py-3 px-4">Access Level</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 font-semibold bg-white">
+                    {platformUsers.map((u) => (
+                      <tr key={u.id} className="hover:bg-slate-50 transition">
+                        <td className="py-3.5 px-4 font-black text-slate-900">{u.full_name}</td>
+                        <td className="py-3.5 px-4 font-mono text-slate-700">{u.email}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black bg-purple-100 text-purple-800 border border-purple-200">
+                            {u.role}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600">{u.department || 'Cloud Operations'}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="inline-flex items-center gap-1 text-emerald-700 font-bold text-[11px]">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            Authorized
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -413,30 +564,26 @@ export default function PlatformMasterConsole() {
             </div>
           )}
 
-          {/* Admins Tab */}
-          {activeTab === 'admins' && (
+          {/* Security Tab */}
+          {activeTab === 'security' && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
               <div className="border-b border-slate-200 pb-3">
-                <h2 className="text-sm font-black text-slate-900">Platform Administrators (RBAC)</h2>
-                <p className="text-xs text-slate-500 font-semibold">Vendor root team permissions for SmartQ</p>
+                <h2 className="text-sm font-black text-slate-900">Global Security & Compliance Policies</h2>
+                <p className="text-xs text-slate-500 font-semibold">Tenant isolation, RBAC policies, and encryption rules</p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs font-bold">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-bold">
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                  <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 text-[10px] font-black">Super Admin</span>
-                  <p className="text-slate-600 text-[11px]">Full control over all tenants, domain configs, billing and deletion.</p>
+                  <span className="font-black text-slate-900">Tenant Isolation (RLS)</span>
+                  <p className="text-slate-600 text-[11px]">Strict multi-tenancy logical isolation enforced on all DB queries.</p>
                 </div>
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                  <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 text-[10px] font-black">SecOps Engineer</span>
-                  <p className="text-slate-600 text-[11px]">Manage Entra SAML integration, certificates, and IAM audit logs.</p>
+                  <span className="font-black text-slate-900">SAML 2.0 & Entra ID</span>
+                  <p className="text-slate-600 text-[11px]">Identity federation via industry-standard X.509 assertion tokens.</p>
                 </div>
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                  <span className="px-2 py-0.5 rounded bg-cyan-100 text-cyan-800 text-[10px] font-black">Support Lead</span>
-                  <p className="text-slate-600 text-[11px]">Diagnose customer queues and inspect AI prompt parsing failures.</p>
-                </div>
-                <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                  <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-800 text-[10px] font-black">Viewer</span>
-                  <p className="text-slate-600 text-[11px]">Read-only access to customer analytics and SLA metrics.</p>
+                  <span className="font-black text-slate-900">Audit Trail Logging</span>
+                  <p className="text-slate-600 text-[11px]">Immutable session tracking across all administrative endpoints.</p>
                 </div>
               </div>
             </div>
@@ -445,8 +592,8 @@ export default function PlatformMasterConsole() {
         </main>
       </div>
 
-      {/* Onboard / Edit Tenant Modal */}
-      {isModalOpen && (
+      {/* MODAL: ONBOARD / EDIT TENANT */}
+      {isTenantModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="w-full max-w-lg rounded-3xl p-7 space-y-6 border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
             
@@ -462,7 +609,7 @@ export default function PlatformMasterConsole() {
                   <p className="text-[11px] text-slate-500 font-bold">Configure tenant slug, primary domain, and default admin</p>
                 </div>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="opacity-70 hover:opacity-100 p-1">
+              <button onClick={() => setIsTenantModalOpen(false)} className="opacity-70 hover:opacity-100 p-1">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -482,7 +629,7 @@ export default function PlatformMasterConsole() {
                       id: modalMode === 'create' && !prev.id ? val.toLowerCase().replace(/[^a-z0-9]/g, '') : prev.id
                     }));
                   }}
-                  placeholder="e.g. Israel Electric Company (IEC)"
+                  placeholder="e.g. Rafael Advanced Defense Systems"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
@@ -496,7 +643,7 @@ export default function PlatformMasterConsole() {
                     disabled={modalMode === 'edit'}
                     value={tenantFormData.id}
                     onChange={(e) => setTenantFormData({ ...tenantFormData, id: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
-                    placeholder="e.g. iec"
+                    placeholder="e.g. rafael"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 disabled:bg-slate-100 text-slate-900 font-mono font-semibold focus:outline-none focus:border-indigo-600"
                   />
                 </div>
@@ -515,7 +662,7 @@ export default function PlatformMasterConsole() {
                         adminEmail: modalMode === 'create' ? `admin@${domainVal}` : prev.adminEmail
                       }));
                     }}
-                    placeholder="e.g. iec.co.il"
+                    placeholder="e.g. rafael.co.il"
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-mono font-semibold focus:outline-none focus:border-indigo-600"
                   />
                 </div>
@@ -527,7 +674,7 @@ export default function PlatformMasterConsole() {
                   type="email"
                   value={tenantFormData.adminEmail}
                   onChange={(e) => setTenantFormData({ ...tenantFormData, adminEmail: e.target.value })}
-                  placeholder="admin@iec.co.il"
+                  placeholder="admin@rafael.co.il"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-mono font-semibold focus:outline-none focus:border-indigo-600"
                 />
               </div>
@@ -535,7 +682,7 @@ export default function PlatformMasterConsole() {
               <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={() => setIsTenantModalOpen(false)}
                   className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
                 >
                   Cancel
@@ -547,6 +694,136 @@ export default function PlatformMasterConsole() {
                 >
                   <Save className="w-4 h-4" />
                   <span>{savingTenant ? 'Provisioning...' : 'Save Organization'}</span>
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD PLATFORM USER */}
+      {isUserModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-3xl p-7 space-y-6 border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-slate-900">Add New Platform User</h2>
+                  <p className="text-[11px] text-slate-500 font-bold">Assign vendor backend credentials and permission tier</p>
+                </div>
+              </div>
+              <button onClick={() => setIsUserModalOpen(false)} className="opacity-70 hover:opacity-100 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePlatformUser} className="space-y-4 text-xs font-bold">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block mb-1 text-slate-800">First Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={userFormData.firstName}
+                    onChange={(e) => setUserFormData({ ...userFormData, firstName: e.target.value })}
+                    placeholder="e.g. Daniel"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block mb-1 text-slate-800">Last Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={userFormData.lastName}
+                    onChange={(e) => setUserFormData({ ...userFormData, lastName: e.target.value })}
+                    placeholder="e.g. Oren"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 text-slate-800">Platform Email *</label>
+                <input
+                  type="email"
+                  required
+                  value={userFormData.email}
+                  onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                  placeholder="user@smartq.ai"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-mono font-semibold focus:outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block mb-1 text-slate-800">Master Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={userFormData.password}
+                      onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                      placeholder="Default: SmartQ2026!"
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-semibold focus:outline-none focus:border-indigo-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block mb-1 text-slate-800">Platform Permission Role *</label>
+                  <select
+                    value={userFormData.role}
+                    onChange={(e) => setUserFormData({ ...userFormData, role: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-black focus:outline-none focus:border-indigo-600"
+                  >
+                    {PLATFORM_ROLES.map((roleOption) => (
+                      <option key={roleOption} value={roleOption}>
+                        {roleOption}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1 text-slate-800">Department</label>
+                <input
+                  type="text"
+                  value={userFormData.department}
+                  onChange={(e) => setUserFormData({ ...userFormData, department: e.target.value })}
+                  placeholder="e.g. Cloud Operations / SecOps"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-semibold focus:outline-none focus:border-indigo-600"
+                />
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsUserModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingUser}
+                  className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black shadow-md transition flex items-center gap-1.5"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>{savingUser ? 'Saving...' : 'Save Platform User'}</span>
                 </button>
               </div>
             </form>

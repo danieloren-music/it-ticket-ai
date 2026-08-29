@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { 
   Building2, 
@@ -24,7 +25,10 @@ import {
   UserPlus, 
   Eye, 
   EyeOff,
-  KeyRound
+  User,
+  LogOut,
+  ShieldCheck,
+  Check
 } from 'lucide-react';
 
 interface Tenant {
@@ -58,11 +62,32 @@ const PLATFORM_ROLES = [
 ];
 
 export default function PlatformMasterConsole() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<PlatformTab>('tenants');
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [platformUsers, setPlatformUsers] = useState<PlatformUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Current Logged-in Platform Admin State
+  const [currentAdmin, setCurrentAdmin] = useState<{
+    email: string;
+    fullName: string;
+    role: string;
+    department: string;
+  }>({
+    email: 'admin@smartq.ai',
+    fullName: 'Daniel Oren',
+    role: 'Super Admin',
+    department: 'Cloud Operations'
+  });
+
+  // Profile Edit Modal State
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSavedSuccess, setProfileSavedSuccess] = useState(false);
+  const [profilePassword, setProfilePassword] = useState('');
+  const [showProfilePass, setShowProfilePass] = useState(false);
 
   // Tenant Modal State
   const [isTenantModalOpen, setIsTenantModalOpen] = useState(false);
@@ -76,7 +101,7 @@ export default function PlatformMasterConsole() {
     status: 'Active'
   });
 
-  // Platform User Modal State (Add / Edit)
+  // Platform User Modal State
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userModalMode, setUserModalMode] = useState<'create' | 'edit'>('create');
   const [savingUser, setSavingUser] = useState(false);
@@ -89,6 +114,28 @@ export default function PlatformMasterConsole() {
     role: 'Super Admin',
     department: 'Cloud Operations'
   });
+
+  // Read Logged-in Platform Admin Session
+  useEffect(() => {
+    const matchCookie = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('smartq_platform_session='));
+
+    if (matchCookie) {
+      try {
+        const rawVal = matchCookie.split('=')[1];
+        const decoded = JSON.parse(atob(rawVal));
+        if (decoded.email) {
+          setCurrentAdmin({
+            email: decoded.email,
+            fullName: decoded.name || decoded.email.split('@')[0],
+            role: decoded.role || 'Super Admin',
+            department: decoded.department || 'Cloud Operations'
+          });
+        }
+      } catch {}
+    }
+  }, []);
 
   const fetchData = async () => {
     setLoading(true);
@@ -113,6 +160,57 @@ export default function PlatformMasterConsole() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Save current admin profile edits
+  const handleSaveCurrentProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProfileSaving(true);
+    setProfileSavedSuccess(false);
+
+    try {
+      const res = await fetch('/api/platform/admins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: currentAdmin.email,
+          fullName: currentAdmin.fullName,
+          role: currentAdmin.role,
+          department: currentAdmin.department,
+          password: profilePassword || undefined
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update profile');
+
+      // Update cookie session
+      const sessionObj = {
+        email: currentAdmin.email,
+        name: currentAdmin.fullName,
+        role: currentAdmin.role,
+        department: currentAdmin.department,
+        isPlatformAdmin: true
+      };
+      const cookieVal = btoa(JSON.stringify(sessionObj));
+      document.cookie = `smartq_platform_session=${cookieVal}; path=/; max-age=604800; SameSite=Lax`;
+
+      setProfileSavedSuccess(true);
+      fetchData();
+      setTimeout(() => {
+        setProfileSavedSuccess(false);
+        setIsProfileModalOpen(false);
+      }, 1500);
+    } catch (err: any) {
+      alert('Error: ' + err.message);
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleLogout = () => {
+    document.cookie = 'smartq_platform_session=; path=/; max-age=0; SameSite=Lax';
+    router.push('/platform/login');
+  };
 
   const handleOpenCreateTenantModal = () => {
     setTenantModalMode('create');
@@ -240,43 +338,71 @@ export default function PlatformMasterConsole() {
     t.domain?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  // Compute Initials for Avatar
+  const getInitials = (name: string) => {
+    if (!name) return 'DO';
+    const parts = name.trim().split(' ').filter(Boolean);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-slate-900 flex flex-col font-sans antialiased select-none">
       
       {/* Top Header */}
-      <header className="h-14 border-b border-slate-200 bg-white px-5 flex items-center justify-between sticky top-0 z-40">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-slate-200 flex items-center justify-center p-1 shadow-2xs">
-              <Image src="/smartq-logo.png" alt="SmartQ" width={28} height={28} className="object-contain" priority />
+      <header className="h-16 border-b border-slate-200 bg-white px-6 flex items-center justify-between sticky top-0 z-40 shadow-xs">
+        <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl overflow-hidden bg-white border border-slate-200 flex items-center justify-center p-1.5 shadow-sm hover:shadow-md transition">
+              <Image src="/smartq-logo.png" alt="SmartQ" width={38} height={38} className="object-contain" priority />
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-bold">
-              <span className="text-indigo-600 font-black text-sm">SmartQ</span>
-              <span className="text-slate-300">/</span>
-              <span className="text-slate-800 font-extrabold uppercase">Cloud Platform Controller</span>
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-black tracking-tight text-slate-950">SmartQ</span>
+              <span className="text-slate-300 text-lg font-bold">/</span>
+              <span className="text-xs font-black text-slate-700 uppercase tracking-wider bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                Cloud Platform Controller
+              </span>
             </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 rounded-lg border border-slate-200 text-xs font-bold">
-            <Globe className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="text-slate-800">Vendor Master Fabric</span>
+          <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-100/80 rounded-xl border border-slate-200 text-xs font-bold text-slate-700">
+            <Globe className="w-4 h-4 text-indigo-600" />
+            <span>Vendor Master Fabric</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 bg-indigo-600 text-white px-3 py-1 rounded-md text-[11px] font-black tracking-wider uppercase shadow-xs">
-            <Sparkles className="w-3 h-3" />
-            <span>Root Admin</span>
+        <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-1.5 bg-indigo-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-black tracking-wider uppercase shadow-sm">
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{currentAdmin.role}</span>
           </div>
 
-          <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-xs font-black">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs font-black">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
             <span>Systems Online</span>
           </div>
 
-          <div className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-black text-xs">
-            DO
-          </div>
+          {/* Interactive User Avatar (Click to edit profile & role) */}
+          <button
+            type="button"
+            onClick={() => setIsProfileModalOpen(true)}
+            className="group flex items-center gap-2.5 p-1 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-white hover:border-indigo-300 hover:shadow-md transition text-left"
+            title="Click to edit your Platform Profile & Role"
+          >
+            <div className="w-9 h-9 rounded-xl bg-slate-900 group-hover:bg-indigo-600 text-white flex items-center justify-center font-black text-xs shadow-xs transition">
+              {getInitials(currentAdmin.fullName)}
+            </div>
+            <div className="hidden lg:block pr-2">
+              <span className="block text-xs font-black text-slate-900 leading-tight group-hover:text-indigo-600 transition">
+                {currentAdmin.fullName}
+              </span>
+              <span className="block text-[10px] font-bold text-slate-500 leading-tight">
+                {currentAdmin.email}
+              </span>
+            </div>
+          </button>
         </div>
       </header>
 
@@ -323,7 +449,11 @@ export default function PlatformMasterConsole() {
             <button className="p-2.5 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white transition" title="Audit Logs">
               <Activity className="w-5 h-5" />
             </button>
-            <button className="p-2.5 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white transition" title="Platform Settings">
+            <button 
+              onClick={() => setIsProfileModalOpen(true)}
+              className="p-2.5 rounded-xl hover:bg-slate-700 text-slate-400 hover:text-white transition" 
+              title="My Platform Profile Settings"
+            >
               <Settings className="w-5 h-5" />
             </button>
           </div>
@@ -481,7 +611,7 @@ export default function PlatformMasterConsole() {
             </div>
           )}
 
-          {/* Platform Users Tab (Backend Users RBAC) */}
+          {/* Platform Users Tab */}
           {activeTab === 'users' && (
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5">
               <div className="flex items-center justify-between border-b border-slate-200 pb-4">
@@ -614,6 +744,138 @@ export default function PlatformMasterConsole() {
         </main>
       </div>
 
+      {/* MODAL: EDIT CURRENT ADMIN PROFILE & ROLE */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-3xl p-7 space-y-6 border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-indigo-600 text-white flex items-center justify-center font-black text-sm shadow-md">
+                  {getInitials(currentAdmin.fullName)}
+                </div>
+                <div>
+                  <h2 className="text-base font-black text-slate-900">Platform Identity Profile</h2>
+                  <p className="text-[11px] text-slate-500 font-bold">Manage your vendor administrative credentials and role</p>
+                </div>
+              </div>
+              <button onClick={() => setIsProfileModalOpen(false)} className="opacity-70 hover:opacity-100 p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {profileSavedSuccess && (
+              <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-xs font-bold flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                <span>Profile details and role updated successfully!</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSaveCurrentProfile} className="space-y-4 text-xs font-bold">
+              <div>
+                <label className="block mb-1 text-slate-800">Master Email Address (Read-only)</label>
+                <input
+                  type="email"
+                  disabled
+                  value={currentAdmin.email}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-100 text-slate-500 font-mono font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block mb-1 text-slate-800">Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={currentAdmin.fullName}
+                    onChange={(e) => setCurrentAdmin({ ...currentAdmin, fullName: e.target.value })}
+                    placeholder="e.g. Daniel Oren"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block mb-1 text-slate-800">Department</label>
+                  <input
+                    type="text"
+                    value={currentAdmin.department}
+                    onChange={(e) => setCurrentAdmin({ ...currentAdmin, department: e.target.value })}
+                    placeholder="e.g. Cloud Operations"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block mb-1 text-slate-800">Platform Role Assignment</label>
+                  <select
+                    value={currentAdmin.role}
+                    onChange={(e) => setCurrentAdmin({ ...currentAdmin, role: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-black focus:outline-none focus:border-indigo-600"
+                  >
+                    {PLATFORM_ROLES.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block mb-1 text-slate-800">New Password (Optional)</label>
+                  <div className="relative">
+                    <input
+                      type={showProfilePass ? 'text' : 'password'}
+                      value={profilePassword}
+                      onChange={(e) => setProfilePassword(e.target.value)}
+                      placeholder="Leave blank to keep"
+                      className="w-full pl-3.5 pr-10 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-semibold focus:outline-none focus:border-indigo-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowProfilePass(!showProfilePass)}
+                      className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                    >
+                      {showProfilePass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  className="px-4 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black transition flex items-center gap-1.5"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Sign Out</span>
+                </button>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsProfileModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={profileSaving}
+                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black shadow-md transition flex items-center gap-1.5"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{profileSaving ? 'Saving...' : 'Save Profile'}</span>
+                  </button>
+                </div>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      )}
+
       {/* MODAL: ONBOARD / EDIT TENANT */}
       {isTenantModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
@@ -621,7 +883,7 @@ export default function PlatformMasterConsole() {
             
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div>
@@ -731,7 +993,7 @@ export default function PlatformMasterConsole() {
             
             <div className="flex items-center justify-between border-b border-slate-200 pb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
                   <UserPlus className="w-5 h-5" />
                 </div>
                 <div>

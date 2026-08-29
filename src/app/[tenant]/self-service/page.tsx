@@ -19,15 +19,10 @@ import {
   LogIn,
   ShieldCheck,
   Building2,
-  Sun,
-  Moon,
-  Sparkles,
   MapPin,
   Phone,
   Copy
 } from 'lucide-react';
-
-type ThemeMode = 'light' | 'dark' | 'ai';
 
 function TypewriterMessage({ text, onComplete }: { text: string; onComplete?: () => void }) {
   const [displayedText, setDisplayedText] = useState('');
@@ -88,14 +83,13 @@ interface Ticket {
 }
 
 const QUICK_PROMPTS = [
-  'נשפך לי קפה על מקלדת הלפטופ',
-  'לא מצליח להתחבר ל-VPN מהבית',
-  'צריך הרשאה לתיקייה משותפת',
-  'המסך החיצוני מהבהב ומציג קווים'
+  'Spilled coffee on laptop keyboard',
+  'Cannot connect to corporate VPN from home',
+  'Need access permission for shared directory',
+  'External monitor is flickering with lines'
 ];
 
-function NewRequestContent() {
-  const [theme, setTheme] = useState<ThemeMode>('light');
+function SelfServiceContent() {
   const params = useParams();
   const rawTenant = (params?.tenant as string) || 'demo';
   const tenantSlug = rawTenant.toLowerCase();
@@ -112,7 +106,7 @@ function NewRequestContent() {
     { 
       id: 'init-msg',
       role: 'assistant', 
-      content: 'היי, אני Zack מבית SmartQ. ספר לי מה התקלה או הבקשה שלך ואדאג למלא את כל פרטי הקריאה עבורך.',
+      content: 'Hi! I am Zack from SmartQ. Describe your IT issue or request and I will automatically structure and route your ticket.',
       isStreaming: true
     }
   ]);
@@ -162,7 +156,6 @@ function NewRequestContent() {
         });
       }
 
-      // קריאת Session קיים מה-Cookie
       const matchCookie = document.cookie
         .split('; ')
         .find((row) => row.startsWith('smartq_session='));
@@ -173,7 +166,7 @@ function NewRequestContent() {
           const decoded = JSON.parse(atob(rawVal));
           if (decoded.email) {
             const resolvedName = decoded.name || decoded.email.split('@')[0];
-            const resolvedCity = decoded.city || 'מטה ראשי';
+            const resolvedCity = decoded.city || 'Headquarters';
             const resolvedPhone = decoded.phone || '';
 
             setCurrentUser({ name: resolvedName, email: decoded.email, dept: resolvedCity, phone: resolvedPhone });
@@ -225,7 +218,6 @@ function NewRequestContent() {
     fetchTickets();
   }, [tenantSlug]);
 
-  // Handle Send Message -> Allows Zack to extract reporter_name & reporter_email from conversation
   const handleSendMessage = async (textToSend?: string) => {
     const messageContent = textToSend || userInput;
     if (!messageContent.trim() || isAiLoading) return;
@@ -249,11 +241,10 @@ function NewRequestContent() {
         }),
       });
 
-      if (!res.ok) throw new Error('שגיאה בתקשורת מול Zack');
+      if (!res.ok) throw new Error('Communication error with Zack AI');
       const data = await res.json();
 
       setFormData((prev) => {
-        // Dynamic detection: if AI found a reporter_name/email in conversation, use it. Otherwise fallback to current user/previous value
         const updatedName = data.reporter_name || prev.reporter_name || currentUser?.name || '';
         const updatedEmail = data.reporter_email || prev.reporter_email || currentUser?.email || '';
 
@@ -267,7 +258,7 @@ function NewRequestContent() {
           assigned_team: data.assigned_team || data.assignedTeam || prev.assigned_team,
           reporter_name: updatedName,
           reporter_email: updatedEmail,
-          user_city: data.user_city || prev.user_city || currentUser?.dept || 'מטה ראשי',
+          user_city: data.user_city || prev.user_city || currentUser?.dept || 'Headquarters',
           user_phone: prev.user_phone || currentUser?.phone || ''
         };
       });
@@ -289,7 +280,7 @@ function NewRequestContent() {
           { 
             id: 'ai-' + Date.now(), 
             role: 'assistant', 
-            content: 'מילאתי את כל פרטי הקריאה בטופס. גולל אותך לבדיקה ואישור.',
+            content: 'I have populated the ticket details below. Scrolling down for your final confirmation.',
             isStreaming: true 
           }
         ]);
@@ -299,7 +290,7 @@ function NewRequestContent() {
         }, 1000);
       }
     } catch (err: any) {
-      setFeedbackMsg({ text: err.message || 'שגיאה בפענוח הנתונים', type: 'error' });
+      setFeedbackMsg({ text: err.message || 'Error processing request', type: 'error' });
     } finally {
       setIsAiLoading(false);
     }
@@ -311,8 +302,8 @@ function NewRequestContent() {
     setFeedbackMsg(null);
 
     const generated6Digits = Math.floor(100000 + Math.random() * 900000).toString();
-    const finalReporterName = formData.reporter_name || currentUser?.name || 'עובד ארגון';
-    const finalReporterEmail = formData.reporter_email || currentUser?.email || `user@${tenantSlug}.co.il`;
+    const finalReporterName = formData.reporter_name || currentUser?.name || 'Enterprise Employee';
+    const finalReporterEmail = formData.reporter_email || currentUser?.email || `user@${tenantSlug}.com`;
 
     try {
       const { data, error } = await supabase.from('tickets').insert([
@@ -328,7 +319,7 @@ function NewRequestContent() {
           reporter_email: finalReporterEmail,
           user_name: finalReporterName,
           user_email: finalReporterEmail,
-          user_city: formData.user_city || 'מטה ראשי',
+          user_city: formData.user_city || 'Headquarters',
           user_phone: formData.user_phone || '',
           status: 'Open',
         },
@@ -354,12 +345,12 @@ function NewRequestContent() {
       setIsReadyForReview(false);
       setMessages((prev) => [
         ...prev,
-        { id: 'done-' + Date.now(), role: 'assistant', content: `קריאה #${finalTicketNum} שוגרה בהצלחה. יש משהו נוסף שאוכל לעזור בו?`, isStreaming: true }
+        { id: 'done-' + Date.now(), role: 'assistant', content: `Ticket #${finalTicketNum} was created successfully! Anything else I can assist with?`, isStreaming: true }
       ]);
       fetchTickets();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
-      setFeedbackMsg({ text: 'שגיאה בשמירת הקריאה: ' + err.message, type: 'error' });
+      setFeedbackMsg({ text: 'Error saving ticket: ' + err.message, type: 'error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -373,41 +364,10 @@ function NewRequestContent() {
     }
   };
 
-  const getUrgencyBadge = (urgency: string) => {
-    switch (urgency) {
-      case 'Critical': return 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800';
-      case 'High': return 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-800';
-      case 'Medium': return 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800';
-      default: return 'bg-slate-200 text-slate-900 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
-    }
-  };
-
-  const themeBg = {
-    light: 'bg-[#F8FAFC] text-slate-900',
-    dark: 'bg-[#0B0F19] text-slate-100',
-    ai: 'bg-radial-at-t from-[#160B2E] via-[#090D1A] to-[#04060B] text-slate-100'
-  };
-
-  const cardBg = {
-    light: 'bg-white border-slate-200 shadow-sm text-slate-900',
-    dark: 'bg-[#111827] border-slate-800 shadow-xl text-slate-100',
-    ai: 'bg-[#120D26]/70 border-indigo-500/40 shadow-2xl shadow-indigo-500/10 backdrop-blur-xl text-slate-100'
-  };
-
-  const inputBg = {
-    light: 'bg-slate-50 border-slate-300 text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-600',
-    dark: 'bg-[#1F2937] border-slate-700 text-slate-100 placeholder-slate-500 focus:border-indigo-400',
-    ai: 'bg-[#1C1438]/80 border-indigo-500/30 text-indigo-100 placeholder-indigo-300/40 focus:border-cyan-400'
-  };
-
   return (
-    <main dir="rtl" className={`min-h-screen font-sans antialiased transition-colors duration-300 ${themeBg[theme]}`}>
-      {/* Top Navbar */}
-      <header className={`sticky top-0 z-30 border-b backdrop-blur-md transition-colors duration-300 ${
-        theme === 'light' ? 'bg-white/95 border-slate-200 shadow-2xs' : 
-        theme === 'dark' ? 'bg-[#0E1424]/90 border-slate-800' : 
-        'bg-[#0C081D]/80 border-indigo-500/30 shadow-lg shadow-indigo-500/10'
-      }`}>
+    <main className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased">
+      {/* Header */}
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-white border border-slate-100">
@@ -415,71 +375,40 @@ function NewRequestContent() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className={`text-lg font-black tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>SmartQ</span>
-                <span className="px-2 py-0.5 text-[10px] font-extrabold text-white bg-gradient-to-r from-indigo-500 to-purple-600 rounded-md shadow-2xs uppercase">
-                  AI DESK
+                <span className="text-lg font-black tracking-tight text-slate-900">SmartQ</span>
+                <span className="px-2 py-0.5 text-[10px] font-extrabold text-white bg-indigo-600 rounded-md uppercase">
+                  SELF-SERVICE
                 </span>
               </div>
-              <div className="flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-400 font-bold">
-                <Building2 className="w-3 h-3 text-indigo-600 dark:text-indigo-400" />
+              <div className="flex items-center gap-1 text-[11px] text-slate-500 font-bold">
+                <Building2 className="w-3 h-3 text-indigo-600" />
                 <span>{tenant?.name || rawTenant}</span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5">
-            {/* Theme Capsule */}
-            <div className={`flex items-center p-1 rounded-xl border ${
-              theme === 'light' ? 'bg-slate-100 border-slate-200' : 'bg-slate-800 border-slate-700'
-            }`}>
-              <button
-                onClick={() => setTheme('light')}
-                className={`p-1.5 rounded-lg transition ${theme === 'light' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-400 hover:text-white'}`}
-                title="Light Mode"
-              >
-                <Sun className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setTheme('dark')}
-                className={`p-1.5 rounded-lg transition ${theme === 'dark' ? 'bg-slate-700 text-indigo-400 shadow-xs' : 'text-slate-400 hover:text-white'}`}
-                title="Dark Mode"
-              >
-                <Moon className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setTheme('ai')}
-                className={`p-1.5 rounded-lg transition ${theme === 'ai' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'}`}
-                title="AI Neural Mode"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-              </button>
-            </div>
-
             {currentUser ? (
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-xs font-black shadow-xs">
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-xs font-black">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>{currentUser.name}</span>
               </div>
             ) : (
               <a
                 href={`/${rawTenant}/login`}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border transition ${
-                  theme === 'light' ? 'text-slate-800 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border-slate-200' : 'text-slate-200 bg-slate-800 hover:bg-slate-700 border-slate-700'
-                }`}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-800 transition"
               >
                 <LogIn className="w-3.5 h-3.5 text-indigo-600" />
-                <span>התחבר</span>
+                <span>Sign In</span>
               </a>
             )}
 
             <button 
               onClick={fetchTickets}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition ${
-                theme === 'light' ? 'text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 border border-slate-200' : 'text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700'
-              }`}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTickets ? 'animate-spin text-indigo-600' : ''}`} />
-              רענון
+              Refresh
             </button>
           </div>
         </div>
@@ -487,6 +416,7 @@ function NewRequestContent() {
 
       {/* Main Container */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-12 space-y-6">
+        
         {/* Quick Prompts */}
         <div className="flex flex-wrap items-center justify-center gap-2">
           {QUICK_PROMPTS.map((prompt, i) => (
@@ -494,11 +424,7 @@ function NewRequestContent() {
               key={i}
               type="button"
               onClick={() => handleSendMessage(prompt)}
-              className={`text-[11px] font-bold px-3.5 py-1.5 rounded-xl border transition shadow-2xs flex items-center gap-1.5 ${
-                theme === 'light' ? 'bg-white hover:bg-indigo-50 border-slate-200 hover:border-indigo-300 text-slate-800 hover:text-indigo-700' :
-                theme === 'dark' ? 'bg-[#111827] hover:bg-slate-800 border-slate-800 text-slate-300 hover:text-white' :
-                'bg-[#181136] hover:bg-indigo-950 border-indigo-500/30 text-indigo-200 hover:text-white'
-              }`}
+              className="text-[11px] font-bold px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50 hover:border-indigo-300 text-slate-700 hover:text-indigo-700 transition shadow-2xs flex items-center gap-1.5"
             >
               <Zap className="w-3 h-3 text-indigo-600" />
               {prompt}
@@ -507,22 +433,14 @@ function NewRequestContent() {
         </div>
 
         {/* Zack Chat Interface */}
-        <div className={`rounded-2xl border overflow-hidden flex flex-col h-[480px] transition-all duration-300 ${
-          theme === 'light' ? 'bg-white border-slate-200 shadow-xl' :
-          theme === 'dark' ? 'bg-[#111827] border-slate-800 shadow-2xl' :
-          'bg-[#120D28]/90 border-indigo-500/40 shadow-2xl shadow-indigo-500/20 backdrop-blur-xl'
-        }`}>
-          <div className={`px-5 py-3.5 border-b flex items-center justify-between ${
-            theme === 'light' ? 'bg-slate-50/80 border-slate-200' :
-            theme === 'dark' ? 'bg-slate-900 border-slate-800' :
-            'bg-indigo-950/40 border-indigo-500/30'
-          }`}>
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden flex flex-col h-[480px]">
+          <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-500 flex items-center justify-center text-white shadow-md font-black text-xs">
+              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-md font-black text-xs">
                 Z
               </div>
               <div className="flex items-center gap-2">
-                <h3 className={`font-bold text-sm ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>Zack AI</h3>
+                <h3 className="font-bold text-sm text-slate-900">Zack AI Support Agent</h3>
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
               </div>
             </div>
@@ -533,29 +451,24 @@ function NewRequestContent() {
                 onClick={() => formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
                 className="flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-lg transition"
               >
-                <span>הפרטים מוכנים – עבור לטופס</span>
+                <span>Ready for Review</span>
                 <ArrowDown className="w-3 h-3" />
               </button>
             )}
           </div>
 
-          {/* Messages Flow */}
-          <div ref={chatMessagesContainerRef} className={`flex-1 p-5 overflow-y-auto space-y-4 ${
-            theme === 'light' ? 'bg-slate-50/40' : 'bg-[#090E1A]/40'
-          }`}>
+          <div ref={chatMessagesContainerRef} className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/40">
             {messages.map((m) => (
-              <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'justify-start flex-row-reverse' : 'justify-start'}`}>
+              <div key={m.id} className={`flex gap-3 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black shadow-2xs ${
-                  m.role === 'user' ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white' : 'bg-gradient-to-tr from-indigo-600 to-purple-500 text-white'
+                  m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-white'
                 }`}>
                   {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : 'Z'}
                 </div>
                 <div className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed max-w-[85%] shadow-2xs font-medium ${
                   m.role === 'user' 
-                    ? 'bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-br-none' 
-                    : theme === 'light'
-                      ? 'bg-white text-slate-900 rounded-bl-none border border-slate-200'
-                      : 'bg-slate-800/90 text-slate-100 rounded-bl-none border border-slate-700'
+                    ? 'bg-indigo-600 text-white rounded-br-none' 
+                    : 'bg-white text-slate-900 rounded-bl-none border border-slate-200'
                 }`}>
                   {m.role === 'assistant' && m.isStreaming ? (
                     <TypewriterMessage 
@@ -574,37 +487,32 @@ function NewRequestContent() {
             ))}
             
             {isAiLoading && (
-              <div className={`flex items-center gap-3 text-xs p-2.5 rounded-2xl w-fit border ${
-                theme === 'light' ? 'text-indigo-800 bg-indigo-50 border-indigo-100 font-bold' : 'text-indigo-300 bg-indigo-950/60 border-indigo-800'
-              }`}>
+              <div className="flex items-center gap-3 text-xs p-2.5 rounded-2xl w-fit border text-indigo-800 bg-indigo-50 border-indigo-100 font-bold">
                 <div className="flex gap-1">
                   <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
                   <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
                   <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
                 </div>
-                <span>Zack מסנכרן את פרטי הקריאה...</span>
+                <span>Zack is analyzing your request...</span>
               </div>
             )}
           </div>
 
-          {/* Chat Input */}
-          <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className={`p-3 border-t flex gap-2 ${
-            theme === 'light' ? 'bg-white border-slate-200' : 'bg-slate-900 border-slate-800'
-          }`}>
+          <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="p-3 border-t border-slate-200 bg-white flex gap-2">
             <input
               type="text"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              placeholder="כתוב כאן ל-Zack מה התקלה..."
-              className={`flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+              placeholder="Describe your IT request or problem to Zack..."
+              className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600"
             />
             <button
               type="submit"
               disabled={isAiLoading || !userInput.trim()}
-              className="px-4 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl font-bold text-xs sm:text-sm transition shadow-sm flex items-center justify-center gap-1.5"
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-bold text-xs sm:text-sm transition shadow-sm flex items-center justify-center gap-1.5"
             >
-              <span>שלח</span>
-              <Send className="w-3.5 h-3.5 rtl:rotate-180" />
+              <span>Send</span>
+              <Send className="w-3.5 h-3.5" />
             </button>
           </form>
         </div>
@@ -623,85 +531,85 @@ function NewRequestContent() {
           </div>
         )}
 
-        <div className={`p-6 sm:p-8 rounded-2xl border space-y-6 transition-all duration-300 ${cardBg[theme]}`}>
-          <div className={`flex items-center justify-between border-b pb-3 ${theme === 'light' ? 'border-slate-200' : 'border-slate-800'}`}>
+        <div className="p-6 sm:p-8 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-6">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
-              <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-                אישור ושיגור קריאה ({tenant?.name || rawTenant})
+              <h2 className="text-sm font-bold text-slate-900">
+                Ticket Details Confirmation ({tenant?.name || rawTenant})
               </h2>
             </div>
             <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
-              SmartQ Core
+              Verified by Zack
             </span>
           </div>
 
-          <form onSubmit={handleSubmitTicket} className="space-y-4">
+          <form onSubmit={handleSubmitTicket} className="space-y-4 text-xs font-bold">
             <div>
-              <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>נושא הפנייה *</label>
+              <label className="block mb-1.5 text-slate-800">Ticket Subject / Title *</label>
               <input
                 type="text"
                 required
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder="נושא הפנייה..."
-                className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                placeholder="Brief summary of the issue..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>קטגוריה</label>
+                <label className="block mb-1.5 text-slate-800">Category</label>
                 <select
                   value={formData.category}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className={`w-full px-3 py-2 text-xs rounded-xl border font-semibold focus:outline-none transition ${inputBg[theme]}`}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:outline-none focus:border-indigo-600"
                 >
-                  <option value="Hardware">חומרה (Hardware)</option>
-                  <option value="Software & SaaS">תוכנה וענן (Software)</option>
-                  <option value="Network & Connectivity">תקשורת ו-VPN</option>
-                  <option value="Access & IAM">הרשאות וזהויות (IAM)</option>
-                  <option value="Cloud & Infrastructure">תשתיות ענן (Cloud)</option>
-                  <option value="Cyber Security">אבטחת מידע</option>
-                  <option value="Workstation & Peripherals">ציוד קצה ועמדות</option>
-                  <option value="Database & BI">בסיסי נתונים ו-BI</option>
-                  <option value="General IT Request">בקשת IT כללית</option>
+                  <option value="Hardware">Hardware (Laptops, Monitors, Peripherals)</option>
+                  <option value="Software & SaaS">Software & SaaS (Office, Zoom, Slack)</option>
+                  <option value="Network & Connectivity">Network & VPN</option>
+                  <option value="Access & IAM">Access & Identity (IAM)</option>
+                  <option value="Cloud & Infrastructure">Cloud & Infrastructure</option>
+                  <option value="Cyber Security">Cyber Security</option>
+                  <option value="Workstation & Peripherals">Workstation & Peripherals</option>
+                  <option value="Database & BI">Database & BI</option>
+                  <option value="General IT Request">General IT Request</option>
                 </select>
               </div>
 
               <div>
-                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>דחיפות SLA</label>
+                <label className="block mb-1.5 text-slate-800">SLA Urgency</label>
                 <select
                   value={formData.urgency}
                   onChange={(e) => setFormData({ ...formData, urgency: e.target.value })}
-                  className={`w-full px-3 py-2 text-xs rounded-xl border font-semibold focus:outline-none transition ${inputBg[theme]}`}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:outline-none focus:border-indigo-600"
                 >
-                  <option value="Low">Low (נמוכה)</option>
-                  <option value="Medium">Medium (בינונית)</option>
-                  <option value="High">High (גבוהה)</option>
-                  <option value="Critical">Critical (קריטית)</option>
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                  <option value="Critical">Critical</option>
                 </select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>רכיב / מערכת</label>
+                <label className="block mb-1.5 text-slate-800">System Impacted</label>
                 <input
                   type="text"
                   value={formData.system_impacted}
                   onChange={(e) => setFormData({ ...formData, system_impacted: e.target.value })}
-                  placeholder="לדוגמה: VPN, מחשב נייד, SAP..."
-                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                  placeholder="e.g. Laptop, VPN Client, SAP, Email..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
 
               <div>
-                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>צוות מטפל</label>
+                <label className="block mb-1.5 text-slate-800">Assigned IT Team</label>
                 <select
                   value={formData.assigned_team}
                   onChange={(e) => setFormData({ ...formData, assigned_team: e.target.value })}
-                  className={`w-full px-3 py-2 text-xs font-bold rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:outline-none focus:border-indigo-600"
                 >
                   <option value="Helpdesk Tier 1">Helpdesk Tier 1</option>
                   <option value="System & Cloud Team">System & Cloud Team</option>
@@ -714,65 +622,59 @@ function NewRequestContent() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={`block text-xs font-bold mb-1.5 flex items-center gap-1 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>
-                  <MapPin className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>עיר / מטה / סניף (City / HQ)</span>
-                </label>
+                <label className="block mb-1.5 text-slate-800">Location / Headquarters</label>
                 <input
                   type="text"
                   value={formData.user_city}
                   onChange={(e) => setFormData({ ...formData, user_city: e.target.value })}
-                  placeholder="למשל: מטה חיפה / נהריה / תל אביב"
-                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                  placeholder="e.g. Haifa HQ / Tel Aviv Campus"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
 
               <div>
-                <label className={`block text-xs font-bold mb-1.5 flex items-center gap-1 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>
-                  <Phone className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>טלפון / שלוחה</span>
-                </label>
+                <label className="block mb-1.5 text-slate-800">Contact Phone / Extension</label>
                 <input
                   type="tel"
                   value={formData.user_phone}
                   onChange={(e) => setFormData({ ...formData, user_phone: e.target.value })}
                   placeholder="050-0000000"
-                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold font-mono"
                 />
               </div>
             </div>
 
             <div>
-              <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>פירוט הפנייה *</label>
+              <label className="block mb-1.5 text-slate-800">Detailed Description *</label>
               <textarea
                 required
                 rows={3}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="פירוט הבקשה..."
-                className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition leading-relaxed ${inputBg[theme]}`}
+                placeholder="Detailed explanation of what occurred..."
+                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-medium leading-relaxed"
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>שם המדווח</label>
+                <label className="block mb-1.5 text-slate-800">Reporter Full Name</label>
                 <input
                   type="text"
                   value={formData.reporter_name}
                   onChange={(e) => setFormData({ ...formData, reporter_name: e.target.value })}
-                  placeholder="שם מלא"
-                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                  placeholder="Full Name"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
                 />
               </div>
               <div>
-                <label className={`block text-xs font-bold mb-1.5 ${theme === 'light' ? 'text-slate-800' : 'text-slate-300'}`}>אימייל לחזרה</label>
+                <label className="block mb-1.5 text-slate-800">Reporter Work Email</label>
                 <input
                   type="email"
                   value={formData.reporter_email}
                   onChange={(e) => setFormData({ ...formData, reporter_email: e.target.value })}
                   placeholder="name@company.com"
-                  className={`w-full px-3.5 py-2 text-xs rounded-xl border focus:outline-none transition ${inputBg[theme]}`}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold font-mono"
                 />
               </div>
             </div>
@@ -781,67 +683,61 @@ function NewRequestContent() {
               <button
                 type="submit"
                 disabled={isSubmitting || !formData.title.trim()}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-300 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-indigo-500/20 transition"
+                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-xs sm:text-sm font-black shadow-md transition flex items-center justify-center gap-2"
               >
                 <Check className="w-4 h-4" />
-                <span>{isSubmitting ? 'שומר קריאה...' : 'פתח קריאה ב-SmartQ'}</span>
+                <span>{isSubmitting ? 'Submitting Ticket...' : 'Dispatch Ticket to SmartQ'}</span>
               </button>
             </div>
           </form>
         </div>
 
-        {/* Tickets Queue */}
-        <section className={`p-6 rounded-2xl border space-y-4 transition-all duration-300 ${cardBg[theme]}`}>
-          <div className={`flex items-center justify-between border-b pb-3 ${theme === 'light' ? 'border-slate-200' : 'border-slate-800'}`}>
+        {/* Active Tickets */}
+        <section className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-indigo-600" />
-              <h2 className={`text-sm font-bold ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>קריאות פתוחות בארגון ({tickets.length})</h2>
+              <h2 className="text-sm font-bold text-slate-900">Active Organization Tickets ({tickets.length})</h2>
             </div>
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">מעקב וסטטוס</span>
+            <span className="text-xs text-slate-400 font-bold">Real-time status</span>
           </div>
 
           {isLoadingTickets ? (
-            <div className="flex items-center justify-center py-6 text-slate-500 text-xs gap-2">
-              <RefreshCw className="w-4 h-4 animate-spin text-indigo-600" />
-              טוען קריאות...
+            <div className="py-8 text-center text-xs text-slate-500 font-bold">
+              <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2 text-indigo-600" />
+              Loading tickets...
             </div>
           ) : tickets.length === 0 ? (
-            <div className="text-center py-6 text-slate-500 text-xs font-medium">
-              אין כרגע קריאות פתוחות בסביבה זו.
+            <div className="text-center py-8 text-xs text-slate-500 font-bold">
+              No open tickets found for this organization.
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               {tickets.map((t) => (
-                <div key={t.id} className={`p-3.5 border rounded-xl space-y-2 transition ${
-                  theme === 'light' ? 'bg-slate-50/80 hover:bg-slate-50 border-slate-200' :
-                  theme === 'dark' ? 'bg-slate-800/40 hover:bg-slate-800 border-slate-700/60' :
-                  'bg-indigo-950/30 hover:bg-indigo-950/60 border-indigo-500/20'
-                }`}>
+                <div key={t.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50/60 hover:bg-white transition space-y-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-[10px] ml-1.5">
+                      <span className="font-mono font-black text-indigo-600 text-xs mr-2">
                         #{t.ticket_number || t.id.slice(0, 6)}
                       </span>
-                      <h3 className={`text-xs font-bold inline ${theme === 'light' ? 'text-slate-900' : 'text-slate-100'}`}>{t.title}</h3>
+                      <h3 className="text-xs font-bold inline text-slate-900">{t.title}</h3>
                     </div>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${getUrgencyBadge(t.urgency)}`}>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md border bg-slate-100 text-slate-800 border-slate-300">
                       {t.urgency}
                     </span>
                   </div>
 
-                  <p className="text-[11px] text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                  <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed font-medium">
                     {t.description}
                   </p>
 
-                  <div className={`pt-2 border-t flex items-center justify-between text-[10px] ${
-                    theme === 'light' ? 'border-slate-200 text-slate-500 font-medium' : 'border-slate-700/50 text-slate-500'
-                  }`}>
-                    <span className="bg-indigo-50 text-indigo-700 font-bold px-1.5 py-0.5 rounded border border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400 dark:border-indigo-800">
-                      {t.assigned_team || 'Helpdesk'}
+                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500 font-bold">
+                    <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">
+                      {t.assigned_team || 'Helpdesk Tier 1'}
                     </span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3 text-slate-500" />
-                      {new Date(t.created_at).toLocaleDateString('he-IL', { hour: '2-digit', minute: '2-digit' })}
+                    <span className="flex items-center gap-1 font-mono">
+                      <Clock className="w-3 h-3 text-slate-400" />
+                      {new Date(t.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                 </div>
@@ -854,31 +750,27 @@ function NewRequestContent() {
       {/* POPUP MODAL (6-DIGIT TICKET NUMBER) */}
       {createdTicketNumber && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className={`w-full max-w-md rounded-3xl p-6 sm:p-8 space-y-6 text-center border shadow-2xl animate-in fade-in zoom-in-95 duration-200 ${
-            theme === 'light' ? 'bg-white border-slate-200 text-slate-900' : 'bg-[#111827] border-slate-800 text-white'
-          }`}>
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 text-emerald-700 dark:bg-emerald-950/60 dark:border-emerald-500/40 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-md">
+          <div className="w-full max-w-md rounded-3xl p-7 space-y-6 text-center border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 text-emerald-700 flex items-center justify-center mx-auto shadow-md">
               <CheckCircle2 className="w-8 h-8" />
             </div>
 
             <div className="space-y-1.5">
-              <h3 className="text-lg font-black">קריאת השירות נפתחה בהצלחה!</h3>
-              <p className="text-xs opacity-75 font-medium">הפנייה נותבה ישירות לתור צוות ה-IT המתאים בארגון</p>
+              <h3 className="text-lg font-black text-slate-900">Ticket Created Successfully!</h3>
+              <p className="text-xs text-slate-500 font-medium">Your request has been classified and routed to the designated IT team.</p>
             </div>
 
-            <div className={`p-4 rounded-2xl border space-y-2 ${
-              theme === 'light' ? 'bg-slate-50 border-slate-200' : 'bg-slate-900/90 border-slate-800'
-            }`}>
-              <span className="text-[11px] font-bold opacity-75">מספר קריאת שירות למעקב</span>
+            <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
+              <span className="text-[11px] font-bold text-slate-500">Tracking Ticket Reference ID</span>
               <div className="flex items-center justify-center gap-2">
-                <span className="text-2xl font-black font-mono tracking-wider text-indigo-600 dark:text-indigo-400">
+                <span className="text-2xl font-black font-mono tracking-wider text-indigo-600">
                   #{createdTicketNumber}
                 </span>
                 <button
                   type="button"
                   onClick={copyTicketNumber}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-300 transition"
-                  title="העתק מספר קריאה"
+                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 transition"
+                  title="Copy Reference ID"
                 >
                   {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
                 </button>
@@ -888,9 +780,9 @@ function NewRequestContent() {
             <button
               type="button"
               onClick={() => setCreatedTicketNumber(null)}
-              className="w-full py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-xl text-xs font-black shadow-md transition"
+              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition"
             >
-              סגור
+              Close
             </button>
           </div>
         </div>
@@ -899,10 +791,10 @@ function NewRequestContent() {
   );
 }
 
-export default function TenantNewRequestPage() {
+export default function SelfServicePage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
-      <NewRequestContent />
+      <SelfServiceContent />
     </Suspense>
   );
 }

@@ -3,12 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. נתיבים סטטיים וציבוריים מוחלטים
+  // 1. Static and Public files
   if (
     pathname.startsWith('/home') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/api') ||
-    pathname.startsWith('/platform') ||
     pathname.startsWith('/smartq-logo.png') ||
     pathname.startsWith('/favicon.ico') ||
     pathname === '/'
@@ -16,7 +15,27 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // 2. זיהוי נתיבי ארגון
+  // 2. Vendor Platform Authentication Lock
+  if (pathname.startsWith('/platform')) {
+    if (pathname === '/platform/login') {
+      return NextResponse.next();
+    }
+    const platformCookie = req.cookies.get('smartq_platform_session')?.value;
+    if (!platformCookie) {
+      return NextResponse.redirect(new URL('/platform/login', req.url));
+    }
+    try {
+      const parsed = JSON.parse(Buffer.from(platformCookie, 'base64').toString('utf-8'));
+      if (!parsed.isPlatformAdmin) {
+        return NextResponse.redirect(new URL('/platform/login', req.url));
+      }
+    } catch {
+      return NextResponse.redirect(new URL('/platform/login', req.url));
+    }
+    return NextResponse.next();
+  }
+
+  // 3. Tenant Sub-Routes Processing
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) return NextResponse.next();
 
@@ -24,17 +43,17 @@ export function middleware(req: NextRequest) {
   const routeTenant = rawTenant.toLowerCase();
   const subRoute = segments[1] || '';
 
-  // דפי Login ו-Access-Denied פתוחים
+  // Open pages
   if (subRoute === 'login' || subRoute === 'access-denied') {
     return NextResponse.next();
   }
 
-  // הפניה מנתיב users הישן אל new-request
-  if (subRoute === 'users') {
-    return NextResponse.redirect(new URL(`/${rawTenant}/new-request`, req.url));
+  // Backwards compatibility redirects for old URLs
+  if (subRoute === 'users' || subRoute === 'new-request') {
+    return NextResponse.redirect(new URL(`/${rawTenant}/self-service`, req.url));
   }
 
-  // 3. קריאת עוגיית Session
+  // 4. Decode Tenant Session
   const sessionCookie = req.cookies.get('smartq_session')?.value;
   let session: { role?: 'manager' | 'admin' | 'user'; tenantId?: string; email?: string } | null = null;
 
@@ -58,24 +77,28 @@ export function middleware(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${rawTenant}/access-denied`, req.url));
   };
 
-  // 4. אכיפת הרשאות מלאה:
-
-  // נתיב הבסיס /[tenant]
+  // 5. Intelligent Tenant Root Gateway: /[tenant]
   if (!subRoute) {
     if (!session || !isMatchingTenant) {
-      return redirectToLogin(`/${rawTenant}/new-request`);
+      return redirectToLogin(`/${rawTenant}/self-service`);
     }
-    return NextResponse.redirect(new URL(`/${rawTenant}/new-request`, req.url));
+    // Intelligent role-based dispatch
+    if (session.role === 'manager') {
+      return NextResponse.redirect(new URL(`/${rawTenant}/manage`, req.url));
+    }
+    if (session.role === 'admin') {
+      return NextResponse.redirect(new URL(`/${rawTenant}/admins`, req.url));
+    }
+    return NextResponse.redirect(new URL(`/${rawTenant}/self-service`, req.url));
   }
 
-  // נתיב new-request (דרוש משתמש מחובר)
-  if (subRoute === 'new-request') {
+  // 6. RBAC Page Enforcements:
+  if (subRoute === 'self-service') {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(pathname);
     }
   }
 
-  // נתיב admins (דרוש טכנאי או מנהל)
   if (subRoute === 'admins') {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(pathname);
@@ -85,7 +108,6 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  // נתיב manage (דרוש מנהל בלבד)
   if (subRoute === 'manage') {
     if (!session || !isMatchingTenant) {
       return redirectToLogin(pathname);

@@ -24,21 +24,61 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email and Full Name are required' }, { status: 400 });
     }
 
-    const { data, error } = await supabase
-      .from('platform_admins')
-      .upsert({
-        email: email.toLowerCase().trim(),
-        password_hash: password?.trim() || 'SmartQ2026!',
-        full_name: fullName.trim(),
-        role: role || 'Super Admin',
-        department: department?.trim() || 'Cloud Operations',
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'email' })
-      .select()
-      .single();
+    const cleanEmail = email.toLowerCase().trim();
+    const userRole = role || 'Super Admin';
+    const userDept = department?.trim() || 'Cloud Operations';
+    const userPass = password?.trim() || 'SmartQ2026!';
 
-    if (error) throw error;
-    return NextResponse.json({ success: true, admin: data });
+    // 1. בדיקה אם המשתמש כבר קיים
+    const { data: existing } = await supabase
+      .from('platform_admins')
+      .select('id')
+      .ilike('email', cleanEmail)
+      .maybeSingle();
+
+    let resultData;
+    let resultError;
+
+    if (existing) {
+      const { data, error } = await supabase
+        .from('platform_admins')
+        .update({
+          full_name: fullName.trim(),
+          role: userRole,
+          department: userDept,
+          password_hash: userPass,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      resultData = data;
+      resultError = error;
+    } else {
+      const { data, error } = await supabase
+        .from('platform_admins')
+        .insert([
+          {
+            email: cleanEmail,
+            password_hash: userPass,
+            full_name: fullName.trim(),
+            role: userRole,
+            department: userDept
+          }
+        ])
+        .select()
+        .single();
+
+      resultData = data;
+      resultError = error;
+    }
+
+    if (resultError) {
+      return NextResponse.json({ error: resultError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, admin: resultData });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

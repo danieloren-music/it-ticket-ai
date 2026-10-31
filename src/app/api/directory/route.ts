@@ -1,160 +1,126 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { db, must } from '@/lib/db';
+import { route, readJson, str, email as emailField, bad, HttpError, clientIp } from '@/lib/http';
+import { requireTenant } from '@/lib/auth';
+import { generateTempPassword, hashPassword, passwordPolicyError } from '@/lib/password';
+import { audit } from '@/lib/audit';
+import { ROLES, isOneOf } from '@/lib/constants';
 
-function extractTenant(req: NextRequest, body?: any): string | null {
-  const { searchParams } = new URL(req.url);
-  const fromQuery = searchParams.get('tenantSlug') || searchParams.get('tenant') || searchParams.get('tenant_id');
-  if (fromQuery) return fromQuery.toLowerCase().trim();
+const COLUMNS =
+  'id, email, full_name, role, job_title, department, site_location, phone_number, is_active, last_login_at, must_change_password, created_at';
 
-  if (body) {
-    const fromBody = body.tenantSlug || body.tenant_id || body.tenant;
-    if (fromBody) return String(fromBody).toLowerCase().trim();
-  }
+/** Directory is manager-only. The tenant always comes from the signed session, never from the request. */
+export const GET = route(async (req: NextRequest) => {
+  const session = await requireTenant(req, { roles: ['manager'] });
+  const users = must(
+    await db().from('tenant_users').select(COLUMNS).eq('tenant_id', session.tenantId).order('created_at', { ascending: false }).limit(2000)
+  );
+  return NextResponse.json({ users: users ?? [] });
+});
 
-  const sessionCookie = req.cookies.get('smartq_session')?.value;
-  if (sessionCookie) {
-    try {
-      const decoded = JSON.parse(Buffer.from(sessionCookie, 'base64').toString('utf-8'));
-      if (decoded.tenantId) return String(decoded.tenantId).toLowerCase().trim();
-    } catch {}
-  }
-
-  return null;
-}
-
-export async function GET(req: NextRequest) {
-  const tenantSlug = extractTenant(req);
-
-  if (!tenantSlug) {
-    return NextResponse.json({ error: 'Tenant identifier is required' }, { status: 400 });
-  }
-
-  const { data, error } = await supabase
+async function managerCount(tenantId: string): Promise<number> {
+  const { count } = await db()
     .from('tenant_users')
-    .select('*')
-    .ilike('tenant_id', tenantSlug)
-    .order('created_at', { ascending: false });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ users: data || [] });
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', tenantId)
+    .eq('role', 'Manager')
+    .eq('is_active', true);
+  return count ?? 0;
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const tenantSlug = extractTenant(req, body);
+/** Create or update a directory user. */
+export const POST = route(async (req: NextRequest) => {
+  const session = await requireTenant(req, { roles: ['manager'], blockDemo: true });
+  const body = await readJson(req);
 
-    if (!tenantSlug) {
-      return NextResponse.json({ error: 'Tenant identifier is required' }, { status: 400 });
+  const userEmail = emailField(body.email);
+  const fullName = str(body.fullName, 120, { min: 2, field: 'Full name' });
+  if (!isOneOf(ROLES, body.role)) throw bad('VALIDATION', 'Invalid role');
+  const role = body.role;
+  const fields = {
+    full_name: fullName,
+    role,
+    job_title: str(body.jobTitle, 120) || 'Employee',
+    department: str(body.department, 120) || 'General',
+    site_location: str(body.siteLocation, 120) || 'Headquarters',
+    phone_number: str(body.phoneNumber, 40),
+    is_active: body.isActive === false ? false : true,
+  };
+
+  const { data: existing } = await db()
+    .from('tenant_users')
+    .select('id, role, is_active')
+    .eq('tenant_id', session.tenantId)
+    .eq('email', userEmail)
+    .maybeSingle();
+
+  // Never leave an organization without an active manager.
+  if (existing && existing.role === 'Manager' && (role !== 'Manager' || fields.is_active === false)) {
+    if ((await managerCount(session.tenantId)) <= 1) {
+      throw new HttpError(409, 'LAST_MANAGER', 'The organization must keep at least one active manager');
     }
+  }
 
-    const email = body.email;
-    const fullName = body.fullName || body.full_name;
-    const password = body.password || body.password_hash || 'SmartQ2026!';
-    const role = body.role || 'User';
-    const jobTitle = body.jobTitle || body.job_title || 'Employee';
-    const department = body.department || 'General';
-    const siteLocation = body.siteLocation || body.site_location || 'Headquarters';
-    const phoneNumber = body.phoneNumber || body.phone_number || '';
-    const isActive = body.isActive !== undefined ? body.isActive : true;
+  let tempPassword: string | undefined;
+  let passwordHash: string | undefined;
+  const providedPassword = typeof body.password === 'string' ? body.password : '';
 
-    if (!email || !fullName) {
-      return NextResponse.json({ error: 'Email and Full Name are required fields' }, { status: 400 });
+  if (providedPassword) {
+    if (passwordPolicyError(providedPassword)) {
+      throw bad('WEAK_PASSWORD', 'Password must be at least 10 characters and include letters and digits');
     }
+    passwordHash = await hashPassword(providedPassword);
+  } else if (!existing) {
+    tempPassword = generateTempPassword();
+    passwordHash = await hashPassword(tempPassword);
+  }
 
-    const cleanSlug = tenantSlug.toLowerCase().trim();
-    const cleanEmail = String(email).toLowerCase().trim();
+  if (existing) {
+    const patch: Record<string, unknown> = { ...fields, updated_at: new Date().toISOString() };
+    if (passwordHash) {
+      patch.password_hash = passwordHash;
+      patch.must_change_password = true;
+      patch.failed_attempts = 0;
+      patch.locked_until = null;
+    }
+    const user = must(await db().from('tenant_users').update(patch).eq('id', existing.id).select(COLUMNS).single());
+    await audit({
+      tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'user.updated',
+      target: userEmail, meta: { role, active: fields.is_active, passwordReset: Boolean(passwordHash) }, ip: clientIp(req),
+    });
+    return NextResponse.json({ success: true, user });
+  }
 
-    const { data: existingUser } = await supabase
+  const user = must(
+    await db()
       .from('tenant_users')
-      .select('id')
-      .ilike('tenant_id', cleanSlug)
-      .ilike('email', cleanEmail)
-      .maybeSingle();
+      .insert({ tenant_id: session.tenantId, email: userEmail, password_hash: passwordHash, must_change_password: true, ...fields })
+      .select(COLUMNS)
+      .single()
+  );
+  await audit({
+    tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'user.created',
+    target: userEmail, meta: { role }, ip: clientIp(req),
+  });
+  // The one-time password is returned exactly once and is never stored in clear text.
+  return NextResponse.json({ success: true, user, tempPassword }, { status: 201 });
+});
 
-    let resultData;
-    let resultError;
+export const DELETE = route(async (req: NextRequest) => {
+  const session = await requireTenant(req, { roles: ['manager'], blockDemo: true });
+  const target = emailField(req.nextUrl.searchParams.get('email'));
 
-    if (existingUser) {
-      const updateData: any = {
-        full_name: String(fullName).trim(),
-        role,
-        job_title: String(jobTitle).trim(),
-        department: String(department).trim(),
-        site_location: String(siteLocation).trim(),
-        phone_number: String(phoneNumber).trim(),
-        is_active: isActive,
-        updated_at: new Date().toISOString()
-      };
-      if (body.password) {
-        updateData.password_hash = String(password).trim();
-      }
-
-      const { data, error } = await supabase
-        .from('tenant_users')
-        .update(updateData)
-        .eq('id', existingUser.id)
-        .select()
-        .single();
-
-      resultData = data;
-      resultError = error;
-    } else {
-      const { data, error } = await supabase
-        .from('tenant_users')
-        .insert([
-          {
-            tenant_id: cleanSlug,
-            email: cleanEmail,
-            password_hash: String(password).trim(),
-            full_name: String(fullName).trim(),
-            role,
-            job_title: String(jobTitle).trim(),
-            department: String(department).trim(),
-            site_location: String(siteLocation).trim(),
-            phone_number: String(phoneNumber).trim(),
-            is_active: isActive
-          }
-        ])
-        .select()
-        .single();
-
-      resultData = data;
-      resultError = error;
-    }
-
-    if (resultError) {
-      return NextResponse.json({ error: resultError.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, user: resultData });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message || 'Internal Server Error' }, { status: 500 });
+  if (target === session.sub.toLowerCase()) {
+    throw new HttpError(409, 'CANNOT_DELETE_SELF', 'You cannot delete your own account');
   }
-}
-
-export async function DELETE(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const tenantSlug = extractTenant(req);
-    const email = searchParams.get('email')?.toLowerCase().trim();
-
-    if (!tenantSlug || !email) {
-      return NextResponse.json({ error: 'Tenant and email are required' }, { status: 400 });
-    }
-
-    const { error } = await supabase
-      .from('tenant_users')
-      .delete()
-      .ilike('tenant_id', tenantSlug)
-      .ilike('email', email);
-
-    if (error) throw error;
-    return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  const { data: existing } = await db()
+    .from('tenant_users').select('id, role').eq('tenant_id', session.tenantId).eq('email', target).maybeSingle();
+  if (!existing) throw new HttpError(404, 'NOT_FOUND', 'User not found');
+  if (existing.role === 'Manager' && (await managerCount(session.tenantId)) <= 1) {
+    throw new HttpError(409, 'LAST_MANAGER', 'The organization must keep at least one active manager');
   }
-}
+
+  must(await db().from('tenant_users').delete().eq('id', existing.id).select('id'));
+  await audit({ tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'user.deleted', target, ip: clientIp(req) });
+  return NextResponse.json({ success: true });
+});

@@ -1,100 +1,38 @@
-import { NextResponse } from 'next/server';
-import { GoogleGenAI, Type } from '@google/genai';
+import { NextRequest, NextResponse } from 'next/server';
+import { route, readJson, rateLimit, clientIp, bad, HttpError } from '@/lib/http';
+import { requireTenant } from '@/lib/auth';
+import { runAssistant, aiConfigured } from '@/lib/gemini';
 
-export async function POST(req: Request) {
+/** Conversational ticket assistant for signed-in employees. */
+export const POST = route(async (req: NextRequest) => {
+  const session = await requireTenant(req);
+  rateLimit(`ai:${session.tenantId}:${session.sub}`, session.demo ? 20 : 60, 60 * 60_000);
+  if (session.demo) rateLimit(`ai:demo-ip:${clientIp(req)}`, 30, 60 * 60_000);
+
+  const body = await readJson(req);
+  if (!aiConfigured()) throw new HttpError(503, 'AI_UNAVAILABLE', 'AI assistant is not configured');
+
+  const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+  const messages = rawMessages
+    .slice(-12)
+    .map((m: unknown) => {
+      const r = m as { role?: string; content?: unknown };
+      return {
+        role: r.role === 'assistant' ? ('assistant' as const) : ('user' as const),
+        content: typeof r.content === 'string' ? r.content.slice(0, 1500) : '',
+      };
+    })
+    .filter((m: { content: string }) => m.content.trim());
+  if (!messages.length) throw bad('VALIDATION', 'A message is required');
+
+  const language = body.language === 'en' ? 'en' : 'he';
+  const currentFormData = body.currentFormData && typeof body.currentFormData === 'object' ? body.currentFormData : {};
+
   try {
-    const { messages, currentFormData, language } = await req.json();
-
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'GEMINI_API_KEY is missing' }, { status: 500 });
-    }
-
-    const ai = new GoogleGenAI({ apiKey });
-
-    const systemInstruction = `
-You are Tony, an expert enterprise IT Support AI Assistant for the SmartQ platform.
-Your objective is to converse with employees, understand their IT issue or service request, extract structured ticket parameters, and populate the submission form smoothly.
-
-Guidelines:
-1. Identify and extract full requester details:
-   - If the user provides their name (e.g., "Daniel", "דניאל") or corporate email, extract them into reporter_name and reporter_email.
-2. Determine the correct assigned_team:
-   - 'Helpdesk Tier 1' (Workstations, laptop peripherals, keyboards, monitors, HDMI cables, hardware replacements)
-   - 'System & Cloud Team' (Servers, Azure, AWS, backup policies, VM provisioning)
-   - 'Network & Security' (VPN access, Wi-Fi, firewall policies, latency issues)
-   - 'IT Applications & BI' (ERP, CRM, SAP, databases, report generation)
-   - 'Identity & Access' (Permissions, Active Directory, password resets, SAML SSO)
-3. If critical troubleshooting information is missing, ask one brief clarification question in follow_up_question.
-4. If sufficient information exists to open the ticket, set follow_up_question: null so the user can immediately submit.
-5. Respond in the appropriate language (${language === 'he' ? 'Hebrew' : 'English'}).
-`;
-
-    const promptContext = `
-Current Form Data:
-${JSON.stringify(currentFormData || {})}
-
-Conversation History:
-${JSON.stringify(messages || [])}
-`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.5-flash-lite',
-      contents: promptContext,
-      config: {
-        systemInstruction,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING, description: 'Concise professional ticket subject' },
-            description: { type: Type.STRING, description: 'Detailed explanation of the issue' },
-            category: {
-              type: Type.STRING,
-              enum: [
-                'Hardware', 
-                'Software & SaaS', 
-                'Network & Connectivity', 
-                'Access & IAM', 
-                'Cloud & Infrastructure', 
-                'Cyber Security', 
-                'Workstation & Peripherals',
-                'Database & BI',
-                'General IT Request'
-              ],
-            },
-            urgency: {
-              type: Type.STRING,
-              enum: ['Low', 'Medium', 'High', 'Critical'],
-            },
-            system_impacted: { type: Type.STRING, description: 'System, component or device impacted' },
-            assigned_team: {
-              type: Type.STRING,
-              enum: [
-                'Helpdesk Tier 1',
-                'System & Cloud Team',
-                'Network & Security',
-                'IT Applications & BI',
-                'Identity & Access'
-              ],
-            },
-            reporter_name: { type: Type.STRING, description: 'Clean requester name' },
-            reporter_email: { type: Type.STRING, description: 'Requester email address' },
-            user_city: { type: Type.STRING, description: 'Location / Campus HQ' },
-            follow_up_question: { 
-              type: Type.STRING, 
-              description: 'Clarification question if details are missing, otherwise null',
-              nullable: true 
-            },
-          },
-          required: ['title', 'description', 'category', 'urgency', 'system_impacted', 'assigned_team'],
-        },
-      },
-    });
-
-    return NextResponse.json(JSON.parse(response.text || '{}'));
-  } catch (error: any) {
-    console.error('Error in ai-parse:', error);
-    return NextResponse.json({ error: 'AI processing failed', details: error.message }, { status: 500 });
+    const result = await runAssistant({ messages, currentFormData: currentFormData as Record<string, unknown>, language });
+    return NextResponse.json(result);
+  } catch (err) {
+    console.error('[ai-parse]', err);
+    throw new HttpError(502, 'AI_FAILED', 'The AI assistant could not process this request');
   }
-}
+});

@@ -1,31 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { db } from '@/lib/db';
+import { route, slug, baseUrl, rateLimit, clientIp } from '@/lib/http';
+import { buildSaml, createRelayState } from '@/lib/saml';
+import { safeReturnTo } from '@/lib/auth';
+import { DEMO_TENANT } from '@/lib/constants';
 
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const tenantSlug = searchParams.get('tenant') || 'SyncOren';
-  const returnTo = searchParams.get('returnTo') || `/${tenantSlug}/users`;
+export const GET = route(async (req: NextRequest) => {
+  rateLimit(`saml:login:${clientIp(req)}`, 30, 10 * 60_000);
+  const tenant = slug(req.nextUrl.searchParams.get('tenant'));
+  const returnTo = safeReturnTo(req.nextUrl.searchParams.get('returnTo'), `/${tenant}/self-service`);
+  const loginPage = new URL(`/${tenant}/login`, req.url);
 
-  // שליפת הגדרות ה-SAML של ה-Tenant
-  const [tenantRes, settingsRes] = await Promise.all([
-    supabase.from('tenants').select('*').eq('id', tenantSlug).single(),
-    supabase.from('tenant_settings').select('*').eq('tenant_id', tenantSlug).single()
+  const fail = (code: string) => {
+    loginPage.searchParams.set('error', code);
+    return NextResponse.redirect(loginPage);
+  };
+
+  if (tenant === DEMO_TENANT) return fail('sso_not_configured');
+
+  const [{ data: tenantRow }, { data: settings }] = await Promise.all([
+    db().from('tenants').select('id, status').eq('id', tenant).maybeSingle(),
+    db().from('tenant_settings').select('*').eq('tenant_id', tenant).maybeSingle(),
   ]);
+  if (!tenantRow || String(tenantRow.status).toLowerCase() === 'suspended') return fail('sso_not_configured');
+  if (!settings?.saml_login_url || !settings?.saml_idp_cert) return fail('sso_not_configured');
 
-  const samlLoginUrl = settingsRes.data?.saml_login_url || tenantRes.data?.saml_login_url;
-
-  if (!samlLoginUrl) {
-    return NextResponse.json(
-      { error: `טרם הוגדרה כתובת SAML Login URL עבור ${tenantSlug}. הגדר אותה ב-/${tenantSlug}/manage` },
-      { status: 400 }
-    );
-  }
-
-  const relayState = Buffer.from(JSON.stringify({ tenantSlug, returnTo })).toString('base64');
-
-  // הפניה ל-Entra ID SAML Single Sign-On
-  const redirectUrl = new URL(samlLoginUrl);
-  redirectUrl.searchParams.set('RelayState', relayState);
-
-  return NextResponse.redirect(redirectUrl.toString());
-}
+  const saml = buildSaml(baseUrl(req), settings);
+  const relayState = await createRelayState(tenant, returnTo);
+  const url = await saml.getAuthorizeUrlAsync(relayState, undefined, {});
+  return NextResponse.redirect(url);
+});

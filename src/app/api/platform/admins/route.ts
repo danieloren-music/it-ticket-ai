@@ -1,111 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { db, must } from '@/lib/db';
+import { route, readJson, str, email, bad, HttpError, clientIp } from '@/lib/http';
+import { requirePlatform } from '@/lib/auth';
+import { generateTempPassword, hashPassword, passwordPolicyError, verifyPassword } from '@/lib/password';
+import { audit } from '@/lib/audit';
+import { PLATFORM_ROLES, isOneOf } from '@/lib/constants';
 
-export async function GET() {
-  try {
-    const { data, error } = await supabase
-      .from('platform_admins')
-      .select('*')
-      .order('created_at', { ascending: false });
+const COLS = 'id, email, full_name, role, department, last_login_at, created_at';
 
-    if (error) throw error;
-    return NextResponse.json({ admins: data || [] });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+export const GET = route(async (req: NextRequest) => {
+  await requirePlatform(req);
+  const admins = must(await db().from('platform_admins').select(COLS).order('created_at', { ascending: false }));
+  return NextResponse.json({ admins: admins ?? [] });
+});
+
+/**
+ * Create / update a platform user.
+ * - Super Admins manage everyone.
+ * - Anyone may update their own name/department/password (password needs the current one); never their own role.
+ */
+export const POST = route(async (req: NextRequest) => {
+  const session = await requirePlatform(req, { write: true });
+  const body = await readJson(req);
+
+  const target = email(body.email);
+  const self = target === session.sub.toLowerCase();
+  if (!self && session.role !== 'Super Admin') throw new HttpError(403, 'FORBIDDEN', 'Only a Super Admin can manage platform users');
+
+  const fullName = str(body.fullName, 120, { min: 2, field: 'Full name' });
+  const department = str(body.department, 120) || 'Cloud Operations';
+
+  const { data: existing } = await db().from('platform_admins').select('*').eq('email', target).maybeSingle();
+
+  let role = existing?.role ?? session.role;
+  if (!self || !existing) {
+    if (!isOneOf(PLATFORM_ROLES, body.role)) throw bad('VALIDATION', 'Invalid role');
+    role = body.role;
   }
-}
-
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { email, password, fullName, role, department } = body;
-
-    if (!email || !fullName) {
-      return NextResponse.json({ error: 'Email and Full Name are required' }, { status: 400 });
-    }
-
-    const cleanEmail = email.toLowerCase().trim();
-    const userRole = role || 'Super Admin';
-    const userDept = department?.trim() || 'Cloud Operations';
-    const userPass = password?.trim() || 'SmartQ2026!';
-
-    // Check if exists
-    const { data: existing } = await supabase
-      .from('platform_admins')
-      .select('id')
-      .ilike('email', cleanEmail)
-      .maybeSingle();
-
-    let resultData;
-    let resultError;
-
-    if (existing) {
-      const updatePayload: any = {
-        full_name: fullName.trim(),
-        role: userRole,
-        department: userDept,
-        updated_at: new Date().toISOString()
-      };
-      if (password) {
-        updatePayload.password_hash = userPass;
-      }
-
-      const { data, error } = await supabase
-        .from('platform_admins')
-        .update(updatePayload)
-        .eq('id', existing.id)
-        .select()
-        .single();
-
-      resultData = data;
-      resultError = error;
-    } else {
-      const { data, error } = await supabase
-        .from('platform_admins')
-        .insert([
-          {
-            email: cleanEmail,
-            password_hash: userPass,
-            full_name: fullName.trim(),
-            role: userRole,
-            department: userDept
-          }
-        ])
-        .select()
-        .single();
-
-      resultData = data;
-      resultError = error;
-    }
-
-    if (resultError) {
-      return NextResponse.json({ error: resultError.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true, admin: resultData });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  if (self && existing && body.role && body.role !== existing.role) {
+    throw new HttpError(403, 'FORBIDDEN', 'You cannot change your own role');
   }
-}
 
-export async function DELETE(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const email = searchParams.get('email')?.toLowerCase().trim();
+  const newPassword0 = typeof body.password === 'string' ? body.password : '';
+  // The env-based bootstrap operator has no DB row; never create one implicitly (it would shadow the env login).
+  if (self && !existing && !newPassword0) return NextResponse.json({ success: true, admin: null });
 
-    if (!email) {
-      return NextResponse.json({ error: 'User email is required' }, { status: 400 });
+  let passwordHash: string | undefined;
+  let tempPassword: string | undefined;
+  const newPassword = typeof body.password === 'string' ? body.password : '';
+
+  if (newPassword) {
+    if (passwordPolicyError(newPassword)) throw bad('WEAK_PASSWORD', 'Password must be at least 10 characters and include letters and digits');
+    if (self && existing) {
+      const current = str(body.currentPassword, 128, { min: 1, trim: false, field: 'Current password' });
+      if (!(await verifyPassword(current, existing.password_hash)).ok) throw new HttpError(401, 'INVALID_CREDENTIALS', 'Current password is incorrect');
     }
-
-    const { error } = await supabase
-      .from('platform_admins')
-      .delete()
-      .ilike('email', email);
-
-    if (error) throw error;
-
-    return NextResponse.json({ success: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    passwordHash = await hashPassword(newPassword);
+  } else if (!existing) {
+    tempPassword = generateTempPassword();
+    passwordHash = await hashPassword(tempPassword);
   }
-}
+
+  if (existing) {
+    const patch: Record<string, unknown> = { full_name: fullName, role, department, updated_at: new Date().toISOString() };
+    if (passwordHash) { patch.password_hash = passwordHash; patch.failed_attempts = 0; patch.locked_until = null; }
+    const admin = must(await db().from('platform_admins').update(patch).eq('id', existing.id).select(COLS).single());
+    await audit({ actor: session.sub, role: session.role, action: 'platform.user_updated', target, meta: { role }, ip: clientIp(req) });
+    return NextResponse.json({ success: true, admin });
+  }
+
+  const admin = must(
+    await db().from('platform_admins').insert({ email: target, password_hash: passwordHash, full_name: fullName, role, department }).select(COLS).single()
+  );
+  await audit({ actor: session.sub, role: session.role, action: 'platform.user_created', target, meta: { role }, ip: clientIp(req) });
+  return NextResponse.json({ success: true, admin, tempPassword }, { status: 201 });
+});
+
+export const DELETE = route(async (req: NextRequest) => {
+  const session = await requirePlatform(req, { write: true });
+  if (session.role !== 'Super Admin') throw new HttpError(403, 'FORBIDDEN', 'Only a Super Admin can delete platform users');
+  const target = email(req.nextUrl.searchParams.get('email'));
+  if (target === session.sub.toLowerCase()) throw new HttpError(409, 'CANNOT_DELETE_SELF', 'You cannot delete your own account');
+
+  must(await db().from('platform_admins').delete().eq('email', target).select('id'));
+  await audit({ actor: session.sub, role: session.role, action: 'platform.user_deleted', target, ip: clientIp(req) });
+  return NextResponse.json({ success: true });
+});

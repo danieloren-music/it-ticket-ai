@@ -1,26 +1,121 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-heebo), ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* Brand palette taken from the SmartQ mark: deep navy wordmark, cobalt body, violet spark */
+  --color-ink: #0f1b3d;
+  --color-ink-soft: #3b4766;
+  --color-brand: #2f45d6;
+  --color-brand-strong: #2336b0;
+  --color-brand-soft: #edf0fe;
+  --color-violet: #7c3aed;
+  --color-canvas: #f5f7fa;
+  --color-line: #e3e7ee;
+  --color-console: #0b1430;
+  --color-console-line: #25315a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+:root {
+  color-scheme: light;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
+
+::selection {
+  background: var(--color-brand);
+  color: #fff;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: 1rem;
+  top: -4rem;
+  z-index: 100;
+  background: var(--color-ink);
+  color: #fff;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: top 0.15s;
+}
+.skip-link:focus {
+  top: 1rem;
+}
+
+/* One deliberate motion: the console "types" its answer on the home page */
+@keyframes caret {
+  50% { opacity: 0; }
+}
+.caret::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-inline-start: 2px;
+  vertical-align: -0.2em;
+  background: currentColor;
+  animation: caret 1s steps(1) infinite;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.rise {
+  animation: rise 0.35s ease-out both;
+}
+
+/* ───────── Accessibility widget (applied on <html>) ───────── */
+html[data-fs="-1"] { font-size: 93.75%; }
+html[data-fs="1"] { font-size: 112.5%; }
+html[data-fs="2"] { font-size: 125%; }
+html[data-gray="1"] { filter: grayscale(1); }
+html[data-links="1"] a { text-decoration: underline !important; text-underline-offset: 3px; font-weight: 700; }
+html[data-contrast="1"] body,
+html[data-contrast="1"] body * {
+  background-color: #000 !important;
+  color: #ffe600 !important;
+  border-color: #ffe600 !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+html[data-contrast="1"] img { filter: contrast(1.2); }
+html[data-motion="1"] *,
+html[data-motion="1"] *::before,
+html[data-motion="1"] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Tabular figures for ticket numbers, counters and tables */
+.tnum { font-variant-numeric: tabular-nums; }

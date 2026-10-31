@@ -1,880 +1,201 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
-import Image from 'next/image';
-import { supabase } from '@/lib/supabaseClient';
-import { 
-  Send, 
-  RefreshCw, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle,
-  Layers, 
-  User, 
-  Check, 
-  SlidersHorizontal, 
-  Zap, 
-  ArrowDown, 
-  LogIn, 
-  ShieldCheck, 
-  Building2, 
-  Copy 
-} from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useParams } from 'next/navigation';
+import { ArrowDown, Check, Copy, Inbox, RefreshCw, Send, Sparkles } from 'lucide-react';
+import { api, errorText } from '@/lib/api';
+import { fmtDateTime, useLang } from '@/lib/i18n';
+import { useSession } from '@/hooks/useSession';
+import { AppShell } from '@/components/AppShell';
+import { SlaBadge, TicketDrawer, type TicketRow } from '@/components/TicketDrawer';
+import { Badge, EmptyState, Field, Modal, Spinner, btnPrimary, btnSecondary, cardCls, inputCls, statusTone, urgencyTone, useToast } from '@/components/ui';
+import { CATEGORIES, CATEGORY_LABELS, STATUS_LABELS, TEAMS, TEAM_LABELS, URGENCIES, URGENCY_LABELS, label } from '@/lib/constants';
 
-type LanguageMode = 'he' | 'en';
+interface Msg { id: string; role: 'user' | 'assistant'; content: string }
 
-function TypewriterMessage({ text, onComplete }: { text: string; onComplete?: () => void }) {
-  const [displayedText, setDisplayedText] = useState('');
-  const indexRef = useRef(0);
+const emptyForm = {
+  title: '', description: '', category: 'General IT Request', urgency: 'Medium', system_impacted: '',
+  assigned_team: 'Helpdesk Tier 1', user_city: '', user_phone: '',
+};
 
-  useEffect(() => {
-    setDisplayedText('');
-    indexRef.current = 0;
+export default function SelfServicePage() {
+  const { t, lang, isHe } = useLang();
+  const { toast } = useToast();
+  const tenantSlug = String(useParams().tenant ?? '').toLowerCase();
+  const { session, tenant, logout, reload } = useSession(tenantSlug);
 
-    const interval = setInterval(() => {
-      if (indexRef.current < text.length) {
-        setDisplayedText((prev) => prev + text.charAt(indexRef.current));
-        indexRef.current++;
-      } else {
-        clearInterval(interval);
-        if (onComplete) onComplete();
-      }
-    }, 14);
-
-    return () => clearInterval(interval);
-  }, [text]);
-
-  return <span>{displayedText}</span>;
-}
-
-interface TenantInfo {
-  id: string;
-  name: string;
-  domain: string;
-  admin_email: string;
-}
-
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  isStreaming?: boolean;
-}
-
-interface Ticket {
-  id: string;
-  ticket_number?: string;
-  created_at: string;
-  title: string;
-  description: string;
-  category: string;
-  urgency: string;
-  status: string;
-  system_impacted?: string;
-  assigned_team: string;
-  user_name?: string;
-  user_email?: string;
-  reporter_name?: string;
-  reporter_email?: string;
-  user_city?: string;
-  user_phone?: string;
-  tenant_id: string;
-}
-
-const QUICK_PROMPTS_HE = [
-  'נשפך לי קפה על מקלדת הלפטופ',
-  'לא מצליח להתחבר ל-VPN מהבית',
-  'צריך הרשאה לתיקייה משותפת',
-  'המסך החיצוני מרצד ומציג קווים'
-];
-
-const QUICK_PROMPTS_EN = [
-  'Spilled coffee on laptop keyboard',
-  'Cannot connect to corporate VPN from home',
-  'Need access permission for shared directory',
-  'External monitor is flickering with lines'
-];
-
-function SelfServiceContent() {
-  const [lang, setLang] = useState<LanguageMode>('he');
-  const params = useParams();
-  const rawTenant = (params?.tenant as string) || 'demo';
-  const tenantSlug = rawTenant.toLowerCase();
-
-  const searchParams = useSearchParams();
-  const ssoName = searchParams.get('name') || '';
-  const ssoEmail = searchParams.get('email') || '';
-  const ssoDept = searchParams.get('dept') || '';
-
-  const [tenant, setTenant] = useState<TenantInfo | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ name: string; email: string; dept: string; phone?: string } | null>(null);
-
-  const initialWelcome = lang === 'he' 
-    ? 'היי, אני Tony מבית SmartQ. ספר לי מה התקלה או הבקשה שלך ואדאג למלא ולנתב את הקריאה עבורך.'
-    : 'Hi! I am Tony from SmartQ. Describe your IT issue or request and I will automatically structure and route your ticket.';
-
-  const [messages, setMessages] = useState<Message[]>([
-    { 
-      id: 'init-msg',
-      role: 'assistant', 
-      content: initialWelcome,
-      isStreaming: true
-    }
-  ]);
-  const [userInput, setUserInput] = useState('');
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [isReadyForReview, setIsReadyForReview] = useState(false);
-
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    category: 'Hardware',
-    urgency: 'Medium',
-    system_impacted: '',
-    assigned_team: 'Helpdesk Tier 1',
-    reporter_name: '',
-    reporter_email: '',
-    user_city: '',
-    user_phone: '',
-  });
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [feedbackMsg, setFeedbackMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [isLoadingTickets, setIsLoadingTickets] = useState(true);
-  const [createdTicketNumber, setCreatedTicketNumber] = useState<string | null>(null);
+  const welcome = t('היי, אני Tony מ-SmartQ. ספרו לי מה קרה ואמלא את הקריאה בשבילכם.', "Hi, I'm Tony from SmartQ. Tell me what happened and I'll fill in the ticket for you.");
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [input, setInput] = useState('');
+  const [thinking, setThinking] = useState(false);
+  const [ready, setReady] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [aiUsed, setAiUsed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [created, setCreated] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const [loadingTickets, setLoadingTickets] = useState(true);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
-  const chatMessagesContainerRef = useRef<HTMLDivElement>(null);
-  const formSectionRef = useRef<HTMLDivElement>(null);
+  // The greeting follows the active language until the conversation starts.
+  useEffect(() => { setMessages((m) => (m.some((x) => x.role === 'user') ? m : [{ id: 'welcome', role: 'assistant', content: welcome }])); }, [welcome]);
+  useEffect(() => { if (session) setForm((f) => ({ ...f, user_city: f.user_city || session.city, user_phone: f.user_phone || session.phone })); }, [session]);
+  useEffect(() => { chatRef.current?.scrollTo({ top: chatRef.current.scrollHeight, behavior: 'smooth' }); }, [messages, thinking]);
 
-  const handleToggleLanguage = (newLang: LanguageMode) => {
-    setLang(newLang);
-    const welcome = newLang === 'he' 
-      ? 'היי, אני Tony מבית SmartQ. ספר לי מה התקלה או הבקשה שלך ואדאג למלא ולנתב את הקריאה עבורך.'
-      : 'Hi! I am Tony from SmartQ. Describe your IT issue or request and I will automatically structure and route your ticket.';
-    setMessages([
-      {
-        id: 'welcome-' + Date.now(),
-        role: 'assistant',
-        content: welcome,
-        isStreaming: true
-      }
-    ]);
-  };
+  const loadTickets = useCallback(async () => {
+    setLoadingTickets(true);
+    try { setTickets((await api<{ tickets: TicketRow[] }>('/api/tickets')).tickets); } catch { /* shown empty */ } finally { setLoadingTickets(false); }
+  }, []);
+  useEffect(() => { if (session && !session.mustChangePassword) loadTickets(); }, [session, loadTickets]);
 
-  useEffect(() => {
-    const fetchTenantAndSession = async () => {
-      const { data } = await supabase
-        .from('tenants')
-        .select('*')
-        .ilike('id', tenantSlug)
-        .single();
+  const quick = isHe
+    ? ['נשפך קפה על המקלדת של הלפטופ', 'לא מצליח להתחבר ל-VPN מהבית', 'צריך הרשאה לתיקייה משותפת', 'המסך החיצוני מרצד']
+    : ['Spilled coffee on my laptop keyboard', "Can't connect to the VPN from home", 'Need access to a shared folder', 'External monitor is flickering'];
 
-      if (data) {
-        setTenant(data);
-      } else {
-        setTenant({
-          id: tenantSlug,
-          name: rawTenant.toUpperCase(),
-          domain: '',
-          admin_email: '',
-        });
-      }
-
-      const matchCookie = document.cookie
-        .split('; ')
-        .find((row) => row.startsWith('smartq_session='));
-
-      if (matchCookie) {
-        try {
-          const rawVal = matchCookie.split('=')[1];
-          const decoded = JSON.parse(atob(rawVal));
-          if (decoded.email) {
-            const resolvedName = decoded.name || decoded.email.split('@')[0];
-            const resolvedCity = decoded.city || (lang === 'he' ? 'מטה ראשי' : 'Headquarters');
-            const resolvedPhone = decoded.phone || '';
-
-            setCurrentUser({ name: resolvedName, email: decoded.email, dept: resolvedCity, phone: resolvedPhone });
-            setFormData((prev) => ({
-              ...prev,
-              reporter_name: prev.reporter_name || resolvedName,
-              reporter_email: prev.reporter_email || decoded.email,
-              user_city: prev.user_city || resolvedCity,
-              user_phone: prev.user_phone || resolvedPhone,
-            }));
-          }
-        } catch {}
-      }
-    };
-
-    fetchTenantAndSession();
-  }, [tenantSlug, rawTenant, lang]);
-
-  useEffect(() => {
-    if (ssoName || ssoEmail) {
-      setCurrentUser({ name: ssoName, email: ssoEmail, dept: ssoDept });
-      setFormData((prev) => ({
-        ...prev,
-        reporter_name: ssoName,
-        reporter_email: ssoEmail,
-      }));
-    }
-  }, [ssoName, ssoEmail, ssoDept]);
-
-  useEffect(() => {
-    if (chatMessagesContainerRef.current) {
-      chatMessagesContainerRef.current.scrollTop = chatMessagesContainerRef.current.scrollHeight;
-    }
-  }, [messages, isAiLoading]);
-
-  const fetchTickets = async () => {
-    setIsLoadingTickets(true);
-    const { data, error } = await supabase
-      .from('tickets')
-      .select('*')
-      .ilike('tenant_id', tenantSlug)
-      .order('created_at', { ascending: false });
-
-    if (!error && data) setTickets(data);
-    setIsLoadingTickets(false);
-  };
-
-  useEffect(() => {
-    fetchTickets();
-  }, [tenantSlug]);
-
-  const handleSendMessage = async (textToSend?: string) => {
-    const messageContent = textToSend || userInput;
-    if (!messageContent.trim() || isAiLoading) return;
-
-    const userMsgId = 'user-' + Date.now();
-    const newMessages: Message[] = [...messages, { id: userMsgId, role: 'user', content: messageContent }];
-    setMessages(newMessages);
-    setUserInput('');
-    setIsAiLoading(true);
-    setFeedbackMsg(null);
-
+  const send = async (text = input) => {
+    const content = text.trim();
+    if (!content || thinking) return;
+    const next: Msg[] = [...messages, { id: `u${Date.now()}`, role: 'user', content }];
+    setMessages(next); setInput(''); setThinking(true);
     try {
-      const res = await fetch('/api/ai-parse', {
+      const d = await api<Record<string, string | null>>('/api/ai-parse', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          messages: newMessages.map(({ role, content }) => ({ role, content })),
-          currentFormData: formData,
-          description: messageContent,
-          tenantSlug,
-          language: lang
-        }),
+        json: { messages: next.map(({ role, content }) => ({ role, content })), currentFormData: form, language: lang },
       });
-
-      if (!res.ok) throw new Error(lang === 'he' ? 'שגיאה בתקשורת מול Tony' : 'Communication error with Tony AI');
-      const data = await res.json();
-
-      setFormData((prev) => {
-        const updatedName = data.reporter_name || prev.reporter_name || currentUser?.name || '';
-        const updatedEmail = data.reporter_email || prev.reporter_email || currentUser?.email || '';
-
-        return {
-          ...prev,
-          title: data.title || prev.title || messageContent.slice(0, 60),
-          description: data.description || prev.description || messageContent,
-          category: data.category || prev.category,
-          urgency: data.urgency || prev.urgency,
-          system_impacted: data.system_impacted || prev.system_impacted,
-          assigned_team: data.assigned_team || data.assignedTeam || prev.assigned_team,
-          reporter_name: updatedName,
-          reporter_email: updatedEmail,
-          user_city: data.user_city || prev.user_city || currentUser?.dept || (lang === 'he' ? 'מטה ראשי' : 'Headquarters'),
-          user_phone: prev.user_phone || currentUser?.phone || ''
-        };
-      });
-
-      if (data.follow_up_question) {
-        setMessages((prev) => [
-          ...prev, 
-          { 
-            id: 'ai-' + Date.now(), 
-            role: 'assistant', 
-            content: data.follow_up_question,
-            isStreaming: true 
-          }
-        ]);
+      setAiUsed(true);
+      setForm((p) => ({
+        ...p,
+        title: d.title || p.title || content.slice(0, 60),
+        description: d.description || p.description || content,
+        category: d.category || p.category,
+        urgency: d.urgency || p.urgency,
+        system_impacted: d.system_impacted || p.system_impacted,
+        assigned_team: d.assigned_team || p.assigned_team,
+        user_city: d.user_city || p.user_city,
+      }));
+      if (d.follow_up_question) {
+        setMessages((m) => [...m, { id: `a${Date.now()}`, role: 'assistant', content: d.follow_up_question as string }]);
       } else {
-        setIsReadyForReview(true);
-        setMessages((prev) => [
-          ...prev, 
-          { 
-            id: 'ai-' + Date.now(), 
-            role: 'assistant', 
-            content: lang === 'he' 
-              ? 'מילאתי את כל פרטי הקריאה בטופס. גולל אותך לבדיקה ואישור.' 
-              : 'I have populated the ticket details below. Scrolling down for your final confirmation.',
-            isStreaming: true 
-          }
-        ]);
-
-        setTimeout(() => {
-          formSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 1000);
+        setReady(true);
+        setMessages((m) => [...m, { id: `a${Date.now()}`, role: 'assistant', content: t('מילאתי את פרטי הקריאה למטה. בדקו ואשרו.', 'I filled in the ticket details below. Please review and confirm.') }]);
+        setTimeout(() => formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 500);
       }
-    } catch (err: any) {
-      setFeedbackMsg({ text: err.message || 'Error processing request', type: 'error' });
-    } finally {
-      setIsAiLoading(false);
-    }
+    } catch (e) {
+      toast(errorText(e, lang), 'error');
+      // The form still works manually if the AI is unavailable.
+      setForm((p) => ({ ...p, title: p.title || content.slice(0, 60), description: p.description || content }));
+      setReady(true);
+    } finally { setThinking(false); }
   };
 
-  const handleSubmitTicket = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    setFeedbackMsg(null);
-
-    const generated6Digits = Math.floor(100000 + Math.random() * 900000).toString();
-    const finalReporterName = formData.reporter_name || currentUser?.name || (lang === 'he' ? 'עובד ארגון' : 'Enterprise Employee');
-    const finalReporterEmail = formData.reporter_email || currentUser?.email || `user@${tenantSlug}.com`;
-
+    setSubmitting(true);
     try {
-      const { data, error } = await supabase.from('tickets').insert([
-        {
-          tenant_id: tenantSlug,
-          ticket_number: generated6Digits,
-          title: formData.title,
-          description: formData.description,
-          category: formData.category,
-          urgency: formData.urgency,
-          assigned_team: formData.assigned_team,
-          reporter_name: finalReporterName,
-          reporter_email: finalReporterEmail,
-          user_name: finalReporterName,
-          user_email: finalReporterEmail,
-          user_city: formData.user_city || (lang === 'he' ? 'מטה ראשי' : 'Headquarters'),
-          user_phone: formData.user_phone || '',
-          status: 'Open',
-        },
-      ]).select().single();
-
-      if (error) throw error;
-
-      const finalTicketNum = data?.ticket_number || generated6Digits;
-      setCreatedTicketNumber(finalTicketNum);
-
-      setFormData({
-        title: '',
-        description: '',
-        category: 'Hardware',
-        urgency: 'Medium',
-        system_impacted: '',
-        assigned_team: 'Helpdesk Tier 1',
-        reporter_name: currentUser?.name || '',
-        reporter_email: currentUser?.email || '',
-        user_city: currentUser?.dept || '',
-        user_phone: currentUser?.phone || '',
-      });
-      setIsReadyForReview(false);
-      setMessages((prev) => [
-        ...prev,
-        { 
-          id: 'done-' + Date.now(), 
-          role: 'assistant', 
-          content: lang === 'he' 
-            ? `קריאה #${finalTicketNum} שוגרה בהצלחה. יש משהו נוסף שאוכל לעזור בו?` 
-            : `Ticket #${finalTicketNum} was created successfully! Anything else I can assist with?`, 
-          isStreaming: true 
-        }
-      ]);
-      fetchTickets();
+      const d = await api<{ ticket: TicketRow }>('/api/tickets', { method: 'POST', json: { ...form, source: aiUsed ? 'ai' : 'manual' } });
+      setCreated(d.ticket.ticket_number);
+      setForm({ ...emptyForm, user_city: session?.city ?? '', user_phone: session?.phone ?? '' });
+      setReady(false); setAiUsed(false);
+      setMessages([{ id: `done${Date.now()}`, role: 'assistant', content: t(`קריאה #${d.ticket.ticket_number} נפתחה. אפשר לעזור במשהו נוסף?`, `Ticket #${d.ticket.ticket_number} was created. Anything else I can help with?`) }]);
+      loadTickets();
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } catch (err: any) {
-      setFeedbackMsg({ text: 'Error saving ticket: ' + err.message, type: 'error' });
-    } finally {
-      setIsSubmitting(false);
-    }
+    } catch (ex) { toast(errorText(ex, lang), 'error'); } finally { setSubmitting(false); }
   };
 
-  const copyTicketNumber = () => {
-    if (createdTicketNumber) {
-      navigator.clipboard.writeText(createdTicketNumber);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const isHebrew = lang === 'he';
+  const set = (k: keyof typeof emptyForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => setForm({ ...form, [k]: e.target.value });
 
   return (
-    <main dir={isHebrew ? 'rtl' : 'ltr'} className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased">
-      
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur-md">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative w-9 h-9 rounded-xl overflow-hidden shadow-md flex items-center justify-center bg-white border border-slate-100">
-              <Image src="/smartq-logo.png" alt="SmartQ" width={36} height={36} className="object-contain" priority />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-black tracking-tight text-slate-900">SmartQ</span>
-                <span className="px-2 py-0.5 text-[10px] font-extrabold text-white bg-indigo-600 rounded-md uppercase">
-                  {isHebrew ? 'שירות עצמי' : 'SELF-SERVICE'}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 text-[11px] text-slate-500 font-bold">
-                <Building2 className="w-3 h-3 text-indigo-600" />
-                <span>{tenant?.name || rawTenant}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2.5">
-            {/* Language Switcher Capsule */}
-            <div className="flex items-center p-0.5 rounded-xl border border-slate-200 bg-slate-100 text-xs font-black">
-              <button
-                onClick={() => handleToggleLanguage('he')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition ${
-                  isHebrew ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>🇮🇱</span>
-                <span>עברית</span>
-              </button>
-              <button
-                onClick={() => handleToggleLanguage('en')}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition ${
-                  !isHebrew ? 'bg-white text-indigo-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <span>🇺🇸</span>
-                <span>EN</span>
-              </button>
-            </div>
-
-            {currentUser ? (
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-xs font-black">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>{currentUser.name}</span>
-              </div>
-            ) : (
-              <a
-                href={`/${rawTenant}/login`}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-800 transition"
-              >
-                <LogIn className="w-3.5 h-3.5 text-indigo-600" />
-                <span>{isHebrew ? 'התחבר' : 'Sign In'}</span>
-              </a>
-            )}
-
-            <button 
-              onClick={fetchTickets}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoadingTickets ? 'animate-spin text-indigo-600' : ''}`} />
-              <span>{isHebrew ? 'רענון' : 'Refresh'}</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Container */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-6 pb-12 space-y-6">
-        
-        {/* Quick Prompts */}
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {(isHebrew ? QUICK_PROMPTS_HE : QUICK_PROMPTS_EN).map((prompt, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => handleSendMessage(prompt)}
-              className="text-[11px] font-bold px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50 hover:border-indigo-300 text-slate-700 hover:text-indigo-700 transition shadow-2xs flex items-center gap-1.5"
-            >
-              <Zap className="w-3 h-3 text-indigo-600" />
-              {prompt}
-            </button>
-          ))}
+    <AppShell tenant={tenantSlug} tenantName={tenant?.name ?? tenantSlug} session={session} active="self-service" onLogout={logout} onReload={reload}>
+      <div className="mx-auto max-w-3xl space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">{t('פתיחת קריאה', 'New request')}</h1>
+          <p className="text-ink-soft">{t('תארו את הבעיה ל-Tony. הוא יסווג אותה ויכין את הקריאה.', 'Describe the problem to Tony. He will classify it and prepare the ticket.')}</p>
         </div>
 
-        {/* Tony Chat Interface */}
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden flex flex-col h-[480px]">
-          <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-white shadow-md font-black text-xs">
-                T
-              </div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm text-slate-900">
-                  {isHebrew ? 'Tony – סוכן תמיכה חכם' : 'Tony AI Support Agent'}
-                </h3>
-                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
-              </div>
+        <section className={`${cardCls} overflow-hidden`} aria-label="Tony">
+          <div className="flex items-center justify-between border-b border-line px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-brand text-sm font-bold text-white">T</span>
+              <div className="leading-tight"><p className="text-sm font-bold">Tony</p><p className="text-xs text-ink-soft">{t('עוזר תמיכה חכם', 'AI support assistant')}</p></div>
             </div>
-
-            {isReadyForReview && (
-              <button
-                type="button"
-                onClick={() => formSectionRef.current?.scrollIntoView({ behavior: 'smooth' })}
-                className="flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 px-3 py-1 rounded-lg transition"
-              >
-                <span>{isHebrew ? 'הפרטים מוכנים – עבור לטופס' : 'Ready for Review'}</span>
-                <ArrowDown className="w-3 h-3" />
-              </button>
-            )}
+            {ready && <button type="button" onClick={() => formRef.current?.scrollIntoView({ behavior: 'smooth' })} className="inline-flex items-center gap-1 text-xs font-semibold text-brand">{t('לטופס', 'Go to form')}<ArrowDown className="h-3 w-3" /></button>}
           </div>
-
-          <div ref={chatMessagesContainerRef} className="flex-1 p-5 overflow-y-auto space-y-4 bg-slate-50/40">
+          <div ref={chatRef} className="h-80 space-y-3 overflow-y-auto bg-canvas/60 p-4" aria-live="polite">
             {messages.map((m) => (
-              <div key={m.id} className={`flex gap-3 ${
-                m.role === 'user' 
-                  ? isHebrew ? 'justify-start flex-row-reverse' : 'justify-end' 
-                  : 'justify-start'
-              }`}>
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-xs font-black shadow-2xs ${
-                  m.role === 'user' ? 'bg-indigo-600 text-white' : 'bg-slate-900 text-white'
-                }`}>
-                  {m.role === 'user' ? <User className="w-3.5 h-3.5" /> : 'T'}
-                </div>
-                <div className={`p-3.5 rounded-2xl text-xs sm:text-sm leading-relaxed max-w-[85%] shadow-2xs font-medium ${
-                  m.role === 'user' 
-                    ? 'bg-indigo-600 text-white rounded-br-none' 
-                    : 'bg-white text-slate-900 rounded-bl-none border border-slate-200'
-                }`}>
-                  {m.role === 'assistant' && m.isStreaming ? (
-                    <TypewriterMessage 
-                      text={m.content} 
-                      onComplete={() => {
-                        setMessages((prev) => 
-                          prev.map((msg) => msg.id === m.id ? { ...msg, isStreaming: false } : msg)
-                        );
-                      }} 
-                    />
-                  ) : (
-                    m.content
-                  )}
-                </div>
+              <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <p className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'bg-brand text-white' : 'border border-line bg-white'}`}>{m.content}</p>
               </div>
             ))}
-            
-            {isAiLoading && (
-              <div className="flex items-center gap-3 text-xs p-2.5 rounded-2xl w-fit border text-indigo-800 bg-indigo-50 border-indigo-100 font-bold">
-                <div className="flex gap-1">
-                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" />
-                </div>
-                <span>{isHebrew ? 'Tony מעבד את פרטי הפנייה...' : 'Tony is analyzing your request...'}</span>
-              </div>
-            )}
+            {thinking && <div className="flex items-center gap-2 text-sm text-ink-soft"><Spinner />{t('Tony מנתח…', 'Tony is analyzing…')}</div>}
           </div>
+          <div className="space-y-2 border-t border-line p-3">
+            <div className="flex flex-wrap gap-2">
+              {quick.map((q) => <button key={q} type="button" onClick={() => send(q)} disabled={thinking} className="rounded-full border border-line px-3 py-1 text-xs text-ink-soft hover:border-brand hover:text-brand disabled:opacity-50">{q}</button>)}
+            </div>
+            <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
+              <input className={inputCls} value={input} maxLength={1500} onChange={(e) => setInput(e.target.value)} placeholder={t('מה קרה?', 'What happened?')} aria-label={t('הודעה ל-Tony', 'Message to Tony')} />
+              <button type="submit" disabled={thinking || !input.trim()} className={btnPrimary}><Send className={`h-4 w-4 ${isHe ? 'rotate-180' : ''}`} /><span className="hidden sm:inline">{t('שליחה', 'Send')}</span></button>
+            </form>
+          </div>
+        </section>
 
-          <form onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }} className="p-3 border-t border-slate-200 bg-white flex gap-2">
-            <input
-              type="text"
-              value={userInput}
-              onChange={(e) => setUserInput(e.target.value)}
-              placeholder={isHebrew ? 'תאר ל-Tony מה התקלה או הבקשה שלך...' : 'Describe your IT request or problem to Tony...'}
-              className="flex-1 px-4 py-2.5 text-xs sm:text-sm rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600"
-            />
-            <button
-              type="submit"
-              disabled={isAiLoading || !userInput.trim()}
-              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl font-bold text-xs sm:text-sm transition shadow-sm flex items-center justify-center gap-1.5"
-            >
-              <span>{isHebrew ? 'שלח' : 'Send'}</span>
-              <Send className={`w-3.5 h-3.5 ${isHebrew ? 'rotate-180' : ''}`} />
-            </button>
+        <section ref={formRef} className={`${cardCls} p-5 sm:p-6`}>
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="font-bold">{t('פרטי הקריאה', 'Ticket details')}</h2>
+            {aiUsed && <Badge tone="bg-violet-50 text-violet-700 ring-violet-200"><Sparkles className="me-1 h-3 w-3" />{t('מולא ע״י Tony', 'Filled by Tony')}</Badge>}
+          </div>
+          <form onSubmit={submit} className="space-y-4">
+            <Field label={t('נושא', 'Subject')}><input required minLength={3} maxLength={160} className={inputCls} value={form.title} onChange={set('title')} /></Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label={t('קטגוריה', 'Category')}><select className={inputCls} value={form.category} onChange={set('category')}>{CATEGORIES.map((c) => <option key={c} value={c}>{label(CATEGORY_LABELS, c, lang)}</option>)}</select></Field>
+              <Field label={t('דחיפות', 'Urgency')}><select className={inputCls} value={form.urgency} onChange={set('urgency')}>{URGENCIES.map((c) => <option key={c} value={c}>{label(URGENCY_LABELS, c, lang)}</option>)}</select></Field>
+              <Field label={t('מערכת או רכיב מושפע', 'Impacted system')}><input className={inputCls} value={form.system_impacted} onChange={set('system_impacted')} maxLength={160} /></Field>
+              <Field label={t('צוות מטפל', 'Team')}><select className={inputCls} value={form.assigned_team} onChange={set('assigned_team')}>{TEAMS.map((c) => <option key={c} value={c}>{label(TEAM_LABELS, c, lang)}</option>)}</select></Field>
+              <Field label={t('מיקום', 'Location')}><input className={inputCls} value={form.user_city} onChange={set('user_city')} maxLength={120} /></Field>
+              <Field label={t('טלפון לחזרה', 'Callback phone')}><input type="tel" dir="ltr" className={inputCls} value={form.user_phone} onChange={set('user_phone')} maxLength={40} /></Field>
+            </div>
+            <Field label={t('תיאור מלא', 'Full description')}><textarea required rows={4} maxLength={4000} className={inputCls} value={form.description} onChange={set('description')} /></Field>
+            <button type="submit" disabled={submitting || form.title.trim().length < 3} className={`${btnPrimary} w-full py-3`}>{submitting ? <Spinner /> : <Check className="h-4 w-4" />}{t('שליחת הקריאה', 'Submit ticket')}</button>
           </form>
-        </div>
-      </div>
+        </section>
 
-      {/* Form Review Section */}
-      <div ref={formSectionRef} className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {feedbackMsg && (
-          <div className={`p-4 rounded-xl border flex items-center gap-3 text-xs font-semibold shadow-2xs ${
-            feedbackMsg.type === 'success' 
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200' 
-              : 'bg-rose-50 text-rose-800 border-rose-200'
-          }`}>
-            {feedbackMsg.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-600" /> : <AlertCircle className="w-4 h-4 text-rose-600" />}
-            {feedbackMsg.text}
+        <section className={cardCls}>
+          <div className="flex items-center justify-between border-b border-line px-5 py-3">
+            <h2 className="font-bold">{t('הקריאות שלי', 'My tickets')} <span className="text-ink-soft tnum">({tickets.length})</span></h2>
+            <button type="button" onClick={loadTickets} className={btnSecondary} aria-label={t('רענון', 'Refresh')}><RefreshCw className={`h-4 w-4 ${loadingTickets ? 'animate-spin' : ''}`} /></button>
           </div>
-        )}
-
-        <div className="p-6 sm:p-8 rounded-2xl border border-slate-200 bg-white shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="w-4 h-4 text-indigo-600" />
-              <h2 className="text-sm font-bold text-slate-900">
-                {isHebrew ? `אישור ושיגור קריאה (${tenant?.name || rawTenant})` : `Ticket Details Confirmation (${tenant?.name || rawTenant})`}
-              </h2>
-            </div>
-            <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-0.5 rounded-full">
-              {isHebrew ? 'אומת ע״י Tony' : 'Verified by Tony'}
-            </span>
-          </div>
-
-          <form onSubmit={handleSubmitTicket} className="space-y-4 text-xs font-bold">
-            <div>
-              <label className="block mb-1.5 text-slate-800">
-                {isHebrew ? 'נושא הפנייה *' : 'Ticket Subject / Title *'}
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                placeholder={isHebrew ? 'נושא הפנייה בקצרה...' : 'Brief summary of the issue...'}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'קטגוריה' : 'Category'}</label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:outline-none focus:border-indigo-600"
-                >
-                  <option value="Hardware">{isHebrew ? 'חומרה (מחשבים, מסכים, ציוד קצה)' : 'Hardware (Laptops, Monitors, Peripherals)'}</option>
-                  <option value="Software & SaaS">{isHebrew ? 'תוכנה וענן (Office, Zoom, Slack)' : 'Software & SaaS (Office, Zoom, Slack)'}</option>
-                  <option value="Network & Connectivity">{isHebrew ? 'תקשורת ו-VPN' : 'Network & VPN'}</option>
-                  <option value="Access & IAM">{isHebrew ? 'הרשאות וזהויות (IAM)' : 'Access & Identity (IAM)'}</option>
-                  <option value="Cloud & Infrastructure">{isHebrew ? 'תשתיות וענן' : 'Cloud & Infrastructure'}</option>
-                  <option value="Cyber Security">{isHebrew ? 'אבטחת מידע וסייבר' : 'Cyber Security'}</option>
-                  <option value="Workstation & Peripherals">{isHebrew ? 'עמדות עבודה וציוד היקפי' : 'Workstation & Peripherals'}</option>
-                  <option value="Database & BI">{isHebrew ? 'בסיסי נתונים ו-BI' : 'Database & BI'}</option>
-                  <option value="General IT Request">{isHebrew ? 'בקשת IT כללית' : 'General IT Request'}</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'דחיפות SLA' : 'SLA Urgency'}</label>
-                <select
-                  value={formData.urgency}
-                  onChange={(e) => setFormData({ ...formData, urgency: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:outline-none focus:border-indigo-600"
-                >
-                  <option value="Low">{isHebrew ? 'נמוכה (Low)' : 'Low'}</option>
-                  <option value="Medium">{isHebrew ? 'בינונית (Medium)' : 'Medium'}</option>
-                  <option value="High">{isHebrew ? 'גבוהה (High)' : 'High'}</option>
-                  <option value="Critical">{isHebrew ? 'קריטית (Critical)' : 'Critical'}</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'רכיב / מערכת שנפגעה' : 'System Impacted'}</label>
-                <input
-                  type="text"
-                  value={formData.system_impacted}
-                  onChange={(e) => setFormData({ ...formData, system_impacted: e.target.value })}
-                  placeholder={isHebrew ? 'לדוגמה: מחשב נייד, לקוח VPN, SAP, מייל...' : 'e.g. Laptop, VPN Client, SAP, Email...'}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'צוות IT מטפל' : 'Assigned IT Team'}</label>
-                <select
-                  value={formData.assigned_team}
-                  onChange={(e) => setFormData({ ...formData, assigned_team: e.target.value })}
-                  className="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 font-bold focus:outline-none focus:border-indigo-600"
-                >
-                  <option value="Helpdesk Tier 1">Helpdesk Tier 1</option>
-                  <option value="System & Cloud Team">System & Cloud Team</option>
-                  <option value="Network & Security">Network & Security</option>
-                  <option value="IT Applications & BI">IT Applications & BI</option>
-                  <option value="Identity & Access">Identity & Access</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'עיר / מטה / סניף' : 'Location / Headquarters'}</label>
-                <input
-                  type="text"
-                  value={formData.user_city}
-                  onChange={(e) => setFormData({ ...formData, user_city: e.target.value })}
-                  placeholder={isHebrew ? 'למשל: מטה חיפה / קמפוס תל אביב' : 'e.g. Haifa HQ / Tel Aviv Campus'}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
-                />
-              </div>
-
-              <div>
-                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'טלפון / שלוחה לחזרה' : 'Contact Phone / Extension'}</label>
-                <input
-                  type="tel"
-                  value={formData.user_phone}
-                  onChange={(e) => setFormData({ ...formData, user_phone: e.target.value })}
-                  placeholder="050-0000000"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold font-mono"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block mb-1.5 text-slate-800">{isHebrew ? 'פירוט מלא של התקלה *' : 'Detailed Description *'}</label>
-              <textarea
-                required
-                rows={3}
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder={isHebrew ? 'פירוט מלא של מה שאירע...' : 'Detailed explanation of what occurred...'}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-medium leading-relaxed"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'שם המדווח' : 'Reporter Full Name'}</label>
-                <input
-                  type="text"
-                  value={formData.reporter_name}
-                  onChange={(e) => setFormData({ ...formData, reporter_name: e.target.value })}
-                  placeholder={isHebrew ? 'שם מלא' : 'Full Name'}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold"
-                />
-              </div>
-              <div>
-                <label className="block mb-1.5 text-slate-800">{isHebrew ? 'אימייל ארגוני' : 'Reporter Work Email'}</label>
-                <input
-                  type="email"
-                  value={formData.reporter_email}
-                  onChange={(e) => setFormData({ ...formData, reporter_email: e.target.value })}
-                  placeholder="name@company.com"
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-slate-900 focus:outline-none focus:border-indigo-600 font-semibold font-mono"
-                />
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={isSubmitting || !formData.title.trim()}
-                className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-xl text-xs sm:text-sm font-black shadow-md transition flex items-center justify-center gap-2"
-              >
-                <Check className="w-4 h-4" />
-                <span>{isSubmitting ? (isHebrew ? 'משגר קריאה...' : 'Submitting Ticket...') : (isHebrew ? 'שגר קריאה ל-SmartQ' : 'Dispatch Ticket to SmartQ')}</span>
-              </button>
-            </div>
-          </form>
-        </div>
-
-        {/* Active Tickets Section */}
-        <section className="p-6 rounded-2xl border border-slate-200 bg-white shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-            <div className="flex items-center gap-2">
-              <Layers className="w-4 h-4 text-indigo-600" />
-              <h2 className="text-sm font-bold text-slate-900">
-                {isHebrew ? `קריאות פתוחות בארגון (${tickets.length})` : `Active Organization Tickets (${tickets.length})`}
-              </h2>
-            </div>
-            <span className="text-xs text-slate-400 font-bold">{isHebrew ? 'סטטוס בזמן אמת' : 'Real-time status'}</span>
-          </div>
-
-          {isLoadingTickets ? (
-            <div className="py-8 text-center text-xs text-slate-500 font-bold">
-              <RefreshCw className="w-4 h-4 animate-spin mx-auto mb-2 text-indigo-600" />
-              {isHebrew ? 'טוען קריאות...' : 'Loading tickets...'}
-            </div>
-          ) : tickets.length === 0 ? (
-            <div className="text-center py-8 text-xs text-slate-500 font-bold">
-              {isHebrew ? 'אין כרגע קריאות פתוחות בסביבה זו.' : 'No open tickets found for this organization.'}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-              {tickets.map((t) => (
-                <div key={t.id} className="p-4 border border-slate-200 rounded-xl bg-slate-50/60 hover:bg-white transition space-y-2.5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <span className={`font-mono font-black text-indigo-600 text-xs ${isHebrew ? 'ml-2' : 'mr-2'}`}>
-                        #{t.ticket_number || t.id.slice(0, 6)}
-                      </span>
-                      <h3 className="text-xs font-bold inline text-slate-900">{t.title}</h3>
-                    </div>
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md border bg-slate-100 text-slate-800 border-slate-300">
-                      {t.urgency}
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed font-medium">
-                    {t.description}
-                  </p>
-
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-500 font-bold">
-                    <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">
-                      {t.assigned_team || 'Helpdesk Tier 1'}
-                    </span>
-                    <span className="flex items-center gap-1 font-mono">
-                      <Clock className="w-3 h-3 text-slate-400" />
-                      {new Date(t.created_at).toLocaleTimeString(isHebrew ? 'he-IL' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {loadingTickets && tickets.length === 0 ? <div className="py-10 text-center text-brand"><Spinner className="h-5 w-5" /></div>
+            : tickets.length === 0 ? <EmptyState title={t('עדיין אין קריאות', 'No tickets yet')} hint={t('הקריאה הראשונה שתפתחו תופיע כאן עם הסטטוס שלה.', 'The first ticket you open will show up here with its status.')} />
+            : <ul className="divide-y divide-line">
+                {tickets.map((k) => (
+                  <li key={k.id}>
+                    <button type="button" onClick={() => setOpenId(k.id)} className="flex w-full items-center gap-3 px-5 py-3 text-start hover:bg-canvas">
+                      <Inbox className="h-4 w-4 shrink-0 text-ink-soft" aria-hidden />
+                      <span className="min-w-0 flex-1"><span className="block truncate font-medium"><span className="tnum text-brand">#{k.ticket_number}</span> {k.title}</span><span className="text-xs text-ink-soft tnum">{fmtDateTime(k.created_at, lang)}</span></span>
+                      <span className="hidden gap-1.5 sm:flex"><Badge tone={urgencyTone(k.urgency)}>{label(URGENCY_LABELS, k.urgency, lang)}</Badge><SlaBadge ticket={k} /></span>
+                      <Badge tone={statusTone(k.status)}>{label(STATUS_LABELS, k.status, lang)}</Badge>
+                    </button>
+                  </li>
+                ))}
+              </ul>}
         </section>
       </div>
 
-      {/* POPUP MODAL (6-DIGIT TICKET NUMBER) */}
-      {createdTicketNumber && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="w-full max-w-md rounded-3xl p-7 space-y-6 text-center border border-slate-200 bg-white shadow-2xl animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 rounded-2xl bg-emerald-100 border border-emerald-300 text-emerald-700 flex items-center justify-center mx-auto shadow-md">
-              <CheckCircle2 className="w-8 h-8" />
-            </div>
+      <TicketDrawer ticketId={openId} staff={false} onClose={() => setOpenId(null)} onChanged={loadTickets} />
 
-            <div className="space-y-1.5">
-              <h3 className="text-lg font-black text-slate-900">
-                {isHebrew ? 'הקריאה נפתחה בהצלחה!' : 'Ticket Created Successfully!'}
-              </h3>
-              <p className="text-xs text-slate-500 font-medium">
-                {isHebrew 
-                  ? 'הפנייה נותבה ישירות לתור צוות ה-IT המתאים בארגון.' 
-                  : 'Your request has been classified and routed to the designated IT team.'}
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2">
-              <span className="text-[11px] font-bold text-slate-500">
-                {isHebrew ? 'מספר קריאת שירות למעקב' : 'Tracking Ticket Reference ID'}
-              </span>
-              <div className="flex items-center justify-center gap-2">
-                <span className="text-2xl font-black font-mono tracking-wider text-indigo-600">
-                  #{createdTicketNumber}
-                </span>
-                <button
-                  type="button"
-                  onClick={copyTicketNumber}
-                  className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 transition"
-                  title="Copy Reference ID"
-                >
-                  {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4 text-slate-500" />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => setCreatedTicketNumber(null)}
-              className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md transition"
-            >
-              {isHebrew ? 'סגור' : 'Close'}
-            </button>
-          </div>
+      <Modal open={!!created} onClose={() => setCreated(null)} title={t('הקריאה נפתחה', 'Ticket created')}>
+        <p className="text-sm text-ink-soft">{t('הקריאה נותבה לצוות המתאים. שמרו את המספר למעקב.', 'Your request was routed to the right team. Keep the number for reference.')}</p>
+        <div className="my-4 flex items-center justify-center gap-2 rounded-xl bg-canvas py-4">
+          <span className="text-3xl font-bold tracking-wider text-brand tnum">#{created}</span>
+          <button type="button" aria-label={t('העתקה', 'Copy')} className="rounded-lg border border-line bg-white p-2" onClick={() => { navigator.clipboard.writeText(created ?? ''); setCopied(true); setTimeout(() => setCopied(false), 1800); }}>
+            {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+          </button>
         </div>
-      )}
-    </main>
-  );
-}
-
-export default function SelfServicePage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-[#F8FAFC]" />}>
-      <SelfServiceContent />
-    </Suspense>
+        <button type="button" className={`${btnPrimary} w-full`} onClick={() => setCreated(null)}>{t('סגירה', 'Close')}</button>
+      </Modal>
+    </AppShell>
   );
 }

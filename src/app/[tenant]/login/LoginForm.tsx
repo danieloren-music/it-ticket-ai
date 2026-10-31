@@ -1,0 +1,78 @@
+'use client';
+
+import Link from 'next/link';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Building2, KeyRound, Lock, Mail } from 'lucide-react';
+import { api, errorText } from '@/lib/api';
+import { useLang } from '@/lib/i18n';
+import { Brand, Field, LangSwitch, Spinner, btnPrimary, btnSecondary, inputCls } from '@/components/ui';
+import { A11yWidget } from '@/components/A11yWidget';
+
+const SSO_ERRORS: Record<string, [string, string]> = {
+  sso_failed: ['ההתחברות באמצעות SSO נכשלה. נסו שוב או פנו למנהל המערכת.', 'Single sign-on failed. Try again or contact your administrator.'],
+  sso_not_configured: ['SSO עדיין לא הוגדר לארגון זה.', 'SSO is not configured for this organization yet.'],
+  account_disabled: ['החשבון הושבת. פנו למנהל המערכת.', 'This account is disabled. Contact your administrator.'],
+};
+
+export default function LoginForm({ tenant, tenantName, returnTo, initialError, isDemo }: { tenant: string; tenantName: string; returnTo: string; initialError?: string; isDemo: boolean }) {
+  const { t, lang } = useLang();
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const sso = initialError ? SSO_ERRORS[initialError] : undefined;
+  const [error, setError] = useState(sso ? (lang === 'he' ? sso[0] : sso[1]) : '');
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true); setError('');
+    try {
+      await api('/api/auth/local-login', { method: 'POST', json: { tenantSlug: tenant, email, password } });
+      router.replace(returnTo || `/${tenant}`);
+      router.refresh();
+    } catch (ex) { setError(errorText(ex, lang)); setBusy(false); }
+  };
+
+  const ssoHref = `/api/auth/saml/login?tenant=${tenant}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`;
+
+  return (
+    <div className="grid min-h-screen place-items-center bg-canvas p-4">
+      <div className="absolute end-4 top-4"><LangSwitch /></div>
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex justify-center"><Brand size={36} /></div>
+        <div className="rounded-2xl border border-line bg-white p-7 shadow-sm">
+          <div className="mb-5">
+            <h1 className="text-xl font-bold">{t('כניסה למערכת', 'Sign in')}</h1>
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-soft"><Building2 className="h-4 w-4" />{tenantName}</p>
+          </div>
+
+          {isDemo ? (
+            <p className="text-sm text-ink-soft">{t('סביבת ההדגמה נפתחת מהאתר הראשי, בלי סיסמה.', 'The demo organization opens from the main site, no password needed.')}</p>
+          ) : (
+            <form onSubmit={submit} className="space-y-4">
+              <Field label={t('אימייל ארגוני', 'Work email')}>
+                <div className="relative"><Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input type="email" required dir="ltr" autoComplete="username" className={`${inputCls} ps-9`} value={email} onChange={(e) => setEmail(e.target.value)} placeholder={`name@${tenant}.com`} /></div>
+              </Field>
+              <Field label={t('סיסמה', 'Password')}>
+                <div className="relative"><Lock className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input type="password" required autoComplete="current-password" className={`${inputCls} ps-9`} value={password} onChange={(e) => setPassword(e.target.value)} /></div>
+              </Field>
+              {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{error}</p>}
+              <button type="submit" disabled={busy} className={`${btnPrimary} w-full`}>{busy && <Spinner />}{t('כניסה', 'Sign in')}</button>
+            </form>
+          )}
+
+          {!isDemo && (
+            <div className="mt-5 border-t border-line pt-5">
+              <a href={ssoHref} className={`${btnSecondary} w-full`}><KeyRound className="h-4 w-4 text-brand" />{t('כניסה עם Microsoft Entra ID', 'Sign in with Microsoft Entra ID')}</a>
+            </div>
+          )}
+        </div>
+        <p className="mt-5 text-center text-sm"><Link href="/home" className="text-ink-soft hover:text-ink">{t('לאתר SmartQ', 'Back to SmartQ')}</Link></p>
+      </div>
+      <A11yWidget />
+    </div>
+  );
+}

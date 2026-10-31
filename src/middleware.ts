@@ -1,139 +1,75 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { PLATFORM_COOKIE, TENANT_COOKIE, readPlatformSession, readTenantSession } from '@/lib/session';
 
-export function middleware(req: NextRequest) {
+/** Paths that never need a tenant/platform session. */
+const PUBLIC_PREFIXES = ['/home', '/_next', '/api', '/icon', '/apple-icon', '/opengraph-image', '/twitter-image', '/robots.txt', '/sitemap.xml', '/smartq-'];
+
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // 1. Root redirect to /home
-  if (pathname === '/') {
-    return NextResponse.redirect(new URL('/home', req.url));
-  }
-
-  // 2. Static and Public files
-  if (
-    pathname.startsWith('/home') ||
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/api') ||
-    pathname.startsWith('/smartq-logo.png') ||
-    pathname.startsWith('/favicon.ico')
-  ) {
+  if (pathname === '/') return NextResponse.redirect(new URL('/home', req.url));
+  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p)) || /\.[a-z0-9]+$/i.test(pathname)) {
     return NextResponse.next();
   }
 
-  // 3. Vendor Platform Lock
-  if (pathname.startsWith('/platform')) {
-    if (pathname === '/platform/login') {
-      return NextResponse.next();
-    }
-    const platformCookie = req.cookies.get('smartq_platform_session')?.value;
-    if (!platformCookie) {
-      return NextResponse.redirect(new URL('/platform/login', req.url));
-    }
-    try {
-      const parsed = JSON.parse(Buffer.from(platformCookie, 'base64').toString('utf-8'));
-      if (!parsed.isPlatformAdmin) {
-        return NextResponse.redirect(new URL('/platform/login', req.url));
-      }
-    } catch {
-      return NextResponse.redirect(new URL('/platform/login', req.url));
-    }
+  /* ───── Vendor platform ───── */
+  if (pathname === '/platform' || pathname.startsWith('/platform/')) {
+    if (pathname === '/platform/login') return NextResponse.next();
+    const platform = await readPlatformSession(req.cookies.get(PLATFORM_COOKIE)?.value);
+    if (!platform) return NextResponse.redirect(new URL('/platform/login', req.url));
     return NextResponse.next();
   }
 
-  // 4. Root endpoints without tenant slug
-  if (pathname === '/selfservice' || pathname === '/self-service') {
-    return NextResponse.redirect(new URL('/rafael/self-service', req.url));
-  }
-  if (pathname === '/manage') {
-    return NextResponse.redirect(new URL('/rafael/manage', req.url));
-  }
-  if (pathname === '/admins') {
-    return NextResponse.redirect(new URL('/rafael/admins', req.url));
-  }
-
-  // 5. Tenant Sub-Routes Processing
+  /* ───── Tenant routes: /[tenant]/[page] ───── */
   const segments = pathname.split('/').filter(Boolean);
   if (segments.length === 0) return NextResponse.next();
 
   const rawTenant = segments[0];
-  const routeTenant = rawTenant.toLowerCase();
-  const subRoute = (segments[1] || '').toLowerCase();
+  const tenant = rawTenant.toLowerCase();
+  const sub = (segments[1] || '').toLowerCase();
 
-  // Redirect legacy or typo routes
-  if (subRoute === 'selfservice' || subRoute === 'new-request' || subRoute === 'users') {
-    return NextResponse.redirect(new URL(`/${rawTenant}/self-service`, req.url));
+  // Legacy / typo aliases
+  if (sub === 'selfservice' || sub === 'new-request' || sub === 'users') {
+    return NextResponse.redirect(new URL(`/${tenant}/self-service`, req.url));
+  }
+  // Legacy tenant-less shortcuts used to hard-code a single customer; send visitors to the main site instead.
+  if (segments.length === 1 && ['selfservice', 'self-service', 'manage', 'admins'].includes(tenant)) {
+    return NextResponse.redirect(new URL('/home', req.url));
   }
 
-  // Open pages
-  if (subRoute === 'login' || subRoute === 'access-denied') {
-    return NextResponse.next();
-  }
+  if (sub === 'login' || sub === 'access-denied') return NextResponse.next();
 
-  // 6. Decode Tenant Session
-  const sessionCookie = req.cookies.get('smartq_session')?.value;
-  let session: { role?: 'manager' | 'admin' | 'user'; tenantId?: string; email?: string } | null = null;
+  const session = await readTenantSession(req.cookies.get(TENANT_COOKIE)?.value);
+  const sameTenant = session?.tenantId.toLowerCase() === tenant;
 
-  if (sessionCookie) {
-    try {
-      session = JSON.parse(Buffer.from(sessionCookie, 'base64').toString('utf-8'));
-    } catch {
-      session = null;
-    }
-  }
-
-  const isMatchingTenant = session?.tenantId?.toLowerCase() === routeTenant;
-
-  const redirectToLogin = (targetPath: string) => {
-    const loginUrl = new URL(`/${rawTenant}/login`, req.url);
-    loginUrl.searchParams.set('returnTo', targetPath);
-    return NextResponse.redirect(loginUrl);
+  const toLogin = (returnTo: string) => {
+    const url = new URL(`/${tenant}/login`, req.url);
+    url.searchParams.set('returnTo', returnTo);
+    return NextResponse.redirect(url);
   };
 
-  const redirectToAccessDenied = () => {
-    return NextResponse.redirect(new URL(`/${rawTenant}/access-denied`, req.url));
+  // /[tenant] → role-aware gateway
+  if (!sub) {
+    if (!session || !sameTenant) return toLogin(`/${tenant}/self-service`);
+    const target = session.role === 'manager' ? 'manage' : session.role === 'admin' ? 'admins' : 'self-service';
+    return NextResponse.redirect(new URL(`/${tenant}/${target}`, req.url));
+  }
+
+  // Role based page access
+  const needs: Record<string, string[]> = {
+    'self-service': ['user', 'admin', 'manager'],
+    admins: ['admin', 'manager'],
+    manage: ['manager'],
   };
-
-  // 7. Intelligent Tenant Root Gateway: /[tenant]
-  if (!subRoute) {
-    if (!session || !isMatchingTenant) {
-      return redirectToLogin(`/${rawTenant}/self-service`);
-    }
-    if (session.role === 'manager') {
-      return NextResponse.redirect(new URL(`/${rawTenant}/manage`, req.url));
-    }
-    if (session.role === 'admin') {
-      return NextResponse.redirect(new URL(`/${rawTenant}/admins`, req.url));
-    }
-    return NextResponse.redirect(new URL(`/${rawTenant}/self-service`, req.url));
-  }
-
-  // 8. RBAC Page Enforcements
-  if (subRoute === 'self-service') {
-    if (!session || !isMatchingTenant) {
-      return redirectToLogin(pathname);
-    }
-  }
-
-  if (subRoute === 'admins') {
-    if (!session || !isMatchingTenant) {
-      return redirectToLogin(pathname);
-    }
-    if (session.role !== 'manager' && session.role !== 'admin') {
-      return redirectToAccessDenied();
-    }
-  }
-
-  if (subRoute === 'manage') {
-    if (!session || !isMatchingTenant) {
-      return redirectToLogin(pathname);
-    }
-    if (session.role !== 'manager') {
-      return redirectToAccessDenied();
-    }
+  const allowed = needs[sub];
+  if (allowed) {
+    if (!session || !sameTenant) return toLogin(pathname);
+    if (!allowed.includes(session.role)) return NextResponse.redirect(new URL(`/${tenant}/access-denied`, req.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
+  matcher: ['/((?!api|_next/static|_next/image).*)'],
 };

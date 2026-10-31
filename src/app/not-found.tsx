@@ -1,30 +1,20 @@
-import Image from 'next/image';
+'use client';
+
 import Link from 'next/link';
-import { Building2, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { useLang } from '@/lib/i18n';
+import { Brand, btnPrimary } from '@/components/ui';
 
 export default function NotFound() {
+  const { t } = useLang();
   return (
-    <div dir="rtl" className="min-h-screen bg-[#F8FAFC] flex flex-col items-center justify-center p-6 text-center font-sans">
-      <div className="max-w-md w-full bg-white p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-        <div className="w-14 h-14 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-center mx-auto text-rose-600">
-          <AlertTriangle className="w-7 h-7" />
-        </div>
-
-        <div className="space-y-2">
-          <h1 className="text-2xl font-black text-slate-950">הארגון לא נמצא במערכת</h1>
-          <p className="text-xs text-slate-600 font-medium leading-relaxed">
-            כתובת הסביבה שניסית לגשת אליה אינה קיימת, הושעתה או שטרם הוקמה על ידי מנהל הפלטפורמה.
-          </p>
-        </div>
-
-        <div className="pt-2">
-          <Link
-            href="/home"
-            className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
-          >
-            <span>חזרה לאתר הראשי</span>
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
+    <div className="grid min-h-screen place-items-center bg-canvas p-4 text-center">
+      <div className="w-full max-w-md">
+        <div className="mb-6 flex justify-center"><Brand size={34} /></div>
+        <div className="rounded-2xl border border-line bg-white p-8">
+          <p className="text-4xl font-bold text-brand tnum">404</p>
+          <h1 className="mt-3 text-xl font-bold">{t('העמוד או הארגון לא נמצאו', 'Page or organization not found')}</h1>
+          <p className="mt-2 text-sm text-ink-soft">{t('הכתובת שגויה, או שהארגון טרם הוקם או הושעה.', 'The address is wrong, or the organization has not been set up or was suspended.')}</p>
+          <Link href="/home" className={`${btnPrimary} mt-6 w-full`}>{t('לאתר הראשי', 'Back to the main site')}</Link>
         </div>
       </div>
     </div>

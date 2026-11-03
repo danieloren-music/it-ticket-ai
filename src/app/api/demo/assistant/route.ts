@@ -61,8 +61,8 @@ export const POST = route(async (req: NextRequest) => {
   };
   return NextResponse.json({
     reply: language === 'he'
-      ? 'תודה, יש לי את הפרטים. הכנתי סיכום לקריאת הדגמה — אפשר לעבור עליו ולפתוח קריאה מדומה.'
-      : 'Thanks, I have the details. I prepared a demo ticket summary for you to review and open.',
+      ? 'תודה, יש לי את הפרטים. סיכמתי אותם בטיוטת הקריאה — אפשר לבדוק את הסיווג והדחיפות.'
+      : 'Thanks, I have the details. I summarized them in the request draft so you can review the category and priority.',
     ticket,
     source: 'simulation',
   });

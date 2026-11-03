@@ -1,9 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Building2, Check, Gauge, MessageSquare, RotateCcw, Send, Sparkles, TicketCheck, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Clock3, MessageSquare, RotateCcw, Route, Send, Sparkles } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { useLang } from '@/lib/i18n';
 import { A11yWidget } from '@/components/A11yWidget';
@@ -28,7 +26,6 @@ interface ChatMessage {
 interface AssistantResponse {
   reply: string;
   ticket: TicketPreview | null;
-  source: 'simulation';
 }
 
 function TypingMessage({ text }: { text: string }) {
@@ -61,19 +58,12 @@ const EXAMPLES = [
 export default function HomeClient() {
   const pageRef = useRef<HTMLDivElement>(null);
   const { t, lang, isHe } = useLang();
-  const router = useRouter();
   const Arrow = isHe ? ArrowLeft : ArrowRight;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [ticket, setTicket] = useState<TicketPreview | null>(null);
-  const [ticketNumber, setTicketNumber] = useState('');
-  const [source, setSource] = useState<'simulation' | null>(null);
   const [chatBusy, setChatBusy] = useState(false);
   const [chatError, setChatError] = useState('');
-  const [tenantSlug, setTenantSlug] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [starting, setStarting] = useState<string | null>(null);
-  const [demoError, setDemoError] = useState('');
   const [contact, setContact] = useState({ name: '', email: '', company: '', website: '' });
   const [contactBusy, setContactBusy] = useState(false);
   const [contactError, setContactError] = useState('');
@@ -100,13 +90,13 @@ export default function HomeClient() {
 
   const sendMessage = async (value = draft) => {
     const content = value.trim();
-    if (!content || chatBusy || ticketNumber) return;
+    if (!content || chatBusy) return;
 
     const openingMessage: ChatMessage = {
       role: 'assistant',
       content: t(
-        'שלום, אני SmartQ. ספרו לי מה קרה ואעזור לכם לסכם את הפנייה לקריאה.',
-        'Hello, I am SmartQ. Tell me what happened and I will help turn it into a clear ticket.'
+        'היי, אני Tony מ-SmartQ. ספרו לי מה קרה ואעזור לכם לפתוח קריאה.',
+        "Hi, I'm Tony from SmartQ. Tell me what happened and I'll help you raise a request."
       ),
     };
     const nextMessages: ChatMessage[] = [...(messages.length ? messages : [openingMessage]), { role: 'user', content }];
@@ -125,7 +115,6 @@ export default function HomeClient() {
       if (typingTime > 0) await new Promise((resolve) => window.setTimeout(resolve, typingTime));
       setMessages([...nextMessages, { role: 'assistant', content: response.reply }]);
       setTicket(response.ticket);
-      setSource(response.source);
     } catch (error) {
       setMessages(messages);
       setDraft(content);
@@ -146,36 +135,7 @@ export default function HomeClient() {
     setMessages([]);
     setDraft('');
     setTicket(null);
-    setTicketNumber('');
-    setSource(null);
     setChatError('');
-  };
-
-  const openDemoTicket = () => {
-    if (!ticket || ticketNumber) return;
-    setTicketNumber(`DEMO-${Math.floor(100000 + Math.random() * 900000)}`);
-  };
-
-  const openTenantLogin = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const slug = tenantSlug.trim().toLowerCase();
-    if (slug.length < 2 || !/^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/.test(slug)) {
-      setLoginError(t('הזינו מזהה ארגון תקין.', 'Enter a valid organization ID.'));
-      return;
-    }
-    router.push(`/${slug}/login`);
-  };
-
-  const startRoleDemo = async (role: 'user' | 'admin' | 'manager') => {
-    setStarting(role);
-    setDemoError('');
-    try {
-      const result = await api<{ redirect: string }>('/api/demo/start', { method: 'POST', json: { role } });
-      router.push(result.redirect);
-    } catch (error) {
-      setDemoError(errorText(error, lang));
-      setStarting(null);
-    }
   };
 
   const sendContact = async (event: FormEvent<HTMLFormElement>) => {
@@ -192,10 +152,22 @@ export default function HomeClient() {
     }
   };
 
-  const roles = [
-    { key: 'user' as const, label: t('עובד', 'Employee'), icon: Users },
-    { key: 'admin' as const, label: t('טכנאי', 'Technician'), icon: TicketCheck },
-    { key: 'manager' as const, label: t('מנהל', 'Manager'), icon: Gauge },
+  const benefits = [
+    {
+      icon: MessageSquare,
+      title: t('פתיחת קריאה בשיחה', 'Request support in a conversation'),
+      text: t('העובדים מתארים את הבעיה במילים שלהם, ו-SmartQ עוזרת להשלים את הפרטים.', 'Employees describe the issue in their own words, and SmartQ helps complete the request.'),
+    },
+    {
+      icon: Route,
+      title: t('הגעה לצוות הנכון', 'The right team, sooner'),
+      text: t('סיווג וניתוב לפי סוג הפנייה והדחיפות, בלי לנחש למי לפנות.', 'Classify and route by request type and urgency, without guessing who to contact.'),
+    },
+    {
+      icon: Clock3,
+      title: t('תהליך ברור יותר', 'A clearer service process'),
+      text: t('תור טיפול ויעדי שירות שעוזרים לצוותים להתמקד במה שחשוב.', 'A service queue and targets that help teams focus on what matters.'),
+    },
   ];
 
   return (
@@ -204,27 +176,15 @@ export default function HomeClient() {
 
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6">
-          <Brand size={32} />
-          <div className="flex items-center gap-3">
+          <Brand size={36} />
+          <div className="flex items-center gap-5">
+            <nav aria-label={t('ניווט ראשי', 'Main navigation')} className="hidden items-center gap-5 text-sm font-medium text-ink-soft sm:flex">
+              <a href="#product" className="transition-colors hover:text-brand">{t('המוצר', 'Product')}</a>
+              <a href="#contact" className="transition-colors hover:text-brand">{t('יצירת קשר', 'Contact')}</a>
+            </nav>
             <LangSwitch />
-            <form onSubmit={openTenantLogin} className="flex items-center gap-2">
-              <label htmlFor="tenant-login" className="sr-only">{t('מזהה ארגון', 'Organization ID')}</label>
-              <input
-                id="tenant-login"
-                dir="ltr"
-                className={`${inputCls} w-36 py-2 text-sm`}
-                value={tenantSlug}
-                onChange={(event) => { setTenantSlug(event.target.value); setLoginError(''); }}
-                placeholder={t('מזהה ארגון', 'Organization ID')}
-                autoComplete="organization"
-              />
-              <button type="submit" className="rounded-lg border border-line px-3 py-2 text-sm font-semibold hover:bg-canvas">
-                {t('כניסה', 'Sign in')}
-              </button>
-            </form>
           </div>
         </div>
-        {loginError && <p role="alert" className="mx-auto max-w-7xl px-4 pb-2 text-end text-xs text-rose-600 sm:px-6">{loginError}</p>}
       </header>
 
       <main id="main">
@@ -241,7 +201,7 @@ export default function HomeClient() {
                 {t('SmartQ הופכת תיאור קצר לקריאה מסודרת, עם צוות ודחיפות מתאימים.', 'SmartQ turns a short description into a ticket, routed to the right team with the right priority.')}
               </p>
               <a href="#simulate" className="mt-6 inline-flex items-center gap-2 rounded-lg bg-brand px-5 py-3 font-semibold text-white hover:bg-brand-strong">
-                <Sparkles className="h-4 w-4" />{t('נסו את ההדמיה', 'Try the simulation')}<Arrow className="h-4 w-4" />
+                <Sparkles className="h-4 w-4" />{t('נסו את SmartQ', 'Try SmartQ')}<Arrow className="h-4 w-4" />
               </a>
             </div>
 
@@ -249,25 +209,21 @@ export default function HomeClient() {
               <div className="flex items-center justify-between border-b border-line px-5 py-4">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="h-5 w-5 text-brand" />
-                  <h2 id="simulation-title" className="font-bold">{t('שיחת הדגמה', 'Try the support chat')}</h2>
+                  <h2 id="simulation-title" className="font-bold">{t('נסו את SmartQ', 'Try SmartQ')}</h2>
                 </div>
-                <span className="text-xs text-ink-soft">{t('הדמיה בלבד · לא נוצרת קריאה אמיתית', 'Simulation only · no real ticket is created')}</span>
+                <span className="text-xs text-ink-soft">{t('עוזר תמיכה חכם', 'IT support assistant')}</span>
               </div>
 
               <div className="grid gap-5 p-4 sm:p-5 md:grid-cols-2">
                 <div className="flex min-h-80 flex-col">
-                  <div className="mb-3 flex-1 space-y-3 overflow-y-auto" aria-live="polite" aria-label={t('שיחה עם SmartQ', 'Conversation with SmartQ')}>
+                  <div className="mb-3 flex-1 space-y-3 overflow-y-auto" aria-live="polite" aria-label={t('שיחה עם Tony', 'Conversation with Tony')}>
                     {messages.length === 0 && (
                       <>
                         <div className="me-auto max-w-[90%] rounded-xl bg-canvas px-3 py-2.5 text-sm leading-relaxed text-ink">
                           <TypingMessage key={lang} text={t(
-                            'שלום, אני SmartQ. ספרו לי מה קרה ואעזור לכם לסכם את הפנייה לקריאה.',
-                            'Hello, I am SmartQ. Tell me what happened and I will help turn it into a clear ticket.'
+                            'היי, אני Tony מ-SmartQ. ספרו לי מה קרה ואעזור לכם לפתוח קריאה.',
+                            "Hi, I'm Tony from SmartQ. Tell me what happened and I'll help you raise a request."
                           )} />
-                        </div>
-                        <div className="rounded-xl border border-line p-4 text-sm text-ink-soft">
-                          <p>{t('תארו בקצרה את הבעיה כדי להתחיל.', 'Briefly describe the issue to get started.')}</p>
-                          <p className="mt-2 text-xs">{t('הדמיה עם תשובות מוכנות מראש. לא נשלח מידע לספק AI ולא נוצרת קריאה אמיתית.', 'A scripted simulation. No data is sent to an AI provider and no real ticket is created.')}</p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {EXAMPLES.map((example) => (
@@ -295,7 +251,7 @@ export default function HomeClient() {
                     ))}
                     {chatBusy && (
                       <div className="me-auto flex items-center gap-2 rounded-xl bg-canvas px-3 py-2.5 text-sm text-ink-soft" role="status">
-                        {t('SmartQ מקלידה', 'SmartQ is typing')}
+                        {t('Tony מקליד', 'Tony is typing')}
                         <span className="flex gap-1" aria-hidden="true">
                           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.2s]" />
                           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.1s]" />
@@ -306,45 +262,35 @@ export default function HomeClient() {
                   </div>
 
                   {chatError && <p role="alert" className="mb-2 text-sm text-rose-600">{chatError}</p>}
-                  {ticketNumber ? (
-                    <div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800" role="status">
-                      <p className="font-bold">{t('קריאת הדגמה נפתחה', 'Demo ticket opened')}</p>
-                      <p className="mt-1" dir="ltr">{ticketNumber}</p>
-                      <p className="mt-1 text-xs">{t('זהו מספר מדומה; לא נוצרה קריאה במערכת ולא נשלח מידע לספק AI.', 'This is a mock ID; no ticket was created in the system and no data was sent to an AI provider.')}</p>
-                    </div>
-                  ) : (
-                    <>
-                      <label htmlFor="chat-message" className="sr-only">{t('תיאור התקלה', 'Describe the issue')}</label>
-                      <textarea
-                        id="chat-message"
-                        rows={3}
-                        maxLength={1200}
-                        value={draft}
-                        onChange={(event) => setDraft(event.target.value)}
-                        onKeyDown={handleChatKeyDown}
-                        placeholder={t('למשל: אין חיבור לרשת בחדר הישיבות…', 'For example: the meeting room has no network…')}
-                        className={`${inputCls} resize-none`}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => void sendMessage()}
-                        disabled={chatBusy || !draft.trim()}
-                        className={`${btnPrimary} mt-2 w-full`}
-                      >
-                        {chatBusy ? <Spinner /> : <Send className="h-4 w-4" />}
-                        {t('שליחה', 'Send')} <span className="text-xs font-normal opacity-75">Ctrl+Enter</span>
-                      </button>
-                    </>
-                  )}
+                  <label htmlFor="chat-message" className="sr-only">{t('תיאור התקלה', 'Describe the issue')}</label>
+                  <textarea
+                    id="chat-message"
+                    rows={3}
+                    maxLength={1200}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                    onKeyDown={handleChatKeyDown}
+                    placeholder={t('למשל: אין חיבור לרשת בחדר הישיבות…', 'For example: the meeting room has no network…')}
+                    className={`${inputCls} resize-none`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void sendMessage()}
+                    disabled={chatBusy || !draft.trim()}
+                    className={`${btnPrimary} mt-2 w-full`}
+                  >
+                    {chatBusy ? <Spinner /> : <Send className="h-4 w-4" />}
+                    {t('שליחה', 'Send')} <span className="text-xs font-normal opacity-75">Ctrl+Enter</span>
+                  </button>
                 </div>
 
                 <div className="rounded-xl bg-[#101c42] p-4 text-white">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="font-semibold">{t('סיכום הקריאה', 'Ticket summary')}</h3>
+                    <h3 className="font-semibold">{t('טיוטת קריאה', 'Request draft')}</h3>
                     {ticket && <Badge tone={urgencyTone(ticket.urgency)}>{label(URGENCY_LABELS, ticket.urgency, lang)}</Badge>}
                   </div>
                   {!ticket ? (
-                    <p className="mt-4 text-sm leading-relaxed text-[#b8c2e9]">{t('הסיכום יופיע כאן אחרי שהעוזר יבין את הפנייה.', 'The summary will appear here once the assistant understands the request.')}</p>
+                    <p className="mt-4 text-sm leading-relaxed text-[#b8c2e9]">{t('פרטי הקריאה יופיעו כאן במהלך השיחה.', 'Your request details will appear here as you chat.')}</p>
                   ) : (
                     <div className="mt-4 space-y-3" aria-live="polite">
                       <h4 className="font-semibold leading-snug">{ticket.title}</h4>
@@ -355,18 +301,9 @@ export default function HomeClient() {
                         <div className="flex justify-between gap-3"><dt className="text-[#9aa7d6]">{t('מערכת', 'System')}</dt><dd className="text-end">{ticket.system_impacted}</dd></div>
                         <div className="flex justify-between gap-3"><dt className="text-[#9aa7d6]">{t('יעד טיפול', 'Resolution target')}</dt><dd className="text-end">{ticket.sla_hours} {t('שעות', 'hours')}</dd></div>
                       </dl>
-                      <p className="text-xs text-[#9aa7d6]">
-                        {source === 'simulation' && t('סיכום להדגמה בלבד.', 'Simulation summary only.')}
-                      </p>
-                      {!ticketNumber ? (
-                        <button type="button" onClick={openDemoTicket} className="w-full rounded-lg bg-white px-4 py-2.5 text-sm font-bold text-ink hover:bg-[#e8ecff]">
-                          {t('פתחו קריאת הדגמה', 'Open a demo ticket')}
-                        </button>
-                      ) : (
-                        <button type="button" onClick={resetChat} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#53618f] px-4 py-2.5 text-sm font-semibold hover:bg-[#1a2854]">
-                          <RotateCcw className="h-4 w-4" />{t('התחילו מחדש', 'Start again')}
-                        </button>
-                      )}
+                      <button type="button" onClick={resetChat} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-[#53618f] px-4 py-2.5 text-sm font-semibold hover:bg-[#1a2854]">
+                        <RotateCcw className="h-4 w-4" />{t('התחילו פנייה חדשה', 'Start a new request')}
+                      </button>
                     </div>
                   )}
                 </div>
@@ -375,28 +312,22 @@ export default function HomeClient() {
           </div>
         </section>
 
-        <section id="demo" className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-          <div data-scroll-reveal className="scroll-reveal flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h2 className="text-2xl font-bold">{t('נסו את סביבת העבודה', 'Explore the workspace')}</h2>
-              <p className="mt-1 text-sm text-ink-soft">{t('נתוני הדגמה בלבד, מתאפסים מעת לעת.', 'Sample data only; periodically reset.')}</p>
+        <section id="product" className="border-y border-line bg-white">
+          <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
+            <div data-scroll-reveal className="scroll-reveal mb-7 max-w-2xl">
+              <h2 className="text-2xl font-bold">{t('ניהול פניות IT במקום אחד', 'IT requests, managed in one place')}</h2>
+              <p className="mt-2 text-ink-soft">{t('מפתיחת הבקשה ועד לניתוב ולמעקב אחר הטיפול.', 'From request intake to routing and service tracking.')}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {roles.map(({ key, label: roleLabel, icon: Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => void startRoleDemo(key)}
-                  disabled={starting !== null}
-                  className="inline-flex items-center gap-2 rounded-lg border border-line px-3 py-2 text-sm font-semibold hover:border-brand hover:text-brand disabled:opacity-50"
-                >
-                  {starting === key ? <Spinner /> : <Icon className="h-4 w-4" />}
-                  {roleLabel}
-                </button>
+            <div className="grid gap-4 md:grid-cols-3">
+              {benefits.map(({ icon: Icon, title, text }, index) => (
+                <article key={title} data-scroll-reveal data-reveal-delay={index === 0 ? undefined : '1'} className="scroll-reveal rounded-2xl border border-line bg-canvas/60 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-brand/30 hover:shadow-lg hover:shadow-brand/5">
+                  <span className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-brand-soft text-brand"><Icon className="h-5 w-5" /></span>
+                  <h3 className="font-bold">{title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-ink-soft">{text}</p>
+                </article>
               ))}
             </div>
           </div>
-          {demoError && <p role="alert" className="mt-3 text-sm text-rose-600">{demoError}</p>}
         </section>
 
         <section id="contact" className="border-y border-line bg-canvas">
@@ -430,7 +361,6 @@ export default function HomeClient() {
       <footer className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-5 text-sm text-ink-soft sm:px-6">
         <Brand size={24} />
         <span>© {new Date().getFullYear()} SmartQ</span>
-        <Link href="/platform/login" className="inline-flex items-center gap-1.5 hover:text-ink"><Building2 className="h-4 w-4" />{t('כניסת צוות SmartQ', 'SmartQ staff sign-in')}</Link>
       </footer>
       <A11yWidget />
     </div>

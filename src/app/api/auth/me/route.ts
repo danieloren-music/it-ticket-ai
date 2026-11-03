@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { route } from '@/lib/http';
-import { getTenantSession } from '@/lib/auth';
+import { requireTenant } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 /** Session + tenant branding for the signed-in user. Cookie is httpOnly, so the UI reads it here. */
 export const GET = route(async (req: NextRequest) => {
-  const session = await getTenantSession(req);
-  if (!session) return NextResponse.json({ session: null }, { status: 401 });
+  const session = await requireTenant(req, { allowMustChange: true });
 
-  const { data: tenant } = await db().from('tenants').select('id, name, domain').eq('id', session.tenantId).maybeSingle();
+  const { data: tenant, error } = await db().from('tenants').select('id, name, domain').eq('id', session.tenantId).maybeSingle();
+  if (error) throw new Error(`Could not load tenant profile: ${error.message}`);
 
   return NextResponse.json({
     session: {

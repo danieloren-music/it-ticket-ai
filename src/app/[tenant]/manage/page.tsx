@@ -23,7 +23,17 @@ interface Stats {
   by_category: Record<string, number>; by_urgency: Record<string, number>; by_team: Record<string, number>;
   daily: { date: string; count: number }[];
 }
-interface Sso { saml_login_url: string; saml_idp_cert: string; saml_group_managers_id: string; saml_group_admins_id: string; saml_group_users_id: string }
+interface Sso {
+  saml_enabled: boolean;
+  saml_login_url: string;
+  saml_idp_cert: string;
+  oidc_enabled: boolean;
+  oidc_issuer: string;
+  oidc_client_id: string;
+  oidc_client_secret: string;
+  has_oidc_client_secret: boolean;
+  platform_oidc_client_available: boolean;
+}
 interface AuditEntry { id: string; actor_email: string; actor_role: string | null; action: string; target: string | null; ip: string | null; created_at: string }
 
 const roleTone = (r: string) => r === 'Manager' ? 'bg-violet-50 text-violet-700 ring-violet-200' : r === 'Admin' ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-slate-100 text-slate-700 ring-slate-200';
@@ -108,7 +118,14 @@ function UsersTab({ domain, selfEmail, demo }: { domain: string; selfEmail: stri
   const load = useCallback(async () => {
     try { setUsers((await api<{ users: DirUser[] }>('/api/directory')).users); } catch (e) { toast(errorText(e, lang), 'error'); } finally { setLoading(false); }
   }, [lang, toast]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    let cancelled = false;
+    api<{ users: DirUser[] }>('/api/directory')
+      .then((data) => { if (!cancelled) setUsers(data.users); })
+      .catch((error) => { if (!cancelled) toast(errorText(error, lang), 'error'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [lang, toast]);
 
   const openCreate = () => { setF(blankUser); setModal('create'); };
   const openEdit = (u: DirUser) => {
@@ -227,40 +244,72 @@ function SsoTab({ demo }: { demo: boolean }) {
   const { t, lang } = useLang();
   const { toast } = useToast();
   const [s, setS] = useState<Sso | null>(null);
-  const [sp, setSp] = useState<{ entityId: string; acsUrl: string } | null>(null);
+  const [sp, setSp] = useState<{ entityId: string; acsUrl: string; oidcCallbackUrl: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { api<{ settings: Sso; sp: { entityId: string; acsUrl: string } }>('/api/tenant/settings').then((d) => { setS(d.settings); setSp(d.sp); }).catch((e) => toast(errorText(e, lang), 'error')); }, [lang, toast]);
+  useEffect(() => {
+    api<{ settings: Omit<Sso, 'oidc_client_secret'>; sp: { entityId: string; acsUrl: string; oidcCallbackUrl: string } }>('/api/tenant/settings')
+      .then((d) => { setS({ ...d.settings, oidc_client_secret: '' }); setSp(d.sp); })
+      .catch((e) => toast(errorText(e, lang), 'error'));
+  }, [lang, toast]);
   if (!s || !sp) return <div className="py-16 text-center text-brand"><Spinner className="h-6 w-6" /></div>;
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    try { await api('/api/tenant/settings', { method: 'PUT', json: s }); toast(t('הגדרות ה-SSO נשמרו', 'SSO settings saved')); }
+    try {
+      await api('/api/tenant/settings', { method: 'PUT', json: s });
+      setS({
+        ...s,
+        oidc_client_secret: '',
+        has_oidc_client_secret: Boolean(s.oidc_client_id && (s.oidc_client_secret || s.has_oidc_client_secret)),
+      });
+      toast(t('הגדרות ה-SSO נשמרו', 'SSO settings saved'));
+    }
     catch (ex) { toast(errorText(ex, lang), 'error'); } finally { setSaving(false); }
   };
   const ro = (v: string) => <input readOnly dir="ltr" className={`${inputCls} bg-canvas font-mono text-xs`} value={v} onFocus={(e) => e.currentTarget.select()} />;
 
   return (
     <form onSubmit={save} className="space-y-5">
+      <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        {t(
+          'אפשר להפעיל SAML 2.0, OpenID Connect או את שניהם. משתמש חייב להיות מוגדר ופעיל ב-SmartQ; התפקיד שלו מנוהל כאן ואינו דורש הקצאת קבוצות ב-Entra.',
+          'Enable SAML 2.0, OpenID Connect, or both. Users must be provisioned and active in SmartQ; their role is managed here and does not require Entra group assignment.'
+        )}
+      </p>
       <section className={`${cardCls} space-y-3 p-5`}>
-        <h2 className="font-bold">{t('1. הגדרות להזין ב-Microsoft Entra ID', '1. Enter these in Microsoft Entra ID')}</h2>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-bold">SAML 2.0</h2>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={s.saml_enabled} onChange={(e) => setS({ ...s, saml_enabled: e.target.checked })} />{t('פעיל', 'Enabled')}</label>
+        </div>
         <Field label="Identifier (Entity ID)">{ro(sp.entityId)}</Field>
         <Field label="Reply URL (Assertion Consumer Service)">{ro(sp.acsUrl)}</Field>
-        <p className="text-xs text-ink-soft">{t('בהגדרות Entra: חתמו על ה-Assertion (Sign SAML assertion) והוסיפו Group claim.', 'In Entra: enable "Sign SAML assertion" and add a Group claim.')}</p>
-      </section>
-      <section className={`${cardCls} space-y-3 p-5`}>
-        <h2 className="font-bold">{t('2. נתונים מ-Entra', '2. Values from Entra')}</h2>
-        <Field label="Login URL"><input type="url" dir="ltr" className={inputCls} value={s.saml_login_url} onChange={(e) => setS({ ...s, saml_login_url: e.target.value })} placeholder="https://login.microsoftonline.com/…/saml2" /></Field>
+        <Field label={t('כתובת כניסה של ספק הזהויות', 'Identity provider sign-in URL')}><input type="url" dir="ltr" className={inputCls} value={s.saml_login_url} onChange={(e) => setS({ ...s, saml_login_url: e.target.value })} placeholder="https://idp.example.com/saml2" /></Field>
         <Field label={t('תעודת החתימה (Base64 / PEM)', 'Signing certificate (Base64 / PEM)')} hint={t('נדרשת לאימות החתימה. בלעדיה הכניסה עם SSO חסומה.', 'Required to verify signatures. Without it SSO sign-in stays disabled.')}><textarea rows={4} dir="ltr" className={`${inputCls} font-mono text-xs`} value={s.saml_idp_cert} onChange={(e) => setS({ ...s, saml_idp_cert: e.target.value })} /></Field>
       </section>
       <section className={`${cardCls} space-y-3 p-5`}>
-        <h2 className="font-bold">{t('3. שיוך תפקידים לפי קבוצות (Object ID)', '3. Map roles from groups (Object ID)')}</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Field label={t('מנהלים', 'Administrators')}><input dir="ltr" className={`${inputCls} font-mono text-xs`} value={s.saml_group_managers_id} onChange={(e) => setS({ ...s, saml_group_managers_id: e.target.value })} /></Field>
-          <Field label={t('טכנאי IT', 'IT technicians')}><input dir="ltr" className={`${inputCls} font-mono text-xs`} value={s.saml_group_admins_id} onChange={(e) => setS({ ...s, saml_group_admins_id: e.target.value })} /></Field>
-          <Field label={t('עובדים', 'Employees')}><input dir="ltr" className={`${inputCls} font-mono text-xs`} value={s.saml_group_users_id} onChange={(e) => setS({ ...s, saml_group_users_id: e.target.value })} /></Field>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-bold">OpenID Connect</h2>
+          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={s.oidc_enabled} onChange={(e) => setS({ ...s, oidc_enabled: e.target.checked })} />{t('פעיל', 'Enabled')}</label>
         </div>
-        <p className="text-xs text-ink-soft">{t('משתמש שלא שייך לאף קבוצה נכנס כעובד.', 'A user who belongs to none of these groups signs in as an employee.')}</p>
+        <Field label="Issuer URL" hint={t('הערך המדויק שמופיע בשדה issuer במסמך discovery של ספק הזהויות.', 'The exact issuer value from the identity provider discovery document.')}>
+          <input type="url" required={s.oidc_enabled} dir="ltr" className={inputCls} value={s.oidc_issuer} onChange={(e) => setS({ ...s, oidc_issuer: e.target.value })} placeholder="https://login.microsoftonline.com/{tenant-id}/v2.0" />
+        </Field>
+        <Field label={t('Client ID (אופציונלי)', 'Client ID (optional)')} hint={s.platform_oidc_client_available
+          ? t('ריק משתמש ב-App Registration הרב-ארגוני של SmartQ. אפשר להזין רישום OIDC נפרד של הארגון.', 'Blank uses SmartQ’s multi-tenant App Registration. You may enter an organization-owned OIDC registration.')
+          : t('הזינו Client ID וסוד של App Registration / OIDC client שהארגון יצר.', 'Enter the Client ID and secret of an App Registration / OIDC client created for this organization.')}>
+          <input dir="ltr" className={`${inputCls} font-mono text-xs`} value={s.oidc_client_id} onChange={(e) => setS({ ...s, oidc_client_id: e.target.value })} />
+        </Field>
+        {s.oidc_client_id && <Field label="Client Secret" hint={s.has_oidc_client_secret
+          ? t('סוד כבר שמור ומוצפן. השאירו ריק כדי לשמור אותו ללא שינוי, או הזינו סוד חדש לסבב.', 'A secret is already stored encrypted. Leave blank to keep it or enter a replacement to rotate it.')
+          : t('הסוד נשמר מוצפן בשרת ולא מוחזר למסך לאחר השמירה.', 'The secret is encrypted on the server and never returned to the browser.')}>
+          <input type="password" autoComplete="new-password" dir="ltr" className={`${inputCls} font-mono text-xs`} value={s.oidc_client_secret} onChange={(e) => setS({ ...s, oidc_client_secret: e.target.value })} />
+        </Field>}
+        <Field label="Redirect URI">{ro(sp.oidcCallbackUrl)}</Field>
+        <p className="text-xs text-ink-soft">{t(
+          'SmartQ משתמשת ב-Authorization Code + PKCE, מאמתת state/nonce וטוקנים, ואינה מבקשת הרשאות Graph. נדרשים משתמשים פעילים שהוקצו מראש ב-SmartQ.',
+          'SmartQ uses Authorization Code + PKCE, validates state/nonce and tokens, and does not request Graph permissions. Users must be active and provisioned in SmartQ.'
+        )}</p>
       </section>
       <div className="flex justify-end"><button type="submit" disabled={saving || demo} className={btnPrimary}>{saving && <Spinner />}{t('שמירת הגדרות', 'Save settings')}</button></div>
     </form>

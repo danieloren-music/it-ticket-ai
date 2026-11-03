@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, must } from '@/lib/db';
 import { route, readJson, str, email, slug, rateLimit, clientIp, HttpError } from '@/lib/http';
 import { hashPassword, verifyPassword } from '@/lib/password';
 import { attachTenantSession, normalizeRole } from '@/lib/auth';
@@ -25,15 +25,17 @@ export const POST = route(async (req: NextRequest) => {
   if (tenantId === DEMO_TENANT) throw invalid();
 
   const client = db();
-  const { data: tenant } = await client.from('tenants').select('id, status').eq('id', tenantId).maybeSingle();
+  const tenant = must(await client.from('tenants').select('id, status').eq('id', tenantId).maybeSingle());
   if (!tenant || String(tenant.status).toLowerCase() === 'suspended') throw invalid();
 
-  const { data: user } = await client
-    .from('tenant_users')
-    .select('id, email, full_name, role, department, site_location, phone_number, password_hash, is_active, failed_attempts, locked_until, must_change_password')
-    .eq('tenant_id', tenantId)
-    .eq('email', userEmail)
-    .maybeSingle();
+  const user = must(
+    await client
+      .from('tenant_users')
+      .select('id, email, full_name, role, department, site_location, phone_number, password_hash, is_active, failed_attempts, locked_until, must_change_password')
+      .eq('tenant_id', tenantId)
+      .eq('email', userEmail)
+      .maybeSingle()
+  );
 
   if (!user) {
     // Burn comparable CPU time so response timing does not reveal whether the account exists.
@@ -51,13 +53,16 @@ export const POST = route(async (req: NextRequest) => {
   if (!check.ok) {
     const attempts = (user.failed_attempts ?? 0) + 1;
     const lock = attempts >= MAX_FAILED;
-    await client
-      .from('tenant_users')
-      .update({
-        failed_attempts: lock ? 0 : attempts,
-        locked_until: lock ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null,
-      })
-      .eq('id', user.id);
+    must(
+      await client
+        .from('tenant_users')
+        .update({
+          failed_attempts: lock ? 0 : attempts,
+          locked_until: lock ? new Date(Date.now() + LOCK_MINUTES * 60_000).toISOString() : null,
+        })
+        .eq('tenant_id', tenantId)
+        .eq('id', user.id)
+    );
     await audit({ tenantId, actor: userEmail, action: lock ? 'auth.account_locked' : 'auth.login_failed', meta: { attempts }, ip });
     throw invalid();
   }
@@ -72,7 +77,7 @@ export const POST = route(async (req: NextRequest) => {
     last_login_at: new Date().toISOString(),
   };
   if (check.needsRehash) update.password_hash = await hashPassword(password);
-  await client.from('tenant_users').update(update).eq('id', user.id);
+  must(await client.from('tenant_users').update(update).eq('tenant_id', tenantId).eq('id', user.id));
 
   const role = normalizeRole(user.role);
   const res = NextResponse.json({
@@ -85,6 +90,7 @@ export const POST = route(async (req: NextRequest) => {
     name: user.full_name || user.email.split('@')[0],
     role,
     tenantId,
+    authSource: 'local',
     mcp: Boolean(user.must_change_password) || undefined,
     city: user.site_location || undefined,
     phone: user.phone_number || undefined,

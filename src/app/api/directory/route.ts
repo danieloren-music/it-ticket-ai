@@ -83,7 +83,8 @@ export const POST = route(async (req: NextRequest) => {
       patch.failed_attempts = 0;
       patch.locked_until = null;
     }
-    const user = must(await db().from('tenant_users').update(patch).eq('id', existing.id).select(COLUMNS).single());
+    const user = must(await db().from('tenant_users').update(patch)
+      .eq('tenant_id', session.tenantId).eq('id', existing.id).select(COLUMNS).single());
     await audit({
       tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'user.updated',
       target: userEmail, meta: { role, active: fields.is_active, passwordReset: Boolean(passwordHash) }, ip: clientIp(req),
@@ -120,7 +121,8 @@ export const DELETE = route(async (req: NextRequest) => {
     throw new HttpError(409, 'LAST_MANAGER', 'The organization must keep at least one active manager');
   }
 
-  must(await db().from('tenant_users').delete().eq('id', existing.id).select('id'));
+  must(await db().from('tenant_users').delete()
+    .eq('tenant_id', session.tenantId).eq('id', existing.id).select('id'));
   await audit({ tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'user.deleted', target, ip: clientIp(req) });
   return NextResponse.json({ success: true });
 });

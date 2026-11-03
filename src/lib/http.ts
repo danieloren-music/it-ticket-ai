@@ -69,11 +69,27 @@ export function clientIp(req: NextRequest): string {
 }
 
 export function baseUrl(req: NextRequest): string {
-  const env = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/+$/, '');
-  if (env) return env;
-  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? req.nextUrl.host;
-  const proto = req.headers.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
-  return `${proto}://${host}`;
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured) {
+    const url = new URL(configured);
+    const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    if (
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash ||
+      (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') ||
+      (process.env.NODE_ENV !== 'production' && url.protocol !== 'https:' && !isLocal)
+    ) {
+      throw new Error('NEXT_PUBLIC_APP_URL must be a secure origin without credentials or a path.');
+    }
+    return url.origin;
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('NEXT_PUBLIC_APP_URL must be configured in production.');
+  }
+  return req.nextUrl.origin;
 }
 
 /* ───────────── validation helpers ───────────── */

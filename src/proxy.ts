@@ -4,7 +4,7 @@ import { PLATFORM_COOKIE, TENANT_COOKIE, readPlatformSession, readTenantSession 
 /** Paths that never need a tenant/platform session. */
 const PUBLIC_PREFIXES = ['/home', '/_next', '/api', '/icon', '/apple-icon', '/opengraph-image', '/twitter-image', '/robots.txt', '/sitemap.xml', '/smartq-'];
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (pathname === '/') return NextResponse.redirect(new URL('/home', req.url));
@@ -62,9 +62,9 @@ export async function middleware(req: NextRequest) {
     manage: ['manager'],
   };
   const allowed = needs[sub];
-  if (allowed) {
-    if (!session || !sameTenant) return toLogin(pathname);
-    if (!allowed.includes(session.role)) return NextResponse.redirect(new URL(`/${tenant}/access-denied`, req.url));
+  if (!session || !sameTenant) return toLogin(pathname);
+  if (allowed && !allowed.includes(session.role)) {
+    return NextResponse.redirect(new URL(`/${tenant}/access-denied`, req.url));
   }
 
   return NextResponse.next();

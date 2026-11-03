@@ -1,4 +1,4 @@
--- Optional: paste the output of this query back to your assistant to verify the schema matches the app.
+-- Read-only: inspect required SmartQ columns. This does not alter the database.
 select table_name, column_name, data_type, is_nullable
 from information_schema.columns
 where table_schema = 'public'

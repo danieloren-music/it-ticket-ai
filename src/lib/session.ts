@@ -1,6 +1,6 @@
 /**
  * Signed session tokens (HMAC-SHA256) built on Web Crypto, so the exact same code
- * runs in the Edge middleware and in Node route handlers.
+ * runs in the Next.js proxy and Node route handlers.
  *
  * Token format: base64url(JSON payload) + "." + base64url(signature)
  */
@@ -13,6 +13,7 @@ export interface TenantSession {
   name: string;
   role: Role;
   tenantId: string;
+  authSource?: 'local' | 'sso' | 'demo';
   demo?: boolean;
   /** user must change their password before doing anything else */
   mcp?: boolean;
@@ -57,11 +58,11 @@ function fromBase64Url(input: string): Uint8Array {
 
 function getSecret(): string {
   const secret = process.env.SESSION_SECRET;
-  if (secret && secret.length >= 16) return secret;
+  if (secret && secret.length >= 32) return secret;
   if (process.env.NODE_ENV !== 'production') {
     return 'dev-only-insecure-secret-change-me';
   }
-  throw new Error('SESSION_SECRET is not configured (min 16 characters).');
+  throw new Error('SESSION_SECRET is not configured (minimum 32 characters).');
 }
 
 async function hmacKey(usage: 'sign' | 'verify'): Promise<CryptoKey> {

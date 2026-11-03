@@ -11,11 +11,20 @@ import { A11yWidget } from '@/components/A11yWidget';
 
 const SSO_ERRORS: Record<string, [string, string]> = {
   sso_failed: ['ההתחברות באמצעות SSO נכשלה. נסו שוב או פנו למנהל המערכת.', 'Single sign-on failed. Try again or contact your administrator.'],
+  sso_unavailable: ['שירות ההתחברות הארגוני אינו זמין כרגע. נסו שוב או פנו למנהל המערכת.', 'Organization sign-in is unavailable. Try again or contact your administrator.'],
   sso_not_configured: ['SSO עדיין לא הוגדר לארגון זה.', 'SSO is not configured for this organization yet.'],
   account_disabled: ['החשבון הושבת. פנו למנהל המערכת.', 'This account is disabled. Contact your administrator.'],
+  account_not_provisioned: ['החשבון אינו מוגדר בארגון. פנו למנהל המערכת.', 'Your account is not provisioned for this organization. Contact your administrator.'],
 };
 
-export default function LoginForm({ tenant, tenantName, returnTo, initialError, isDemo }: { tenant: string; tenantName: string; returnTo: string; initialError?: string; isDemo: boolean }) {
+export default function LoginForm({ tenant, tenantName, returnTo, initialError, isDemo, ssoProviders }: {
+  tenant: string;
+  tenantName: string;
+  returnTo: string;
+  initialError?: string;
+  isDemo: boolean;
+  ssoProviders: { saml: boolean; oidc: boolean };
+}) {
   const { t, lang } = useLang();
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -34,7 +43,7 @@ export default function LoginForm({ tenant, tenantName, returnTo, initialError, 
     } catch (ex) { setError(errorText(ex, lang)); setBusy(false); }
   };
 
-  const ssoHref = `/api/auth/saml/login?tenant=${tenant}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`;
+  const ssoQuery = `tenant=${encodeURIComponent(tenant)}${returnTo ? `&returnTo=${encodeURIComponent(returnTo)}` : ''}`;
 
   return (
     <div className="grid min-h-screen place-items-center bg-canvas p-4">
@@ -64,9 +73,21 @@ export default function LoginForm({ tenant, tenantName, returnTo, initialError, 
             </form>
           )}
 
-          {!isDemo && (
+          {!isDemo && (ssoProviders.saml || ssoProviders.oidc) && (
             <div className="mt-5 border-t border-line pt-5">
-              <a href={ssoHref} className={`${btnSecondary} w-full`}><KeyRound className="h-4 w-4 text-brand" />{t('כניסה עם Microsoft Entra ID', 'Sign in with Microsoft Entra ID')}</a>
+              <p className="mb-3 text-sm font-semibold">{t('כניסה ארגונית', 'Organization sign-in')}</p>
+              <div className="space-y-2">
+                {ssoProviders.oidc && (
+                  <a href={`/api/auth/oidc/login?${ssoQuery}`} className={`${btnSecondary} w-full`}>
+                    <KeyRound className="h-4 w-4 text-brand" />{t('כניסה עם OpenID Connect', 'Sign in with OpenID Connect')}
+                  </a>
+                )}
+                {ssoProviders.saml && (
+                  <a href={`/api/auth/saml/login?${ssoQuery}`} className={`${btnSecondary} w-full`}>
+                    <KeyRound className="h-4 w-4 text-brand" />{t('כניסה עם SAML 2.0', 'Sign in with SAML 2.0')}
+                  </a>
+                )}
+              </div>
             </div>
           )}
         </div>

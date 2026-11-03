@@ -4,23 +4,33 @@ import { route, readJson, str, baseUrl, bad, clientIp } from '@/lib/http';
 import { requireTenant } from '@/lib/auth';
 import { audit } from '@/lib/audit';
 import { spAcsUrl, spEntityId } from '@/lib/saml';
+import { decryptIdpSecret, encryptIdpSecret } from '@/lib/idp-secrets';
 
-const COLS = 'saml_login_url, saml_idp_cert, saml_group_managers_id, saml_group_admins_id, saml_group_users_id';
+export const runtime = 'nodejs';
+
+const COLS = 'saml_enabled, saml_login_url, saml_idp_cert, oidc_enabled, oidc_issuer, oidc_client_id, oidc_client_secret_ciphertext';
 
 /** SSO configuration for the signed-in manager's own organization. */
 export const GET = route(async (req: NextRequest) => {
   const session = await requireTenant(req, { roles: ['manager'] });
-  const { data } = await db().from('tenant_settings').select(COLS).eq('tenant_id', session.tenantId).maybeSingle();
+  const data = must(await db().from('tenant_settings').select(COLS).eq('tenant_id', session.tenantId).maybeSingle());
   const origin = baseUrl(req);
   return NextResponse.json({
     settings: {
+      saml_enabled: data?.saml_enabled ?? false,
       saml_login_url: data?.saml_login_url ?? '',
       saml_idp_cert: data?.saml_idp_cert ?? '',
-      saml_group_managers_id: data?.saml_group_managers_id ?? '',
-      saml_group_admins_id: data?.saml_group_admins_id ?? '',
-      saml_group_users_id: data?.saml_group_users_id ?? '',
+      oidc_enabled: data?.oidc_enabled ?? false,
+      oidc_issuer: data?.oidc_issuer ?? '',
+      oidc_client_id: data?.oidc_client_id ?? '',
+      has_oidc_client_secret: Boolean(data?.oidc_client_secret_ciphertext),
+      platform_oidc_client_available: Boolean(process.env.OIDC_CLIENT_ID && process.env.OIDC_CLIENT_SECRET),
     },
-    sp: { entityId: spEntityId(origin), acsUrl: spAcsUrl(origin) },
+    sp: {
+      entityId: spEntityId(origin),
+      acsUrl: spAcsUrl(origin),
+      oidcCallbackUrl: `${origin}/api/auth/oidc/callback`,
+    },
   });
 });
 
@@ -35,6 +45,12 @@ export const PUT = route(async (req: NextRequest) => {
   const session = await requireTenant(req, { roles: ['manager'], blockDemo: true });
   const body = await readJson(req);
 
+  const existing = must(
+    await db().from('tenant_settings')
+      .select('oidc_client_id, oidc_client_secret_ciphertext')
+      .eq('tenant_id', session.tenantId)
+      .maybeSingle()
+  );
   const loginUrl = str(body.saml_login_url, 500);
   if (loginUrl) {
     let u: URL;
@@ -42,19 +58,65 @@ export const PUT = route(async (req: NextRequest) => {
     if (u.protocol !== 'https:') throw bad('VALIDATION', 'Login URL must use https');
   }
 
+  const samlEnabled = body.saml_enabled === true;
+  const samlCert = normalizeCert(str(body.saml_idp_cert, 8000, { trim: false }));
+  if (samlEnabled && (!loginUrl || !samlCert)) {
+    throw bad('VALIDATION', 'SAML requires an HTTPS login URL and a signing certificate');
+  }
+
+  const oidcEnabled = body.oidc_enabled === true;
+  const issuer = str(body.oidc_issuer, 500);
+  if (issuer) {
+    let url: URL;
+    try { url = new URL(issuer); } catch { throw bad('VALIDATION', 'OIDC issuer is not a valid URL'); }
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || !url.hostname.includes('.')) {
+      throw bad('VALIDATION', 'OIDC issuer must be a public HTTPS issuer URL without credentials, query, or fragment');
+    }
+  }
+  if (oidcEnabled && !issuer) throw bad('VALIDATION', 'OIDC requires an issuer URL');
+
+  const clientId = str(body.oidc_client_id, 500) || null;
+  const clientSecret = str(body.oidc_client_secret, 4000, { trim: false });
+  if (clientSecret && !clientId) {
+    throw bad('VALIDATION', 'A client secret can only be saved with a client ID');
+  }
+  if (clientId && !clientSecret && (
+    existing?.oidc_client_id !== clientId || !existing.oidc_client_secret_ciphertext
+  )) {
+    throw bad('VALIDATION', 'Enter the client secret for this client ID');
+  }
+  let clientSecretCiphertext = existing?.oidc_client_secret_ciphertext ?? null;
+  if (clientSecret) clientSecretCiphertext = encryptIdpSecret(clientSecret);
+  else if (!clientId) clientSecretCiphertext = null;
+  if (oidcEnabled) {
+    if (!clientId && !(process.env.OIDC_CLIENT_ID && process.env.OIDC_CLIENT_SECRET)) {
+      throw bad('VALIDATION', 'Configure SmartQ OIDC client credentials or enter a tenant-specific client ID and secret');
+    }
+    if (clientId && !clientSecretCiphertext) throw bad('VALIDATION', 'A client secret is required for this client ID');
+    if (clientId && clientSecretCiphertext) decryptIdpSecret(clientSecretCiphertext);
+  }
+
   const payload = {
     tenant_id: session.tenantId,
+    saml_enabled: samlEnabled,
     saml_login_url: loginUrl,
-    saml_idp_cert: normalizeCert(str(body.saml_idp_cert, 8000, { trim: false })),
-    saml_group_managers_id: str(body.saml_group_managers_id, 80),
-    saml_group_admins_id: str(body.saml_group_admins_id, 80),
-    saml_group_users_id: str(body.saml_group_users_id, 80),
+    saml_idp_cert: samlCert,
+    oidc_enabled: oidcEnabled,
+    oidc_issuer: issuer || null,
+    oidc_client_id: clientId,
+    oidc_client_secret_ciphertext: clientSecretCiphertext,
     updated_at: new Date().toISOString(),
   };
   must(await db().from('tenant_settings').upsert(payload, { onConflict: 'tenant_id' }).select('tenant_id'));
   await audit({
     tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'settings.sso_updated',
-    meta: { hasCert: Boolean(payload.saml_idp_cert), hasLoginUrl: Boolean(loginUrl) }, ip: clientIp(req),
+    meta: {
+      samlEnabled,
+      oidcEnabled,
+      hasSamlCertificate: Boolean(payload.saml_idp_cert),
+      hasOidcClientSecret: Boolean(clientSecretCiphertext),
+    },
+    ip: clientIp(req),
   });
   return NextResponse.json({ success: true });
 });

@@ -65,7 +65,7 @@ export default function SelfServicePage() {
         method: 'POST',
         json: { messages: next.map(({ role, content }) => ({ role, content })), currentFormData: form, language: lang },
       });
-      setAiUsed(true);
+      setAiUsed(d.source === 'ai');
       setForm((p) => ({
         ...p,
         title: d.title || p.title || content.slice(0, 60),

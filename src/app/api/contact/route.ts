@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Resend } from 'resend';
 import { db } from '@/lib/db';
-import { route, readJson, str, email, rateLimit, clientIp } from '@/lib/http';
+import { HttpError, route, readJson, str, email, rateLimit, clientIp } from '@/lib/http';
 
 export const POST = route(async (req: NextRequest) => {
   const ip = clientIp(req);
@@ -18,10 +19,39 @@ export const POST = route(async (req: NextRequest) => {
     message: str(body.message, 2000),
     ip,
   };
+
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM_EMAIL?.trim();
+  const to = process.env.CONTACT_TO_EMAIL?.trim();
+  if (!apiKey || !from || !to) {
+    throw new HttpError(503, 'CONTACT_EMAIL_NOT_CONFIGURED', 'Contact email is not configured');
+  }
+
   const { error } = await db().from('contact_requests').insert(row);
   if (error) {
     console.error('[contact] insert failed:', error.message);
     throw new Error('Could not save contact request');
   }
+
+  try {
+    const { error: sendError } = await new Resend(apiKey).emails.send({
+      from,
+      to,
+      replyTo: row.email,
+      subject: 'New SmartQ contact request',
+      text: [
+        `Name: ${row.name}`,
+        `Email: ${row.email}`,
+        `Organization: ${row.company}`,
+        row.phone ? `Phone: ${row.phone}` : '',
+        row.message ? `Message: ${row.message}` : '',
+      ].filter(Boolean).join('\n'),
+    });
+    if (sendError) throw new Error(sendError.message);
+  } catch (error) {
+    console.error('[contact] Resend notification failed:', error instanceof Error ? error.message : 'Unknown error');
+    throw new HttpError(502, 'CONTACT_NOTIFICATION_FAILED', 'Your request was saved, but its email notification could not be sent');
+  }
+
   return NextResponse.json({ success: true }, { status: 201 });
 });

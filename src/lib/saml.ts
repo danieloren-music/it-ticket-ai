@@ -5,9 +5,6 @@ import { safeReturnTo } from './auth';
 export interface SamlSettings {
   saml_login_url?: string | null;
   saml_idp_cert?: string | null;
-  saml_group_managers_id?: string | null;
-  saml_group_admins_id?: string | null;
-  saml_group_users_id?: string | null;
 }
 
 export const spEntityId = (origin: string) => `${origin}/api/auth/saml/metadata`;
@@ -54,7 +51,6 @@ const CLAIMS = {
     'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name',
     'displayName', 'name',
   ],
-  groups: ['http://schemas.microsoft.com/ws/2008/06/identity/claims/groups', 'groups'],
 };
 
 function pick(profile: Record<string, unknown>, keys: string[]): unknown {
@@ -66,18 +62,13 @@ function pick(profile: Record<string, unknown>, keys: string[]): unknown {
   return undefined;
 }
 
-const asStrings = (v: unknown): string[] =>
-  Array.isArray(v) ? v.map(String) : v === undefined || v === null ? [] : [String(v)];
-
-export function extractIdentity(profile: Record<string, unknown>) {
-  const email = (asStrings(pick(profile, CLAIMS.email))[0] || String(profile.nameID || '')).trim().toLowerCase();
-  const name = (asStrings(pick(profile, CLAIMS.name))[0] || email.split('@')[0]).trim();
-  const groups = asStrings(pick(profile, CLAIMS.groups)).map((g) => g.trim());
-  return { email, name, groups };
+function firstString(value: unknown): string {
+  const first = Array.isArray(value) ? value[0] : value;
+  return typeof first === 'string' ? first : '';
 }
 
-export function roleFromGroups(groups: string[], s: SamlSettings): 'manager' | 'admin' | 'user' {
-  if (s.saml_group_managers_id && groups.includes(s.saml_group_managers_id)) return 'manager';
-  if (s.saml_group_admins_id && groups.includes(s.saml_group_admins_id)) return 'admin';
-  return 'user';
+export function extractIdentity(profile: Record<string, unknown>) {
+  const email = (firstString(pick(profile, CLAIMS.email)) || String(profile.nameID || '')).trim().toLowerCase();
+  const name = (firstString(pick(profile, CLAIMS.name)) || email.split('@')[0]).trim();
+  return { email, name };
 }

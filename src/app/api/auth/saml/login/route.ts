@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { db, must } from '@/lib/db';
 import { route, slug, baseUrl, rateLimit, clientIp } from '@/lib/http';
 import { buildSaml, createRelayState } from '@/lib/saml';
 import { safeReturnTo } from '@/lib/auth';
@@ -18,12 +18,12 @@ export const GET = route(async (req: NextRequest) => {
 
   if (tenant === DEMO_TENANT) return fail('sso_not_configured');
 
-  const [{ data: tenantRow }, { data: settings }] = await Promise.all([
-    db().from('tenants').select('id, status').eq('id', tenant).maybeSingle(),
-    db().from('tenant_settings').select('*').eq('tenant_id', tenant).maybeSingle(),
+  const [tenantRow, settings] = await Promise.all([
+    db().from('tenants').select('id, status').eq('id', tenant).maybeSingle().then(must),
+    db().from('tenant_settings').select('*').eq('tenant_id', tenant).maybeSingle().then(must),
   ]);
   if (!tenantRow || String(tenantRow.status).toLowerCase() === 'suspended') return fail('sso_not_configured');
-  if (!settings?.saml_login_url || !settings?.saml_idp_cert) return fail('sso_not_configured');
+  if (!settings?.saml_enabled || !settings.saml_login_url || !settings.saml_idp_cert) return fail('sso_not_configured');
 
   const saml = buildSaml(baseUrl(req), settings);
   const relayState = await createRelayState(tenant, returnTo);

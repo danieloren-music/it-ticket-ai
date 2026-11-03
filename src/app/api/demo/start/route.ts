@@ -23,6 +23,7 @@ export const POST = route(async (req: NextRequest) => {
     name: persona.name,
     role: key,
     tenantId: DEMO_TENANT,
+    authSource: 'demo',
     demo: true,
     city: persona.site,
   });

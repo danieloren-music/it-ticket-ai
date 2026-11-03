@@ -8,8 +8,8 @@
 - פרויקט Vercel (או שרת Next.js תואם) עם כתובת HTTPS קבועה לכל סביבה.
 - Node.js 20.9 ומעלה לפיתוח מקומי (Next.js 16); Vercel מנהלת את runtime בפריסה.
 - מפתח Supabase מסוג `service_role` שנשמר במשתני שרת בלבד.
-- מפתח `SESSION_SECRET` ייחודי לכל סביבה, שנוצר ממחולל אקראי קריפטוגרפי.
-- מפתח `IDP_ENCRYPTION_KEY` ייחודי לכל סביבה, להצפנת סודות OIDC של לקוחות.
+- `SESSION_SECRET` — מפתח חתימה פנימי של האפליקציה. חובה; יוצרים אותו פעם אחת לכל סביבה בעזרת הפקודה שבהמשך.
+- `IDP_ENCRYPTION_KEY` — לא נדרש להפעלה הרגילה או להדגמה. מוסיפים אותו רק אם מנהל ארגון שומר ב-SmartQ Client Secret פרטי משלו ל-OIDC.
 - מפתח Gemini אם רוצים להפעיל AI בארגוני לקוחות. הסימולציה הציבורית וסביבת ההדגמה אינן דורשות Gemini.
 - איש קשר ארגוני שיקבל את חשבון המנהל הראשי של הארגון.
 
@@ -24,8 +24,8 @@
 | `NEXT_PUBLIC_SUPABASE_URL` | כן | כתובת פרויקט Supabase |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | כן | מפתח ציבורי; השרת לא משתמש בו בפרודקשן |
 | `SUPABASE_SERVICE_ROLE_KEY` | כן בפרודקשן | גישת שרת למסד הנתונים; סוד שרת בלבד, ללא `NEXT_PUBLIC_` |
-| `SESSION_SECRET` | כן בפרודקשן | חתימת סשנים. לפחות 32 תווים אקראיים; מומלץ לייצר 48 bytes לכל סביבה |
-| `IDP_ENCRYPTION_KEY` | נדרש כששומרים סוד IdP לארגון | מפתח base64 של 32 bytes להצפנת OIDC Client Secret ב-AES-256-GCM; אין לשמור אותו במסד |
+| `SESSION_SECRET` | כן בפרודקשן | מפתח פנימי לחתימת כניסות. לפחות 32 תווים אקראיים; לא סיסמת משתמש |
+| `IDP_ENCRYPTION_KEY` | לא, אלא אם משתמשים ב-OIDC עם פרטי לקוח נפרדים | מצפין Client Secret של IdP שמנהל הארגון מזין. נדרש רק לתרחיש הזה; מפתח base64 של 32 bytes |
 | `OIDC_CLIENT_ID` | אופציונלי | Client ID של App Registration רב־ארגוני המנוהל על ידי SmartQ |
 | `OIDC_CLIENT_SECRET` | אופציונלי | סוד שרת של App Registration רב־ארגוני; יחד עם ה-Client ID, נשמר ב-Vercel בלבד |
 | `PLATFORM_BOOTSTRAP_EMAIL` | בהקמה ראשונה | כתובת מנהל SmartQ הראשוני של קונסולת הספק |
@@ -38,14 +38,21 @@
 | `NEXT_PUBLIC_APP_URL` | כן בפרודקשן | כתובת HTTPS הבסיסית המדויקת, למשל `https://support.example.co.il`; נדרשת ל-callbacks ול-metadata של SSO |
 | `DEMO_ENABLED` | לא | `false` מכבה את סביבת ההדגמה הציבורית |
 
-דוגמה ליצירת סוד מקומי:
+### יצירת `SESSION_SECRET` (חובה)
+
+זהו מפתח אבטחה פנימי של השרת, לא משהו שצריך לזכור או להקליד בכניסה. צרו אותו פעם אחת והעתיקו את הפלט לשדה `SESSION_SECRET` ב-Vercel (ול-`.env.local` בפיתוח מקומי). שמרו על ערך קבוע; החלפתו תנתק משתמשים מכל הסשנים הפעילים.
 
 ```powershell
 node -e "console.log(require('node:crypto').randomBytes(48).toString('base64'))"
-node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 ```
 
-הפקודה הראשונה יוצרת `SESSION_SECRET`; השנייה יוצרת `IDP_ENCRYPTION_KEY`. אין להשתמש באותו מפתח בין סביבות, ואין להשתמש באותו ערך לשני המשתנים. החלפת `SESSION_SECRET` מבטלת סשנים; החלפת `IDP_ENCRYPTION_KEY` בלי פענוח/הצפנה מחדש תמנע פענוח של סודות OIDC שכבר נשמרו.
+### `IDP_ENCRYPTION_KEY` (אופציונלי)
+
+אפשר להשאיר את המשתנה הזה לא מוגדר כרגע. צריך ליצור ולהגדיר אותו רק אם ארגון בוחר להזין Client ID ו-Client Secret משלו במסך הגדרות ה-SSO של SmartQ. שימוש ב-App Registration משותף של SmartQ, כניסה מקומית, SAML, ההדגמה והאתר אינם דורשים אותו. בלי המפתח, שמירת Client Secret פרטי של ארגון תידחה.
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
 
 הגדרת `OIDC_CLIENT_ID` ו-`OIDC_CLIENT_SECRET` היא זוג: או ששניהם מוגדרים, או ששניהם ריקים. זהו ה-client המשותף של SmartQ; מנהל ארגון יכול לבחור להשתמש בו או להזין client ID וסוד נפרדים של הארגון.
 
@@ -54,7 +61,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 1. הריצו את הסקריפט לקריאה בלבד [`supabase/maintenance/001_review_database.sql`](../supabase/maintenance/001_review_database.sql). בדקו אילו טבלאות ונתונים קיימים לפני כל שינוי.
 2. אפשר לבדוק עמודות נדרשות בעזרת [`supabase/inspect_schema.sql`](../supabase/inspect_schema.sql). טבלאות הבסיס `tenants`, `tenant_users`, `tickets` ו-`platform_admins` חייבות להתקיים. `001_enterprise.sql` מרחיבה סכימה קיימת ואינה יוצרת אותן.
 3. קחו גיבוי שניתן לשחזר, ואז הריצו ב-Supabase SQL Editor לפי הסדר את [`001_enterprise.sql`](../supabase/migrations/001_enterprise.sql) ואת [`003_oidc_sso.sql`](../supabase/migrations/003_oidc_sso.sql). אם `002_enable_rls.sql` כבר הורץ בעבר, אין צורך לבטל RLS; `003_oidc_sso.sql` בטוחה להרצה גם במצב זה.
-4. הוסיפו ב-Vercel את משתני Supabase, `SESSION_SECRET`, `IDP_ENCRYPTION_KEY` ואת יתר הסודות. מפתחות שרת אינם יכולים להתחיל ב-`NEXT_PUBLIC_`.
+4. הוסיפו ב-Vercel את משתני Supabase ואת `SESSION_SECRET`. הוסיפו `IDP_ENCRYPTION_KEY` רק אם תאפשרו לארגונים לשמור Client Secret פרטי ל-OIDC. מפתחות שרת אינם יכולים להתחיל ב-`NEXT_PUBLIC_`.
 5. פרסו מחדש ובדקו `GET /api/health`. נדרשת תשובה `200` עם `status: "ok"` ו-`database: "ok"`.
 6. בדקו כניסת מנהל, עובד וטכנאי, פתיחה וטיפול בקריאה, שינוי סיסמה, והגדרות SSO בשני הפרוטוקולים.
 7. רק אחרי בדיקת הגישה, הריצו [`002_enable_rls.sql`](../supabase/migrations/002_enable_rls.sql). המיגרציה חוסמת גישת `anon`/`authenticated` ישירה; השרת משתמש ב-`service_role`.
@@ -143,7 +150,7 @@ SmartQ תומכת בכניסת משתמשים עם **OpenID Connect (Authorizati
 
 ### אפשרות חלופית: הלקוח מביא OIDC client משלו
 
-מנהל הארגון יכול להגדיר Issuer, Client ID ו-Client Secret משלו. יש לרשום את Redirect URI המדויק שמוצג במסך SSO, להפעיל Authorization Code Flow ולהגדיר את ה-scopes `openid email profile`. ה-secret מוצפן בשרת ב-AES-256-GCM; ה-API לעולם לא מחזיר אותו למסך. למימוש זה חייב להיות `IDP_ENCRYPTION_KEY` מוגדר בכל סביבה.
+מנהל הארגון יכול להגדיר Issuer, Client ID ו-Client Secret משלו. יש לרשום את Redirect URI המדויק שמוצג במסך SSO, להפעיל Authorization Code Flow ולהגדיר את ה-scopes `openid email profile`. ה-secret מוצפן בשרת ב-AES-256-GCM; ה-API לעולם לא מחזיר אותו למסך. לתרחיש הזה בלבד יש להגדיר `IDP_ENCRYPTION_KEY` בכל סביבה. אם משתמשים ב-App Registration המשותף של SmartQ, אין צורך במפתח הזה.
 
 המימוש קורא את OIDC discovery metadata מתוך ה-Issuer; אין שדות לעריכה ידנית של authorization/token/JWKS URLs. נדרשים HTTPS, כתובות ציבוריות ומסמך discovery תקין. הקוד בודק כתובות DNS ציבוריות, משתמש בתוצאת DNS שנבדקה גם בחיבור עצמו כדי לצמצם DNS rebinding, חוסם redirects, מגביל זמן ותשובות ל-1 MiB. יש להפעיל בנוסף מדיניות egress ברמת התשתית כאשר ספק האירוח מאפשר זאת; בדיקות האפליקציה אינן תחליף להגנה שכבתית ברשת.
 

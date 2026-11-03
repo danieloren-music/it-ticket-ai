@@ -41,7 +41,7 @@ Browser ──► Next.js (Vercel) ──► Supabase (service-role key, RLS den
 2. Copy `.env.example` → `.env.local` and fill it in (see comments).
 3. Run the read-only inventory `supabase/maintenance/001_review_database.sql`; confirm the base tables exist (`001_enterprise.sql` does not create a fresh database schema).
 4. Take a restorable backup, then run `supabase/migrations/001_enterprise.sql` and `supabase/migrations/003_oidc_sso.sql` in Supabase SQL Editor.
-5. Set the same variables in Vercel, **including `SUPABASE_SERVICE_ROLE_KEY`, `SESSION_SECRET`, and `IDP_ENCRYPTION_KEY`**, and configure `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `CONTACT_TO_EMAIL` for contact notifications, then deploy.
+5. Set the same variables in Vercel, **including `SUPABASE_SERVICE_ROLE_KEY` and `SESSION_SECRET`**. `IDP_ENCRYPTION_KEY` is only needed if organizations will store their own OIDC client secrets; configure `RESEND_API_KEY`, `RESEND_FROM_EMAIL`, and `CONTACT_TO_EMAIL` for contact notifications, then deploy.
 6. Sign in at `/platform/login` with `PLATFORM_BOOTSTRAP_EMAIL/PASSWORD`, create a permanent platform user, then remove the bootstrap variables.
 7. After verifying sign-in works, run `supabase/migrations/002_enable_rls.sql`.
 8. For database inventory and explicitly approved, guarded cleanup, see `supabase/maintenance/`. Review and back up before dropping any table.

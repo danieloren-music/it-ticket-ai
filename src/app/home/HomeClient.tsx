@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Building2, Check, Gauge, MessageSquare, RotateCcw, Send, Sparkles, TicketCheck, Users } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
@@ -59,6 +59,7 @@ const EXAMPLES = [
 ];
 
 export default function HomeClient() {
+  const pageRef = useRef<HTMLDivElement>(null);
   const { t, lang, isHe } = useLang();
   const router = useRouter();
   const Arrow = isHe ? ArrowLeft : ArrowRight;
@@ -77,6 +78,25 @@ export default function HomeClient() {
   const [contactBusy, setContactBusy] = useState(false);
   const [contactError, setContactError] = useState('');
   const [contactSent, setContactSent] = useState(false);
+
+  useEffect(() => {
+    const page = pageRef.current;
+    if (!page || !('IntersectionObserver' in window)) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.motion === '1') return;
+
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('is-visible');
+          observer.unobserve(entry.target);
+        }
+      }
+      page.classList.add('home-motion-ready');
+    }, { threshold: 0.12, rootMargin: '0px 0px -6% 0px' });
+
+    page.querySelectorAll('[data-scroll-reveal]').forEach((element) => observer.observe(element));
+    return () => observer.disconnect();
+  }, []);
 
   const sendMessage = async (value = draft) => {
     const content = value.trim();
@@ -179,7 +199,7 @@ export default function HomeClient() {
   ];
 
   return (
-    <div className="bg-white">
+    <div ref={pageRef} className="bg-white">
       <a href="#main" className="skip-link">{t('דלג לתוכן', 'Skip to content')}</a>
 
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
@@ -208,9 +228,12 @@ export default function HomeClient() {
       </header>
 
       <main id="main">
-        <section className="border-b border-line bg-canvas">
-          <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-12 lg:py-16">
-            <div className="lg:col-span-4">
+        <section className="home-hero relative isolate overflow-hidden border-b border-line bg-canvas">
+          <div className="hero-orb hero-orb-one" aria-hidden="true" />
+          <div className="hero-orb hero-orb-two" aria-hidden="true" />
+          <div className="hero-orbit" aria-hidden="true"><span /></div>
+          <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-12 lg:py-16">
+            <div data-scroll-reveal className="scroll-reveal lg:col-span-4">
               <h1 className="text-4xl font-bold leading-tight tracking-tight text-ink sm:text-5xl">
                 {t('תמיכת IT מתחילה בשיחה.', 'IT support starts with a conversation.')}
               </h1>
@@ -222,7 +245,7 @@ export default function HomeClient() {
               </a>
             </div>
 
-            <section id="simulate" aria-labelledby="simulation-title" className="overflow-hidden rounded-2xl border border-line bg-white shadow-sm lg:col-span-8">
+            <section id="simulate" aria-labelledby="simulation-title" data-scroll-reveal data-reveal-delay="1" className="scroll-reveal overflow-hidden rounded-2xl border border-line bg-white shadow-lg shadow-brand/5 transition-shadow duration-500 hover:shadow-xl hover:shadow-brand/10 lg:col-span-8">
               <div className="flex items-center justify-between border-b border-line px-5 py-4">
                 <div className="flex items-center gap-2">
                   <MessageSquare className="h-5 w-5 text-brand" />
@@ -353,7 +376,7 @@ export default function HomeClient() {
         </section>
 
         <section id="demo" className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-          <div className="flex flex-wrap items-end justify-between gap-4">
+          <div data-scroll-reveal className="scroll-reveal flex flex-wrap items-end justify-between gap-4">
             <div>
               <h2 className="text-2xl font-bold">{t('נסו את סביבת העבודה', 'Explore the workspace')}</h2>
               <p className="mt-1 text-sm text-ink-soft">{t('נתוני הדגמה בלבד, מתאפסים מעת לעת.', 'Sample data only; periodically reset.')}</p>
@@ -378,7 +401,7 @@ export default function HomeClient() {
 
         <section id="contact" className="border-y border-line bg-canvas">
           <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-            <div className="grid gap-6 md:grid-cols-[1fr_2fr] md:items-center">
+            <div data-scroll-reveal data-reveal-delay="1" className="scroll-reveal grid gap-6 md:grid-cols-[1fr_2fr] md:items-center">
               <div>
                 <h2 className="text-xl font-bold">{t('רוצים לבדוק התאמה לארגון?', 'See if SmartQ fits your organization?')}</h2>
                 <p className="mt-1 text-sm text-ink-soft">{t('השאירו פרטים ונחזור אליכם.', 'Leave your details and we will be in touch.')}</p>

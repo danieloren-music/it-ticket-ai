@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, must } from '@/lib/db';
 import { route, readJson, str, email as emailField, bad, HttpError, clientIp } from '@/lib/http';
-import { requireTenant } from '@/lib/auth';
+import { normalizeRole, requireTenant } from '@/lib/auth';
 import { generateTempPassword, hashPassword, passwordPolicyError } from '@/lib/password';
 import { audit } from '@/lib/audit';
 import { ROLES, isOneOf } from '@/lib/constants';
@@ -19,13 +19,20 @@ export const GET = route(async (req: NextRequest) => {
 });
 
 async function managerCount(tenantId: string): Promise<number> {
-  const { count } = await db()
-    .from('tenant_users')
-    .select('id', { count: 'exact', head: true })
-    .eq('tenant_id', tenantId)
-    .eq('role', 'Manager')
-    .eq('is_active', true);
-  return count ?? 0;
+  const pageSize = 1000;
+  let count = 0;
+  for (let from = 0; ; from += pageSize) {
+    const users = must(
+      await db()
+        .from('tenant_users')
+        .select('role, is_active')
+        .eq('tenant_id', tenantId)
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1)
+    ) ?? [];
+    count += users.filter((user) => user.is_active !== false && normalizeRole(user.role) === 'manager').length;
+    if (users.length < pageSize) return count;
+  }
 }
 
 /** Create or update a directory user. */
@@ -55,7 +62,8 @@ export const POST = route(async (req: NextRequest) => {
     .maybeSingle();
 
   // Never leave an organization without an active manager.
-  if (existing && existing.role === 'Manager' && (role !== 'Manager' || fields.is_active === false)) {
+  if (existing && existing.is_active !== false && normalizeRole(existing.role) === 'manager'
+    && (normalizeRole(role) !== 'manager' || fields.is_active === false)) {
     if ((await managerCount(session.tenantId)) <= 1) {
       throw new HttpError(409, 'LAST_MANAGER', 'The organization must keep at least one active manager');
     }
@@ -115,9 +123,10 @@ export const DELETE = route(async (req: NextRequest) => {
     throw new HttpError(409, 'CANNOT_DELETE_SELF', 'You cannot delete your own account');
   }
   const { data: existing } = await db()
-    .from('tenant_users').select('id, role').eq('tenant_id', session.tenantId).eq('email', target).maybeSingle();
+    .from('tenant_users').select('id, role, is_active').eq('tenant_id', session.tenantId).eq('email', target).maybeSingle();
   if (!existing) throw new HttpError(404, 'NOT_FOUND', 'User not found');
-  if (existing.role === 'Manager' && (await managerCount(session.tenantId)) <= 1) {
+  if (existing.is_active !== false && normalizeRole(existing.role) === 'manager'
+    && (await managerCount(session.tenantId)) <= 1) {
     throw new HttpError(409, 'LAST_MANAGER', 'The organization must keep at least one active manager');
   }
 

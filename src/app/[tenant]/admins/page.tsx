@@ -3,24 +3,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Download, RefreshCw, Search } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, errorText } from '@/lib/api';
 import { fmtDateTime, useLang } from '@/lib/i18n';
 import { useSession } from '@/hooks/useSession';
 import { AppShell } from '@/components/AppShell';
 import { SlaBadge, TicketDrawer, type TicketRow } from '@/components/TicketDrawer';
-import { Badge, EmptyState, Spinner, btnSecondary, cardCls, inputCls, statusTone, urgencyTone } from '@/components/ui';
+import { Badge, EmptyState, Spinner, btnSecondary, cardCls, inputCls, statusTone, urgencyTone, useToast } from '@/components/ui';
 import { STATUSES, STATUS_LABELS, TEAMS, TEAM_LABELS, URGENCIES, URGENCY_LABELS, label } from '@/lib/constants';
 import { slaOf } from '@/lib/sla';
+import type { TicketPage } from '@/lib/tickets';
 
 type Quick = 'all' | 'open' | 'mine' | 'breached';
 
 export default function QueuePage() {
   const { t, lang } = useLang();
+  const { toast } = useToast();
   const tenantSlug = String(useParams().tenant ?? '').toLowerCase();
   const { session, tenant, logout, reload } = useSession(tenantSlug);
 
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<TicketPage['nextCursor']>(null);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('ALL');
   const [urgency, setUrgency] = useState('ALL');
@@ -30,7 +35,21 @@ export default function QueuePage() {
 
   const load = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
-    try { setTickets((await api<{ tickets: TicketRow[] }>('/api/tickets')).tickets); } catch { /* keep previous */ } finally { setLoading(false); }
+    try {
+      const page = await api<TicketPage>('/api/tickets');
+      if (!silent || !page.hasMore) {
+        setTickets(page.tickets);
+        setNextCursor(page.nextCursor);
+      } else {
+        setTickets((current) => {
+          const byId = new Map(current.map((ticket) => [ticket.id, ticket] as const));
+          for (const ticket of page.tickets) byId.set(ticket.id, ticket);
+          return [...byId.values()].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id.localeCompare(a.id));
+        });
+        setNextCursor((cursor) => cursor ?? page.nextCursor);
+      }
+      setHasMore(page.hasMore);
+    } catch { /* keep previous */ } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { if (session && !session.mustChangePassword) load(); }, [session, load]);
@@ -39,6 +58,26 @@ export default function QueuePage() {
     const id = setInterval(() => { if (document.visibilityState === 'visible') load(true); }, 30_000);
     return () => clearInterval(id);
   }, [load]);
+
+  const loadMore = async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const params = new URLSearchParams({ before: nextCursor.createdAt, beforeId: nextCursor.id });
+      const page = await api<TicketPage>(`/api/tickets?${params}`);
+      setTickets((current) => {
+        const byId = new Map(current.map((ticket) => [ticket.id, ticket] as const));
+        for (const ticket of page.tickets) byId.set(ticket.id, ticket);
+        return [...byId.values()].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id.localeCompare(a.id));
+      });
+      setNextCursor(page.nextCursor);
+      setHasMore(page.hasMore);
+    } catch (error) {
+      toast(errorText(error, lang), 'error');
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const done = (s: string) => s === 'Resolved' || s === 'Closed';
 
@@ -86,9 +125,9 @@ export default function QueuePage() {
     <AppShell tenant={tenantSlug} tenantName={tenant?.name ?? tenantSlug} session={session} active="admins" onLogout={logout} onReload={reload}>
       <div className="space-y-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div><h1 className="text-2xl font-bold">{t('תור קריאות', 'Service queue')}</h1><p className="text-ink-soft">{t('מתעדכן אוטומטית כל 30 שניות', 'Refreshes automatically every 30 seconds')}</p></div>
+          <div><h1 className="text-2xl font-bold">{t('תור קריאות', 'Service queue')}</h1><p className="text-ink-soft">{hasMore ? t(`${tickets.length} קריאות נטענו · טענו עוד לצפייה בישנות`, `${tickets.length} tickets loaded · load more to see older ones`) : t('כל הקריאות נטענו · מתעדכן כל 30 שניות', 'All tickets loaded · refreshes every 30 seconds')}</p></div>
           <div className="flex gap-2">
-            <button type="button" className={btnSecondary} onClick={exportCsv} disabled={!rows.length}><Download className="h-4 w-4" />{t('ייצוא CSV', 'Export CSV')}</button>
+            <button type="button" className={btnSecondary} onClick={exportCsv} disabled={!rows.length || hasMore} title={hasMore ? t('טענו את כל הקריאות לפני הייצוא', 'Load all tickets before exporting') : undefined}><Download className="h-4 w-4" />{t('ייצוא CSV', 'Export CSV')}</button>
             <button type="button" className={btnSecondary} onClick={() => load()} aria-label={t('רענון', 'Refresh')}><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} /></button>
           </div>
         </div>
@@ -144,6 +183,7 @@ export default function QueuePage() {
               </table>
             </div>
           )}
+          {hasMore && <div className="border-t border-line p-3 text-center"><button type="button" className={btnSecondary} onClick={loadMore} disabled={loadingMore}>{loadingMore && <Spinner />}{t('טעינת קריאות קודמות', 'Load older tickets')}</button></div>}
         </div>
       </div>
       <TicketDrawer ticketId={openId} staff onClose={() => setOpenId(null)} onChanged={() => load(true)} />

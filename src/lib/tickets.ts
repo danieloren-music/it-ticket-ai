@@ -38,6 +38,12 @@ export interface TicketRow {
   source: string | null;
 }
 
+export interface TicketPage {
+  tickets: TicketRow[];
+  hasMore: boolean;
+  nextCursor: { createdAt: string; id: string } | null;
+}
+
 export interface TicketEvent {
   id: string;
   ticket_id: string;
@@ -56,7 +62,7 @@ export async function addEvent(
   actor: string,
   type: TicketEvent['type'],
   extra: { from?: string | null; to?: string | null; body?: string | null; internal?: boolean } = {}
-) {
+): Promise<boolean> {
   const { error } = await db().from('ticket_events').insert({
     tenant_id: tenantId,
     ticket_id: ticketId,
@@ -68,6 +74,7 @@ export async function addEvent(
     internal: extra.internal ?? false,
   });
   if (error) console.warn('[tickets] failed to write event:', error.message);
+  return !error;
 }
 
 async function uniqueTicketNumber(tenantId: string): Promise<string> {
@@ -260,7 +267,8 @@ export async function addComment(
 
   if (ticket.status === 'Closed') throw new HttpError(409, 'TICKET_CLOSED', 'This ticket is closed');
 
-  await addEvent(session.tenantId, id, session.sub, internal ? 'note' : 'comment', { body: text, internal });
+  const saved = await addEvent(session.tenantId, id, session.sub, internal ? 'note' : 'comment', { body: text, internal });
+  if (!saved) throw new Error('Could not save ticket comment');
 
   if (staff && !internal && !ticket.first_response_at) {
     await db()

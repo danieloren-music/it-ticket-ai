@@ -10,6 +10,7 @@ import { AppShell } from '@/components/AppShell';
 import { SlaBadge, TicketDrawer, type TicketRow } from '@/components/TicketDrawer';
 import { Badge, EmptyState, Field, Modal, Spinner, btnPrimary, btnSecondary, cardCls, inputCls, statusTone, urgencyTone, useToast } from '@/components/ui';
 import { CATEGORIES, CATEGORY_LABELS, STATUS_LABELS, TEAMS, TEAM_LABELS, URGENCIES, URGENCY_LABELS, label } from '@/lib/constants';
+import type { TicketPage } from '@/lib/tickets';
 
 interface Msg { id: string; role: 'user' | 'assistant'; content: string }
 
@@ -36,6 +37,9 @@ export default function SelfServicePage() {
   const [copied, setCopied] = useState(false);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
+  const [loadingMoreTickets, setLoadingMoreTickets] = useState(false);
+  const [hasMoreTickets, setHasMoreTickets] = useState(false);
+  const [nextTicketCursor, setNextTicketCursor] = useState<TicketPage['nextCursor']>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -47,9 +51,34 @@ export default function SelfServicePage() {
 
   const loadTickets = useCallback(async () => {
     setLoadingTickets(true);
-    try { setTickets((await api<{ tickets: TicketRow[] }>('/api/tickets')).tickets); } catch { /* shown empty */ } finally { setLoadingTickets(false); }
+    try {
+      const page = await api<TicketPage>('/api/tickets');
+      setTickets(page.tickets);
+      setHasMoreTickets(page.hasMore);
+      setNextTicketCursor(page.nextCursor);
+    } catch { /* shown empty */ } finally { setLoadingTickets(false); }
   }, []);
   useEffect(() => { if (session && !session.mustChangePassword) loadTickets(); }, [session, loadTickets]);
+
+  const loadMoreTickets = async () => {
+    if (!nextTicketCursor || loadingMoreTickets) return;
+    setLoadingMoreTickets(true);
+    try {
+      const params = new URLSearchParams({ before: nextTicketCursor.createdAt, beforeId: nextTicketCursor.id });
+      const page = await api<TicketPage>(`/api/tickets?${params}`);
+      setTickets((current) => {
+        const byId = new Map(current.map((ticket) => [ticket.id, ticket] as const));
+        for (const ticket of page.tickets) byId.set(ticket.id, ticket);
+        return [...byId.values()].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at) || b.id.localeCompare(a.id));
+      });
+      setNextTicketCursor(page.nextCursor);
+      setHasMoreTickets(page.hasMore);
+    } catch (error) {
+      toast(errorText(error, lang), 'error');
+    } finally {
+      setLoadingMoreTickets(false);
+    }
+  };
 
   const quick = isHe
     ? ['נשפך קפה על המקלדת של הלפטופ', 'לא מצליח להתחבר ל-VPN מהבית', 'צריך הרשאה לתיקייה משותפת', 'המסך החיצוני מרצד']
@@ -181,6 +210,7 @@ export default function SelfServicePage() {
                   </li>
                 ))}
               </ul>}
+          {hasMoreTickets && <div className="border-t border-line p-3 text-center"><button type="button" onClick={loadMoreTickets} disabled={loadingMoreTickets} className={btnSecondary}>{loadingMoreTickets && <Spinner />}{t('טעינת קריאות קודמות', 'Load older tickets')}</button></div>}
         </section>
       </div>
 

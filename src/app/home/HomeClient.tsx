@@ -170,6 +170,27 @@ export default function HomeClient() {
     },
   ];
 
+  const workflow = [
+    {
+      icon: MessageSquare,
+      number: '01',
+      title: t('מתארים את הבעיה', 'Describe the issue'),
+      text: t('העובד מספר מה קרה בשיחה, במילים שלו.', 'The employee explains what happened in their own words.'),
+    },
+    {
+      icon: Sparkles,
+      number: '02',
+      title: t('הפרטים מתארגנים', 'Turn it into a clear request'),
+      text: t('הקריאה מקבלת קטגוריה, דחיפות ומערכת מושפעת.', 'The request is organized by category, urgency, and impacted system.'),
+    },
+    {
+      icon: Route,
+      number: '03',
+      title: t('הצוות יודע מה לעשות', 'Give the team a clear next step'),
+      text: t('הקריאה מנותבת לצוות המתאים ונשארת במעקב.', 'The request is routed to the right team and tracked.'),
+    },
+  ];
+
   return (
     <div ref={pageRef} className="bg-white">
       <a href="#main" className="skip-link">{t('דלג לתוכן', 'Skip to content')}</a>
@@ -211,7 +232,7 @@ export default function HomeClient() {
                   <MessageSquare className="h-5 w-5 text-brand" />
                   <h2 id="simulation-title" className="font-bold">{t('נסו את SmartQ', 'Try SmartQ')}</h2>
                 </div>
-                <span className="text-xs text-ink-soft">{t('עוזר תמיכה חכם', 'IT support assistant')}</span>
+                <span className="text-xs text-ink-soft">{t('הדגמה בלבד · לא נפתחת קריאה', 'Demo only · no ticket is created')}</span>
               </div>
 
               <div className="grid gap-5 p-4 sm:p-5 md:grid-cols-2">
@@ -327,6 +348,42 @@ export default function HomeClient() {
                 </article>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section aria-labelledby="workflow-title" className="relative isolate overflow-hidden bg-[#101c42] text-white">
+          <div className="pointer-events-none absolute -end-24 -top-32 h-80 w-80 rounded-full bg-violet-500/15 blur-3xl" aria-hidden="true" />
+          <div className="pointer-events-none absolute -bottom-40 -start-20 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl" aria-hidden="true" />
+          <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
+            <div data-scroll-reveal className="scroll-reveal mb-8 flex flex-wrap items-end justify-between gap-5">
+              <div className="max-w-2xl">
+                <p className="mb-2 inline-flex items-center gap-2 text-sm font-semibold text-indigo-200">
+                  <Sparkles className="h-4 w-4" />{t('פשוט וברור', 'Simple by design')}
+                </p>
+                <h2 id="workflow-title" className="text-2xl font-bold sm:text-3xl">
+                  {t('מהבעיה — לתור הטיפול.', 'From problem to service queue.')}
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-indigo-100/80 sm:text-base">
+                  {t('בלי לנחש למי לפנות ובלי לאבד את הפרטים בדרך.', 'No guessing who to contact and no lost details along the way.')}
+                </p>
+              </div>
+              <a href="#simulate" className="inline-flex items-center gap-2 rounded-lg border border-white/25 px-4 py-2.5 text-sm font-semibold transition hover:border-white/50 hover:bg-white/10">
+                {t('התנסו בהדגמה', 'Try the demo')}<Arrow className="h-4 w-4" />
+              </a>
+            </div>
+            <ol className="grid gap-3 md:grid-cols-3">
+              {workflow.map(({ icon: Icon, number, title, text }, index) => (
+                <li key={number} data-scroll-reveal data-reveal-delay={index === 0 ? undefined : '1'} className="scroll-reveal rounded-2xl border border-white/10 bg-white/[0.06] p-5 shadow-lg shadow-black/10 backdrop-blur-sm transition-colors hover:border-indigo-300/40 hover:bg-white/[0.09] sm:p-6">
+                  <div className="mb-6 flex items-center justify-between">
+                    <span className="grid h-11 w-11 place-items-center rounded-xl bg-indigo-400/15 text-indigo-200"><Icon className="h-5 w-5" /></span>
+                    <span className="font-mono text-sm font-semibold tracking-widest text-indigo-200/80">{number}</span>
+                  </div>
+                  <h3 className="text-lg font-bold">{title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-indigo-100/75">{text}</p>
+                  <div className="mt-6 h-px bg-gradient-to-l from-indigo-300/50 to-transparent" aria-hidden="true" />
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 

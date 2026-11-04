@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { ArrowLeft, ArrowRight, Check, Clock3, MessageSquare, RotateCcw, Route, Send, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Clock3, Menu, MessageSquare, RotateCcw, Route, Send, Sparkles, X } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { useLang } from '@/lib/i18n';
 import { A11yWidget } from '@/components/A11yWidget';
@@ -68,6 +68,7 @@ export default function HomeClient() {
   const [contactBusy, setContactBusy] = useState(false);
   const [contactError, setContactError] = useState('');
   const [contactSent, setContactSent] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const page = pageRef.current;
@@ -191,25 +192,65 @@ export default function HomeClient() {
     },
   ];
 
+  const navigation = [
+    { href: '#home', he: 'דף הבית', en: 'Home' },
+    { href: '#product', he: 'המוצר', en: 'Product' },
+    { href: '#workflow', he: 'איך זה עובד', en: 'How it works' },
+    { href: '#about', he: 'אודות', en: 'About' },
+    { href: '#contact', he: 'יצירת קשר', en: 'Contact' },
+  ];
+
   return (
     <div ref={pageRef} className="bg-white">
       <a href="#main" className="skip-link">{t('דלג לתוכן', 'Skip to content')}</a>
 
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
-        <div className="mx-auto flex min-h-16 max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6">
-          <Brand size={36} />
-          <div className="flex items-center gap-5">
-            <nav aria-label={t('ניווט ראשי', 'Main navigation')} className="hidden items-center gap-5 text-sm font-medium text-ink-soft sm:flex">
-              <a href="#product" className="transition-colors hover:text-brand">{t('המוצר', 'Product')}</a>
-              <a href="#contact" className="transition-colors hover:text-brand">{t('יצירת קשר', 'Contact')}</a>
+        <div className="mx-auto max-w-7xl px-4 sm:px-6">
+          <div className="flex min-h-[4.5rem] items-center justify-between gap-3">
+            <a href="#home" aria-label={t('SmartQ — דף הבית', 'SmartQ — home')} className="shrink-0 rounded-lg">
+              <Brand size={36} />
+            </a>
+            <nav aria-label={t('ניווט ראשי', 'Main navigation')} className="hidden items-center gap-1 lg:flex">
+              {navigation.map(({ href, he, en }) => (
+                <a key={href} href={href} className="rounded-lg px-3 py-2 text-sm font-medium text-ink-soft transition-colors hover:bg-canvas hover:text-brand">
+                  {t(he, en)}
+                </a>
+              ))}
             </nav>
-            <LangSwitch />
+            <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <LangSwitch />
+              <a href="#simulate" className="hidden items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-strong lg:inline-flex">
+                <Sparkles className="h-4 w-4" />{t('נסו את SmartQ', 'Try SmartQ')}<Arrow className="h-4 w-4" />
+              </a>
+              <button
+                type="button"
+                aria-label={menuOpen ? t('סגירת התפריט', 'Close menu') : t('פתיחת התפריט', 'Open menu')}
+                aria-expanded={menuOpen}
+                aria-controls="mobile-navigation"
+                onClick={() => setMenuOpen((open) => !open)}
+                className="grid h-10 w-10 place-items-center rounded-lg border border-line text-ink transition-colors hover:bg-canvas lg:hidden"
+              >
+                {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              </button>
+            </div>
           </div>
+          <nav id="mobile-navigation" aria-label={t('ניווט ראשי', 'Main navigation')} hidden={!menuOpen} className="border-t border-line py-3 lg:hidden">
+            <div className="grid gap-1">
+              {navigation.map(({ href, he, en }) => (
+                <a key={href} href={href} onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-medium text-ink-soft transition-colors hover:bg-canvas hover:text-brand">
+                  {t(he, en)}
+                </a>
+              ))}
+              <a href="#simulate" onClick={() => setMenuOpen(false)} className="mt-1 inline-flex items-center justify-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-strong">
+                <Sparkles className="h-4 w-4" />{t('נסו את SmartQ', 'Try SmartQ')}<Arrow className="h-4 w-4" />
+              </a>
+            </div>
+          </nav>
         </div>
       </header>
 
       <main id="main">
-        <section className="home-hero relative isolate overflow-hidden border-b border-line bg-canvas">
+        <section id="home" className="home-hero relative isolate scroll-mt-24 overflow-hidden border-b border-line bg-canvas">
           <div className="hero-orb hero-orb-one" aria-hidden="true" />
           <div className="hero-orb hero-orb-two" aria-hidden="true" />
           <div className="hero-orbit" aria-hidden="true"><span /></div>
@@ -333,7 +374,7 @@ export default function HomeClient() {
           </div>
         </section>
 
-        <section id="product" className="border-y border-line bg-white">
+        <section id="product" className="scroll-mt-24 border-y border-line bg-white">
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
             <div data-scroll-reveal className="scroll-reveal mb-7 max-w-2xl">
               <h2 className="text-2xl font-bold">{t('ניהול פניות IT במקום אחד', 'IT requests, managed in one place')}</h2>
@@ -351,7 +392,7 @@ export default function HomeClient() {
           </div>
         </section>
 
-        <section aria-labelledby="workflow-title" className="relative isolate overflow-hidden bg-[#101c42] text-white">
+        <section id="workflow" aria-labelledby="workflow-title" className="relative isolate scroll-mt-24 overflow-hidden bg-[#101c42] text-white">
           <div className="pointer-events-none absolute -end-24 -top-32 h-80 w-80 rounded-full bg-violet-500/15 blur-3xl" aria-hidden="true" />
           <div className="pointer-events-none absolute -bottom-40 -start-20 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl" aria-hidden="true" />
           <div className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
@@ -387,7 +428,22 @@ export default function HomeClient() {
           </div>
         </section>
 
-        <section id="contact" className="border-y border-line bg-canvas">
+        <section id="about" className="scroll-mt-24 border-b border-line bg-white">
+          <div className="mx-auto grid max-w-7xl gap-5 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto] md:items-center md:py-12">
+            <div data-scroll-reveal className="scroll-reveal max-w-3xl">
+              <p className="mb-2 text-sm font-semibold text-brand">{t('אודות SmartQ', 'About SmartQ')}</p>
+              <h2 className="text-2xl font-bold">{t('פחות חיפוש. יותר טיפול.', 'Less chasing. More support.')}</h2>
+              <p className="mt-2 leading-relaxed text-ink-soft">
+                {t('SmartQ מרכזת את פתיחת הפנייה, הפרטים החשובים ותור העבודה של צוות ה-IT — כדי שלעובדים יהיה ברור איך לבקש עזרה ולצוות יהיה ברור מה לטפל קודם.', 'SmartQ brings request intake, the details that matter, and the IT team’s queue together — so employees know how to ask for help and teams know what to work on next.')}
+              </p>
+            </div>
+            <a href="#contact" className="inline-flex w-fit items-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-brand hover:text-brand">
+              {t('דברו איתנו', 'Talk to us')}<Arrow className="h-4 w-4" />
+            </a>
+          </div>
+        </section>
+
+        <section id="contact" className="scroll-mt-24 border-y border-line bg-canvas">
           <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
             <div data-scroll-reveal data-reveal-delay="1" className="scroll-reveal grid gap-6 md:grid-cols-[1fr_2fr] md:items-center">
               <div>

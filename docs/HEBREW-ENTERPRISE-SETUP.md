@@ -1,122 +1,136 @@
-# SmartQ — הקמה ועלייה לאוויר
+<div dir="rtl" align="right">
 
-המדריך הזה מכסה הקמה של Supabase, הגדרת משתנים ב-Vercel ובדיקת המערכת. SSO והגדרות AI מופיעים בסוף, ורק אם צריך אותם.
+<h1 dir="rtl" align="right">SmartQ — הקמה ועלייה לאוויר</h1>
 
-## לפני שמתחילים
+<p dir="rtl" align="right">המדריך הזה מסביר איך להקים את Supabase, להגדיר משתנים ב-Vercel ולבדוק שהאתר עובד. הגדרות AI וכניסה ארגונית נמצאות בסוף, למי שצריך אותן.</p>
 
-- פרויקט Supabase ופרויקט Vercel.
-- דומיין HTTPS ל-SmartQ.
-- Node.js 20.9 ומעלה, אם מריצים מקומית.
-- **חשוב:** המיגרציות במאגר מרחיבות מסד קיים. הן לא יוצרות את טבלאות הבסיס. אם חסרות הטבלאות `tenants`, `tenant_users`, `tickets` או `platform_admins`, עצרו והגדירו קודם סכימת בסיס.
+<h2 dir="rtl" align="right">לפני שמתחילים</h2>
 
-## 1. הכנת Supabase
+<ul dir="rtl" align="right">
+<li>פרויקט Supabase ופרויקט Vercel.</li>
+<li>דומיין HTTPS ל-SmartQ.</li>
+<li>Node.js 20.9 ומעלה, אם מריצים מקומית.</li>
+<li><strong>חשוב:</strong> המיגרציות במאגר מרחיבות מסד קיים; הן לא יוצרות את טבלאות הבסיס. אם חסרה אחת מהטבלאות <code dir="ltr">tenants</code>, <code dir="ltr">tenant_users</code>, <code dir="ltr">tickets</code> או <code dir="ltr">platform_admins</code>, עצרו והגדירו קודם סכימת בסיס.</li>
+</ul>
 
-ב-Supabase, פתחו את **SQL Editor**:
+<h2 dir="rtl" align="right">1. הכנת Supabase</h2>
 
-1. הריצו את [בדיקת המסד לקריאה בלבד](../supabase/maintenance/001_review_database.sql) וודאו שטבלאות הבסיס קיימות.
-2. צרו גיבוי שניתן לשחזר.
-3. הריצו לפי הסדר:
-   - [001_enterprise.sql](../supabase/migrations/001_enterprise.sql)
-   - [003_oidc_sso.sql](../supabase/migrations/003_oidc_sso.sql)
-4. שמרו את **Project URL**, את מפתח ה-`anon` ואת מפתח `service_role` מתוך **Project Settings → API**.
+<p dir="rtl" align="right">ב-Supabase, פתחו את <strong>SQL Editor</strong> ובצעו:</p>
 
-אל תשתפו או תחשפו את מפתח `service_role`; הוא מיועד לשרת בלבד.
+<ol dir="rtl" align="right">
+<li>הריצו את <a href="../supabase/maintenance/001_review_database.sql">בדיקת המסד לקריאה בלבד</a> וודאו שטבלאות הבסיס קיימות.</li>
+<li>צרו גיבוי שניתן לשחזר.</li>
+<li>הריצו לפי הסדר את <a href="../supabase/migrations/001_enterprise.sql"><code dir="ltr">001_enterprise.sql</code></a> ואחריו את <a href="../supabase/migrations/003_oidc_sso.sql"><code dir="ltr">003_oidc_sso.sql</code></a>.</li>
+<li>שמרו את ה-<strong>Project URL</strong>, מפתח <code dir="ltr">anon</code> ומפתח <code dir="ltr">service_role</code> מתוך <strong dir="ltr">Project Settings → API</strong>.</li>
+</ol>
 
-## 2. הגדרת משתני סביבה
+<p dir="rtl" align="right">מפתח <code dir="ltr">service_role</code> הוא סוד שרת. אל תשתפו אותו ואל תחשפו אותו לדפדפן.</p>
 
-השתמשו ב-[`.env.example`](../.env.example) כתבנית:
+<h2 dir="rtl" align="right">2. הגדרת משתני סביבה</h2>
 
-1. צרו עותק בשם `.env.local` לפיתוח המקומי.
-2. החליפו את כל ערכי הדוגמה בערכים האמיתיים שלכם.
-3. ב-Vercel, פתחו את הפרויקט ואת **Environment Variables**, בחרו הוספה בכמות גדולה (Bulk), והדביקו את תוכן הקובץ או העלו אותו. בחרו את הסביבות המתאימות (Production, ולפי הצורך גם Preview ו-Development).
-4. אל תייבאו את `.env.example` כמו שהוא, אל תעלו `.env.local` ל-Git, ואל תשאירו ערכי דוגמה בפריסה. סמנו מפתחות וסיסמאות כ-**Secret** ב-Vercel; `NEXT_PUBLIC_*` מיועדים להיות גלויים לדפדפן.
+<p dir="rtl" align="right">השתמשו בקובץ <a href="../.env.example"><code dir="ltr">.env.example</code></a> כתבנית:</p>
 
-הערכים הדרושים לפרודקשן:
+<ol dir="rtl" align="right">
+<li>צרו עותק בשם <code dir="ltr">.env.local</code> לפיתוח מקומי.</li>
+<li>החליפו את ערכי הדוגמה בערכים האמיתיים שלכם.</li>
+<li>ב-Vercel פתחו את הפרויקט → <strong dir="ltr">Environment Variables</strong> → <strong dir="ltr">Bulk</strong>. הדביקו את תוכן הקובץ או העלו אותו, ובחרו <strong dir="ltr">Production</strong>. בחרו גם <strong dir="ltr">Preview</strong> או <strong dir="ltr">Development</strong> רק אם צריך אותן.</li>
+<li>אל תייבאו את <code dir="ltr">.env.example</code> כפי שהוא, אל תעלו את <code dir="ltr">.env.local</code> ל-Git, ואל תשאירו ערכי דוגמה בפריסה. סמנו מפתחות וסיסמאות כ-<strong dir="ltr">Secret</strong>. משתנים שמתחילים ב-<code dir="ltr">NEXT_PUBLIC_</code> גלויים לדפדפן.</li>
+</ol>
 
-| משתנה | מה להגדיר |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | כתובת פרויקט Supabase |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | מפתח `anon` של Supabase |
-| `SUPABASE_SERVICE_ROLE_KEY` | מפתח `service_role` — משתנה שרת סודי |
-| `SESSION_SECRET` | מפתח אקראי לחתימת session |
-| `NEXT_PUBLIC_APP_URL` | כתובת האתר המדויקת, למשל `https://support.example.com` |
-| `RESEND_API_KEY` | מפתח Resend לשליחת טופס יצירת הקשר |
-| `RESEND_FROM_EMAIL` | כתובת שולח מאומתת ב-Resend, למשל `SmartQ <contact@example.com>` |
-| `CONTACT_TO_EMAIL` | כתובת לקבלת פניות מהאתר |
+<p dir="rtl" align="right"><strong>הגדירו בפרודקשן את המשתנים הבאים:</strong></p>
 
-צרו ערך ל-`SESSION_SECRET` והריצו את הפקודה ב-PowerShell:
+<table dir="rtl" align="right" width="100%">
+<thead><tr><th align="right">משתנה</th><th align="right">מה להגדיר</th></tr></thead>
+<tbody>
+<tr><td><code dir="ltr">NEXT_PUBLIC_SUPABASE_URL</code></td><td>כתובת פרויקט Supabase</td></tr>
+<tr><td><code dir="ltr">NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>מפתח <code dir="ltr">anon</code> של Supabase</td></tr>
+<tr><td><code dir="ltr">SUPABASE_SERVICE_ROLE_KEY</code></td><td>מפתח <code dir="ltr">service_role</code> — סוד שרת</td></tr>
+<tr><td><code dir="ltr">SESSION_SECRET</code></td><td>מפתח אקראי לחתימת session</td></tr>
+<tr><td><code dir="ltr">NEXT_PUBLIC_APP_URL</code></td><td>כתובת האתר, למשל <code dir="ltr">https://support.example.com</code></td></tr>
+<tr><td><code dir="ltr">RESEND_API_KEY</code></td><td>מפתח Resend לטופס יצירת קשר</td></tr>
+<tr><td><code dir="ltr">RESEND_FROM_EMAIL</code></td><td>כתובת שולח מאומתת, למשל <code dir="ltr">SmartQ &lt;contact@example.com&gt;</code></td></tr>
+<tr><td><code dir="ltr">CONTACT_TO_EMAIL</code></td><td>כתובת לקבלת פניות מהאתר</td></tr>
+</tbody>
+</table>
 
-```powershell
-node -e "console.log(require('node:crypto').randomBytes(48).toString('base64'))"
-```
+<p dir="rtl" align="right">צרו <code dir="ltr">SESSION_SECRET</code> ב-PowerShell והריצו:</p>
 
-העתיקו את הפלט ל-`SESSION_SECRET`. השתמשו בערך נפרד לכל סביבה ושמרו אותו קבוע; החלפתו תנתק את המשתמשים.
+<pre dir="ltr"><code>node -e "console.log(require('node:crypto').randomBytes(48).toString('base64'))"</code></pre>
 
-### ערכים לפי צורך
+<p dir="rtl" align="right">העתיקו את הפלט ל-<code dir="ltr">SESSION_SECRET</code>. השתמשו בערך נפרד לכל סביבה ושמרו אותו קבוע; החלפתו תנתק משתמשים.</p>
 
-- `PLATFORM_BOOTSTRAP_EMAIL` ו-`PLATFORM_BOOTSTRAP_PASSWORD` — רק אם עדיין לא קיים מנהל SmartQ. הגדירו סיסמה ארוכה וייחודית, צרו מנהל קבוע ב-`/platform`, ואז הסירו את שני המשתנים מ-Vercel.
-- `GEMINI_API_KEY` — נדרש לסיווג קריאות AI בארגונים. ההדגמה הציבורית אינה משתמשת במפתח הזה.
-- `OIDC_CLIENT_ID` ו-`OIDC_CLIENT_SECRET` — זוג משתנים אופציונלי עבור אפליקציית OIDC משותפת של SmartQ. השאירו את שניהם ריקים או הגדירו את שניהם.
-- `IDP_ENCRYPTION_KEY` — נדרש רק אם ארגונים שומרים ב-SmartQ את ה-Client Secret הפרטי שלהם ל-OIDC. צרו מפתח base64 אקראי של 32 bytes:
+<h3 dir="rtl" align="right">משתנים נוספים — רק אם צריך</h3>
 
-  ```powershell
-  node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
-  ```
+<ul dir="rtl" align="right">
+<li><code dir="ltr">PLATFORM_BOOTSTRAP_EMAIL</code> ו-<code dir="ltr">PLATFORM_BOOTSTRAP_PASSWORD</code> — רק בהקמה הראשונה, אם עדיין אין מנהל SmartQ. אחרי יצירת מנהל קבוע ב-<code dir="ltr">/platform</code>, הסירו את שניהם מ-Vercel.</li>
+<li><code dir="ltr">GEMINI_API_KEY</code> — לסיווג קריאות AI בארגונים. ההדגמה הציבורית אינה זקוקה לו.</li>
+<li><code dir="ltr">OIDC_CLIENT_ID</code> ו-<code dir="ltr">OIDC_CLIENT_SECRET</code> — צמד אופציונלי לאפליקציית OIDC משותפת של SmartQ. הגדירו את שניהם יחד או השאירו את שניהם ריקים.</li>
+<li><code dir="ltr">IDP_ENCRYPTION_KEY</code> — נדרש רק אם ארגון שומר ב-SmartQ סוד OIDC משלו. צרו מפתח base64 אקראי של 32 bytes:</li>
+</ul>
 
-- `DEMO_ENABLED=false` — מכבה את סביבת ההדגמה הציבורית. ברירת המחדל היא מופעלת.
+<pre dir="ltr"><code>node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"</code></pre>
 
-אחרי שינוי משתני סביבה ב-Vercel, בצעו **Redeploy**.
+<ul dir="rtl" align="right">
+<li><code dir="ltr">DEMO_ENABLED=false</code> — מכבה את סביבת ההדגמה הציבורית. ברירת המחדל היא מופעלת.</li>
+</ul>
 
-## 3. הרצה מקומית (אופציונלי)
+<p dir="rtl" align="right">אחרי שינוי משתני סביבה ב-Vercel, בצעו <strong dir="ltr">Redeploy</strong>. השינוי לא נכנס לתוקף בפריסה קיימת.</p>
 
-```powershell
-npm ci
-Copy-Item .env.example .env.local
-```
+<h2 dir="rtl" align="right">3. הרצה מקומית (אופציונלי)</h2>
 
-ערכו את `.env.local`, מלאו את הערכים הדרושים והריצו:
+<p dir="rtl" align="right">ב-PowerShell, מתוך תיקיית הפרויקט:</p>
 
-```powershell
-npm run dev
-```
+<pre dir="ltr"><code>npm ci
+Copy-Item .env.example .env.local</code></pre>
 
-פתחו `http://localhost:3000`. `.env.local` אינו מיועד להעלאה ל-Git.
+<p dir="rtl" align="right">מלאו את הערכים בקובץ <code dir="ltr">.env.local</code> והריצו:</p>
 
-## 4. פריסה ובדיקת המערכת
+<pre dir="ltr"><code>npm run dev</code></pre>
 
-1. פרסו ל-Vercel והגדירו את `NEXT_PUBLIC_APP_URL` לכתובת ה-HTTPS שבה תשתמשו בפועל.
-2. פתחו `https://<הדומיין>/api/health`. צפו ל-HTTP `200`, עם `status: "ok"` ו-`database: "ok"`.
-3. אם זו התקנה ראשונה, התחברו אל `/platform/login` עם פרטי ה-bootstrap וצרו מנהל SmartQ קבוע. הסירו אחר כך את משתני ה-bootstrap ובצעו Redeploy.
-4. צרו ארגון ומנהל ארגון דרך `/platform`. המנהל מקבל סיסמה זמנית ומחליף אותה בכניסה הראשונה.
-5. בדקו כניסה, שינוי סיסמה, פתיחת קריאה, תור הטיפול והרשאות של עובד, טכנאי ומנהל.
-6. רק אחרי שהבדיקות עוברות, הריצו את [002_enable_rls.sql](../supabase/migrations/002_enable_rls.sql) ב-Supabase. בדקו שוב את `/api/health` ואת תהליכי הכניסה והקריאות.
+<p dir="rtl" align="right">פתחו <code dir="ltr">http://localhost:3000</code>. אל תעלו את <code dir="ltr">.env.local</code> ל-Git.</p>
 
-אם בדיקה נכשלת, בדקו את לוגי ה-Deployment ב-Vercel ואת שגיאת ה-API. כשל נפוץ הוא URL או מפתח Supabase שגויים, משתנה חסר, או הרצת מיגרציה על סכימה לא מתאימה.
+<h2 dir="rtl" align="right">4. פריסה ובדיקת המערכת</h2>
 
-## 5. כניסת Entra ID (רק אם מפעילים SSO)
+<ol dir="rtl" align="right">
+<li>פרסו ל-Vercel. ודאו ש-<code dir="ltr">NEXT_PUBLIC_APP_URL</code> מכיל את כתובת ה-HTTPS שבה תשתמשו.</li>
+<li>פתחו <code dir="ltr">https://&lt;הדומיין&gt;/api/health</code>. בדיקה תקינה מחזירה HTTP <code dir="ltr">200</code>, עם <code dir="ltr">status: "ok"</code> ו-<code dir="ltr">database: "ok"</code>.</li>
+<li>בהקמה הראשונה, היכנסו אל <code dir="ltr">/platform/login</code> עם פרטי ה-bootstrap, צרו מנהל SmartQ קבוע, הסירו את משתני ה-bootstrap ובצעו Redeploy.</li>
+<li>ב-<code dir="ltr">/platform</code> צרו ארגון ומנהל ארגון. המנהל מקבל סיסמה זמנית ומחליף אותה בכניסה הראשונה.</li>
+<li>בדקו כניסה, שינוי סיסמה, פתיחת קריאה ותור טיפול עבור עובד, טכנאי ומנהל.</li>
+<li>רק אחרי שהבדיקות עוברות, הריצו ב-Supabase את <a href="../supabase/migrations/002_enable_rls.sql"><code dir="ltr">002_enable_rls.sql</code></a>. בדקו שוב את health ואת תהליכי הכניסה והקריאות.</li>
+</ol>
 
-### OIDC
+<p dir="rtl" align="right">אם בדיקה נכשלת, בדקו את לוגי ה-Deployment ב-Vercel. ודאו שכתובת ומפתחות Supabase נכונים, שכל המשתנים הוגדרו, והמיגרציות מתאימות לסכימת המסד.</p>
 
-1. ב-App Registration הגדירו Redirect URI מסוג Web:
-   `https://<הדומיין>/api/auth/oidc/callback`
-2. הגדירו ב-Vercel את `OIDC_CLIENT_ID` ואת `OIDC_CLIENT_SECRET` אם משתמשים ב-App Registration המשותפת של SmartQ.
-3. בהגדרות SSO של הארגון, הזינו את Issuer המדויק שלו, למשל `https://login.microsoftonline.com/<tenant-id>/v2.0` — לא `common` או `organizations`.
-4. הקצו מראש ב-SmartQ משתמשים פעילים עם כתובת הדוא״ל המתאימה. התפקידים נקבעים ב-SmartQ; אין מיפוי קבוצות אוטומטי.
+<h2 dir="rtl" align="right">5. כניסת Entra ID (רק אם מפעילים SSO)</h2>
 
-אפשר גם להשתמש ב-OIDC client של הארגון. במקרה כזה, מגדירים אותו במסך ה-SSO של הארגון ומוסיפים את `IDP_ENCRYPTION_KEY` ל-Vercel. רשמו ב-IdP את כתובת ה-callback שמוצגת במסך.
+<h3 dir="rtl" align="right">OIDC</h3>
 
-### SAML
+<ol dir="rtl" align="right">
+<li>ב-App Registration הגדירו Redirect URI מסוג Web: <code dir="ltr">https://&lt;הדומיין&gt;/api/auth/oidc/callback</code>.</li>
+<li>ב-App Registration המשותפת של SmartQ, הגדירו ב-Vercel את <code dir="ltr">OIDC_CLIENT_ID</code> ואת <code dir="ltr">OIDC_CLIENT_SECRET</code>.</li>
+<li>בהגדרות SSO של הארגון, הזינו את ה-Issuer המדויק, למשל <code dir="ltr">https://login.microsoftonline.com/&lt;tenant-id&gt;/v2.0</code>. אל תשתמשו ב-<code dir="ltr">common</code> או ב-<code dir="ltr">organizations</code>.</li>
+<li>צרו מראש ב-SmartQ משתמשים פעילים עם כתובות הדוא״ל המתאימות. התפקידים נקבעים ב-SmartQ; אין מיפוי קבוצות אוטומטי.</li>
+</ol>
 
-1. במסך SSO של הארגון העתיקו את `Entity ID` ואת `Reply URL (ACS)` ל-IdP.
-2. הזינו ב-SmartQ את Login URL ואת תעודת החתימה הציבורית.
-3. בדקו עם משתמש פעיל שהוקצה מראש, ורק אז הפעילו SAML למשתמשים.
+<p dir="rtl" align="right">אם משתמשים ב-OIDC client של הארגון, הגדירו אותו במסך ה-SSO, הוסיפו ל-Vercel את <code dir="ltr">IDP_ENCRYPTION_KEY</code>, ורשמו ב-IdP את כתובת ה-callback שמוצגת במסך.</p>
 
-## בדיקה מהירה לפני מסירה
+<h3 dir="rtl" align="right">SAML</h3>
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm run build`
-- בדקו כניסה לכל תפקיד, יצירה וטיפול בקריאה, וגישה של משתמש לא מורשה.
-- בדקו ש-`SUPABASE_SERVICE_ROLE_KEY`, סיסמאות ומפתחות API אינם ב-Git או בקוד הדפדפן.
+<ol dir="rtl" align="right">
+<li>במסך SSO של הארגון העתיקו את <code dir="ltr">Entity ID</code> ואת <code dir="ltr">Reply URL (ACS)</code> ל-IdP.</li>
+<li>הזינו ב-SmartQ את כתובת ה-Login ואת תעודת החתימה הציבורית.</li>
+<li>בדקו עם משתמש פעיל שהוקצה מראש, ורק אז הפעילו SAML למשתמשים.</li>
+</ol>
 
-ההדגמה בדף הבית היא סימולציה: היא לא יוצרת קריאה אמיתית ולא משתמשת ב-Gemini.
+<h2 dir="rtl" align="right">בדיקה מהירה לפני מסירה</h2>
+
+<ul dir="rtl" align="right">
+<li>הריצו <code dir="ltr">npm run lint</code>, <code dir="ltr">npm run typecheck</code> ו-<code dir="ltr">npm run build</code>.</li>
+<li>בדקו כניסה לכל תפקיד, יצירה וטיפול בקריאה, וגישה של משתמש לא מורשה.</li>
+<li>ודאו שמפתחות וסיסמאות אינם ב-Git או בקוד הדפדפן.</li>
+</ul>
+
+<p dir="rtl" align="right">ההדגמה בדף הבית היא סימולציה: היא לא יוצרת קריאה אמיתית ולא משתמשת ב-Gemini.</p>
+
+</div>

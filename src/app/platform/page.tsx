@@ -43,7 +43,7 @@ export default function PlatformConsole() {
     <div className="min-h-screen">
       <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Brand size={28} suffix={<span className="rounded-md bg-ink px-2 py-0.5 text-xs font-medium text-white">{t('קונסולת ספק', 'Vendor console')}</span>} />
+          <Brand size={28} suffix={<span className="rounded-md bg-ink px-2 py-0.5 text-xs font-medium text-white">SmartQ Platform</span>} />
           <div className="flex items-center gap-3">
             <Link href="/home" className="hidden text-sm font-medium text-ink-soft hover:text-brand sm:inline">{t('לאתר SmartQ', 'SmartQ website')}</Link>
             <LangSwitch />

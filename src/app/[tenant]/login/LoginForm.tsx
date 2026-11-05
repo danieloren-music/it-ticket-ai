@@ -48,18 +48,18 @@ export default function LoginForm({ tenant, tenantName, returnTo, initialError, 
   return (
     <div className="grid min-h-screen place-items-center bg-canvas p-4">
       <div className="absolute end-4 top-4"><LangSwitch /></div>
-      <div className="w-full max-w-sm">
-        <div className="mb-6 flex justify-center"><Brand size={36} /></div>
-        <div className="rounded-2xl border border-line bg-white p-7 shadow-sm">
+      <div className="w-full max-w-md">
+        <div className="mb-8 flex justify-center"><Brand size={44} /></div>
+        <div className="rounded-2xl border border-line bg-white p-8 shadow-sm sm:p-10">
           <div className="mb-5">
-            <h1 className="text-xl font-bold">{t('כניסה למערכת', 'Sign in')}</h1>
+            <h1 className="text-2xl font-bold">{t('כניסה למערכת', 'Sign in')}</h1>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-soft"><Building2 className="h-4 w-4" />{tenantName}</p>
           </div>
 
           {isDemo ? (
             <p className="text-sm text-ink-soft">{t('סביבת ההדגמה נפתחת מהאתר הראשי, בלי סיסמה.', 'The demo organization opens from the main site, no password needed.')}</p>
           ) : (
-            <form onSubmit={submit} className="space-y-4">
+            <form onSubmit={submit} className="space-y-5">
               <Field label={t('אימייל ארגוני', 'Work email')}>
                 <div className="relative"><Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
                   <input type="email" required dir="ltr" autoComplete="username" className={`${inputCls} ps-9`} value={email} onChange={(e) => setEmail(e.target.value)} placeholder={`name@${tenant}.com`} /></div>

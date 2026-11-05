@@ -4,7 +4,7 @@ import { route } from '@/lib/http';
 import { requireTenant } from '@/lib/auth';
 
 export const GET = route(async (req: NextRequest) => {
-  const session = await requireTenant(req, { roles: ['manager'] });
+  const session = await requireTenant(req, { permission: 'audit:read' });
   const entries = must(
     await db()
       .from('audit_log')

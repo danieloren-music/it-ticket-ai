@@ -7,8 +7,8 @@ export function DailyBars({ data, label }: { data: { date: string; count: number
     <figure aria-label={label}>
       <div className="flex h-32 items-end gap-1.5">
         {data.map((d) => (
-          <div key={d.date} className="group relative flex h-full flex-1 items-end" title={`${d.date}: ${d.count}`}>
-            <div className="w-full rounded-t bg-brand/80 transition group-hover:bg-brand" style={{ height: `${Math.max(d.count ? 6 : 2, (d.count / max) * 100)}%`, opacity: d.count ? 1 : 0.25 }} />
+          <div key={`${d.date}-${d.count}`} className="group relative flex h-full flex-1 items-end" title={`${d.date}: ${d.count}`}>
+            <div className="chart-bar w-full rounded-t bg-brand/80 transition group-hover:bg-brand" style={{ height: `${Math.max(d.count ? 6 : 2, (d.count / max) * 100)}%`, opacity: d.count ? 1 : 0.25 }} />
           </div>
         ))}
       </div>

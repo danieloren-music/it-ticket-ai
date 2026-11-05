@@ -10,7 +10,7 @@ interface Row {
 
 /** Live KPIs computed from real tickets of the last 90 days. */
 export const GET = route(async (req: NextRequest) => {
-  const session = await requireTenant(req, { roles: ['admin', 'manager'] });
+  const session = await requireTenant(req, { permission: 'tickets:read_all' });
   const since = new Date(Date.now() - 90 * 86400_000).toISOString();
   const rows = (must(
     await db()

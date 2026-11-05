@@ -34,16 +34,22 @@ export function TicketDrawer({ ticketId, staff, onClose, onChanged }: { ticketId
   const [internal, setInternal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [teams, setTeams] = useState<string[]>([...TEAMS]);
 
   const load = useCallback(async () => {
     if (!ticketId) return;
     setLoading(true);
     try {
-      const d = await api<{ ticket: TicketRow; events: TicketEvent[] }>(`/api/tickets/${ticketId}`);
+      const [d, teamData] = await Promise.all([
+        api<{ ticket: TicketRow; events: TicketEvent[] }>(`/api/tickets/${ticketId}`),
+        api<{ teams: string[] }>('/api/tenant/teams'),
+      ]);
+      setTeams(teamData.teams);
       setTicket(d.ticket); setEvents(d.events); setDraft({});
     } catch (e) { toast(errorText(e, lang), 'error'); onClose(); } finally { setLoading(false); }
   }, [ticketId, lang, toast, onClose]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronize drawer data with the selected ticket.
   useEffect(() => { setTicket(null); setEvents([]); if (ticketId) load(); }, [ticketId, load]);
 
   const val = <K extends keyof TicketRow>(k: K) => (draft[k] !== undefined ? draft[k] : ticket?.[k]) as TicketRow[K];
@@ -106,7 +112,7 @@ export function TicketDrawer({ ticketId, staff, onClose, onChanged }: { ticketId
                 </Field>
                 <Field label={t('צוות מטפל', 'Team')}>
                   <select className={inputCls} value={val('assigned_team')} onChange={(e) => setDraft({ ...draft, assigned_team: e.target.value })}>
-                    {TEAMS.map((s) => <option key={s} value={s}>{label(TEAM_LABELS, s, lang)}</option>)}
+                    {[...new Set([...teams, ticket.assigned_team])].map((s) => <option key={s} value={s}>{label(TEAM_LABELS, s, lang)}</option>)}
                   </select>
                 </Field>
                 <Field label={t('טכנאי מטפל', 'Technician')}>

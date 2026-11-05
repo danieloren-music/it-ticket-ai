@@ -7,7 +7,7 @@ const PUBLIC_PREFIXES = ['/home', '/_next', '/api', '/icon', '/apple-icon', '/op
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (pathname === '/') return NextResponse.redirect(new URL('/home', req.url));
+  if (pathname === '/') return NextResponse.redirect(new URL('/platform/login', req.url));
   if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p)) || /\.[a-z0-9]+$/i.test(pathname)) {
     return NextResponse.next();
   }
@@ -56,17 +56,9 @@ export async function proxy(req: NextRequest) {
   }
 
   // Role based page access
-  const needs: Record<string, string[]> = {
-    'self-service': ['user', 'admin', 'manager'],
-    admins: ['admin', 'manager'],
-    manage: ['manager'],
-  };
-  const allowed = needs[sub];
   if (!session || !sameTenant) return toLogin(pathname);
-  if (allowed && !allowed.includes(session.role)) {
-    return NextResponse.redirect(new URL(`/${tenant}/access-denied`, req.url));
-  }
 
+  // Page access is a shell only; tenant-scoped API handlers enforce roles and group permissions.
   return NextResponse.next();
 }
 

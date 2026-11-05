@@ -15,6 +15,8 @@ export interface TenantSession {
   tenantId: string;
   authSource?: 'local' | 'sso' | 'demo';
   demo?: boolean;
+  permissions?: string[];
+  apiKeyId?: string;
   /** user must change their password before doing anything else */
   mcp?: boolean;
   city?: string;

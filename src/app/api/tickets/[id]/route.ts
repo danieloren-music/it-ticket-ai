@@ -23,7 +23,7 @@ export const GET = route<Ctx>(async (req, ctx) => {
 
 /** Staff-only field updates (status, urgency, team, assignee, notes). */
 export const PATCH = route<Ctx>(async (req: NextRequest, ctx) => {
-  const session = await requireTenant(req, { roles: ['admin', 'manager'] });
+  const session = await requireTenant(req, { permission: 'tickets:update' });
   const id = await idOf(ctx);
   const ticket = await updateTicket(session, id, await readJson(req));
   await audit({

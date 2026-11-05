@@ -4,6 +4,7 @@ import { route, readJson, rateLimit, clientIp, bad } from '@/lib/http';
 import { requireTenant } from '@/lib/auth';
 import { columnsFor, createTicket, parseTicketInput, type TicketPage, type TicketRow } from '@/lib/tickets';
 import { audit } from '@/lib/audit';
+import { addTicketAutomationsSafely } from '@/lib/automations';
 
 const PAGE_SIZE = 500;
 const CURSOR_DATE_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
@@ -31,7 +32,9 @@ export const GET = route(async (req: NextRequest) => {
     .eq('tenant_id', session.tenantId)
     .order('created_at', { ascending: false })
     .order('id', { ascending: false });
-  if (session.role === 'user') q = q.eq('reporter_email', session.sub);
+  if (session.role === 'user' && !session.permissions?.some((permission) => permission === 'tickets:read_all' || permission === 'tickets:update')) {
+    q = q.eq('reporter_email', session.sub);
+  }
   if (before && beforeId) {
     q = q.or(`created_at.lt.${before},and(created_at.eq.${before},id.lt.${beforeId})`);
   }
@@ -53,11 +56,16 @@ export const POST = route(async (req: NextRequest) => {
   rateLimit(`ticket:create:${session.tenantId}:${session.sub}`, session.demo ? 5 : 30, 60 * 60_000);
   if (session.demo) rateLimit(`ticket:create:demo-ip:${clientIp(req)}`, 8, 60 * 60_000);
 
-  const input = parseTicketInput(await readJson(req), session);
+  const input = await parseTicketInput(await readJson(req), session);
   const ticket = await createTicket(session, input);
+  const automation = await addTicketAutomationsSafely(session, ticket, input.category);
   await audit({
     tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'ticket.created',
-    target: ticket.ticket_number, meta: { urgency: ticket.urgency, team: ticket.assigned_team, source: input.source }, ip: clientIp(req),
+    target: ticket.ticket_number, meta: { urgency: ticket.urgency, team: automation.ticket.assigned_team, source: input.source, automation: automation.applied }, ip: clientIp(req),
   });
-  return NextResponse.json({ success: true, ticket }, { status: 201 });
+  return NextResponse.json({
+    success: true,
+    ticket: automation.ticket,
+    automation: { applied: automation.applied, warnings: automation.warnings },
+  }, { status: 201 });
 });

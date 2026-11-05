@@ -12,7 +12,7 @@ const COLS = 'saml_enabled, saml_login_url, saml_idp_cert, oidc_enabled, oidc_is
 
 /** SSO configuration for the signed-in manager's own organization. */
 export const GET = route(async (req: NextRequest) => {
-  const session = await requireTenant(req, { roles: ['manager'] });
+  const session = await requireTenant(req, { permission: 'settings:manage' });
   const data = must(await db().from('tenant_settings').select(COLS).eq('tenant_id', session.tenantId).maybeSingle());
   const origin = baseUrl(req);
   return NextResponse.json({
@@ -42,7 +42,7 @@ function normalizeCert(raw: string): string {
 }
 
 export const PUT = route(async (req: NextRequest) => {
-  const session = await requireTenant(req, { roles: ['manager'], blockDemo: true });
+  const session = await requireTenant(req, { permission: 'settings:manage', blockDemo: true });
   const body = await readJson(req);
 
   const existing = must(
@@ -117,6 +117,25 @@ export const PUT = route(async (req: NextRequest) => {
       hasOidcClientSecret: Boolean(clientSecretCiphertext),
     },
     ip: clientIp(req),
+  });
+  return NextResponse.json({ success: true });
+});
+
+export const DELETE = route(async (req: NextRequest) => {
+  const session = await requireTenant(req, { permission: 'settings:manage', blockDemo: true });
+  must(await db().from('tenant_settings').update({
+    saml_enabled: false,
+    saml_login_url: null,
+    saml_idp_cert: null,
+    oidc_enabled: false,
+    oidc_issuer: null,
+    oidc_client_id: null,
+    oidc_client_secret_ciphertext: null,
+    updated_at: new Date().toISOString(),
+  }).eq('tenant_id', session.tenantId).select('tenant_id'));
+  await audit({
+    tenantId: session.tenantId, actor: session.sub, role: session.role,
+    action: 'settings.sso_deleted', target: 'sso', ip: clientIp(req),
   });
   return NextResponse.json({ success: true });
 });

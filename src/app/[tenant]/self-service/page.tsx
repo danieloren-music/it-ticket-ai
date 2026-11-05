@@ -36,6 +36,7 @@ export default function SelfServicePage() {
   const [created, setCreated] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const [teams, setTeams] = useState<string[]>([...TEAMS]);
   const [loadingTickets, setLoadingTickets] = useState(true);
   const [loadingMoreTickets, setLoadingMoreTickets] = useState(false);
   const [hasMoreTickets, setHasMoreTickets] = useState(false);
@@ -59,6 +60,10 @@ export default function SelfServicePage() {
     } catch { /* shown empty */ } finally { setLoadingTickets(false); }
   }, []);
   useEffect(() => { if (session && !session.mustChangePassword) loadTickets(); }, [session, loadTickets]);
+  useEffect(() => {
+    api<{ teams: string[] }>('/api/tenant/teams').then((data) => setTeams(data.teams))
+      .catch((error) => toast(errorText(error, lang), 'error'));
+  }, [lang, toast]);
 
   const loadMoreTickets = async () => {
     if (!nextTicketCursor || loadingMoreTickets) return;
@@ -182,7 +187,7 @@ export default function SelfServicePage() {
               <Field label={t('קטגוריה', 'Category')}><select className={inputCls} value={form.category} onChange={set('category')}>{CATEGORIES.map((c) => <option key={c} value={c}>{label(CATEGORY_LABELS, c, lang)}</option>)}</select></Field>
               <Field label={t('דחיפות', 'Urgency')}><select className={inputCls} value={form.urgency} onChange={set('urgency')}>{URGENCIES.map((c) => <option key={c} value={c}>{label(URGENCY_LABELS, c, lang)}</option>)}</select></Field>
               <Field label={t('מערכת או רכיב מושפע', 'Impacted system')}><input className={inputCls} value={form.system_impacted} onChange={set('system_impacted')} maxLength={160} /></Field>
-              <Field label={t('צוות מטפל', 'Team')}><select className={inputCls} value={form.assigned_team} onChange={set('assigned_team')}>{TEAMS.map((c) => <option key={c} value={c}>{label(TEAM_LABELS, c, lang)}</option>)}</select></Field>
+              <Field label={t('צוות מטפל', 'Team')}><select className={inputCls} value={form.assigned_team} onChange={set('assigned_team')}>{teams.map((c) => <option key={c} value={c}>{label(TEAM_LABELS, c, lang)}</option>)}</select></Field>
               <Field label={t('מיקום', 'Location')}><input className={inputCls} value={form.user_city} onChange={set('user_city')} maxLength={120} /></Field>
               <Field label={t('טלפון לחזרה', 'Callback phone')}><input type="tel" dir="ltr" className={inputCls} value={form.user_phone} onChange={set('user_phone')} maxLength={40} /></Field>
             </div>

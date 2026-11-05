@@ -175,20 +175,20 @@ export default function HomeClient() {
     {
       icon: MessageSquare,
       number: '01',
-      title: t('מתארים את הבעיה', 'Describe the issue'),
-      text: t('העובד מספר מה קרה בשיחה, במילים שלו.', 'The employee explains what happened in their own words.'),
+      title: t('סביבה נפרדת לכל ארגון', 'A dedicated environment for every organization'),
+      text: t('כל ארגון מקבל סביבת SmartQ משלו, עם משתמשים, תורים, הגדרות ונתונים שמופרדים מארגונים אחרים.', 'Each organization gets its own SmartQ environment, with users, queues, settings, and data isolated from other organizations.'),
     },
     {
       icon: Sparkles,
       number: '02',
-      title: t('הפרטים מתארגנים', 'Turn it into a clear request'),
-      text: t('הקריאה מקבלת קטגוריה, דחיפות ומערכת מושפעת.', 'The request is organized by category, urgency, and impacted system.'),
+      title: t('מגדירים גישה ותהליכים', 'Configure access and workflows'),
+      text: t('מנהל הארגון מנהל משתמשים ותפקידים, מחבר ספק זהויות ומגדיר את אופן העבודה של צוות ה-IT.', 'The organization administrator manages users and roles, connects an identity provider, and configures how the IT team works.'),
     },
     {
       icon: Route,
       number: '03',
-      title: t('הצוות יודע מה לעשות', 'Give the team a clear next step'),
-      text: t('הקריאה מנותבת לצוות המתאים ונשארת במעקב.', 'The request is routed to the right team and tracked.'),
+      title: t('מרחיבים לפי הצורך', 'Grow the platform as needs change'),
+      text: t('מפעילים אוטומציות ומוסיפים יכולות ואינטגרציות לפי דרישה, בלי לערבב את תהליכי הארגון עם סביבת הפלטפורמה.', 'Enable automations and add capabilities and integrations as needed, without mixing organization workflows with the platform environment.'),
     },
   ];
 
@@ -218,6 +218,9 @@ export default function HomeClient() {
               ))}
             </nav>
             <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+              <a href="/platform/login" className="rounded-lg px-2 py-2 text-xs font-medium text-ink-soft transition-colors hover:bg-canvas hover:text-brand sm:text-sm">
+                {t('כניסת ספק', 'Vendor sign in')}
+              </a>
               <LangSwitch />
               <a href="#simulate" className="hidden items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-strong lg:inline-flex">
                 <Sparkles className="h-4 w-4" />{t('נסו את SmartQ', 'Try SmartQ')}<Arrow className="h-4 w-4" />
@@ -378,7 +381,7 @@ export default function HomeClient() {
           <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6">
             <div data-scroll-reveal className="scroll-reveal mb-7 max-w-2xl">
               <h2 className="text-2xl font-bold">{t('ניהול פניות IT במקום אחד', 'IT requests, managed in one place')}</h2>
-              <p className="mt-2 text-ink-soft">{t('מפתיחת הבקשה ועד לניתוב ולמעקב אחר הטיפול.', 'From request intake to routing and service tracking.')}</p>
+              <p className="mt-2 text-ink-soft">{t('כלי עבודה לצוות ה-IT: קליטת פניות, ניתוב חכם, תיעדוף לפי דחיפות ומעקב אחר יעדי השירות.', 'Tools for IT teams: request intake, smart routing, urgency-based prioritization, and service-target tracking.')}</p>
             </div>
             <div className="grid gap-4 md:grid-cols-3">
               {benefits.map(({ icon: Icon, title, text }, index) => (
@@ -405,7 +408,7 @@ export default function HomeClient() {
                   {t('מהבעיה — לתור הטיפול.', 'From problem to service queue.')}
                 </h2>
                 <p className="mt-2 text-sm leading-relaxed text-indigo-100/80 sm:text-base">
-                  {t('בלי לנחש למי לפנות ובלי לאבד את הפרטים בדרך.', 'No guessing who to contact and no lost details along the way.')}
+                  {t('הפלטפורמה מספקת לכל ארגון סביבת ניהול עצמאית, שאפשר להתאים ולהרחיב לאורך זמן.', 'The platform gives every organization an independent management environment that can be tailored and expanded over time.')}
                 </p>
               </div>
               <a href="#simulate" className="inline-flex items-center gap-2 rounded-lg border border-white/25 px-4 py-2.5 text-sm font-semibold transition hover:border-white/50 hover:bg-white/10">
@@ -432,9 +435,12 @@ export default function HomeClient() {
           <div className="mx-auto grid max-w-7xl gap-5 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto] md:items-center md:py-12">
             <div data-scroll-reveal className="scroll-reveal max-w-3xl">
               <p className="mb-2 text-sm font-semibold text-brand">{t('אודות SmartQ', 'About SmartQ')}</p>
-              <h2 className="text-2xl font-bold">{t('פחות חיפוש. יותר טיפול.', 'Less chasing. More support.')}</h2>
+              <h2 className="text-2xl font-bold">{t('שירות תמיכה ארגוני, בלי פניות שהולכות לאיבוד', 'Organizational IT support without lost requests')}</h2>
               <p className="mt-2 leading-relaxed text-ink-soft">
-                {t('SmartQ מרכזת את פתיחת הפנייה, הפרטים החשובים ותור העבודה של צוות ה-IT — כדי שלעובדים יהיה ברור איך לבקש עזרה ולצוות יהיה ברור מה לטפל קודם.', 'SmartQ brings request intake, the details that matter, and the IT team’s queue together — so employees know how to ask for help and teams know what to work on next.')}
+                {t('SmartQ מספקת לארגונים שירות Help Desk דיגיטלי שמרכז בקשות IT, מסייע להבין ולתעד אותן, ומחבר בין העובד לבין צוות הטיפול. כך מחליפים פניות מפוזרות במיילים ובצ׳אטים בתהליך שירות מתועד, מדיד וברור.', 'SmartQ provides organizations with a digital help desk that centralizes IT requests, helps clarify and document them, and connects employees with the team handling the work. Scattered email and chat requests become a documented, measurable, and transparent service process.')}
+              </p>
+              <p className="mt-3 leading-relaxed text-ink-soft">
+                {t('הפתרון נועד לצמצם זמן שמבוזבז על חיפוש פרטים, ניתוב ידני ותיאום סטטוס — ולתת למנהלים תמונה על עומסים, דחיפות ועמידה ביעדי שירות.', 'It reduces time spent chasing details, routing requests manually, and coordinating status updates, while giving managers visibility into workload, urgency, and service targets.')}
               </p>
             </div>
             <a href="#contact" className="inline-flex w-fit items-center gap-2 rounded-lg border border-line px-4 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-brand hover:text-brand">

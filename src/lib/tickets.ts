@@ -106,10 +106,21 @@ export interface CreateTicketInput {
 }
 
 /** Validates untrusted form input. Reporter identity falls back to the session. */
-export function parseTicketInput(body: Record<string, unknown>, session: TenantSession): CreateTicketInput {
+export async function parseTicketInput(body: Record<string, unknown>, session: TenantSession): Promise<CreateTicketInput> {
   const category = isOneOf(CATEGORIES, body.category) ? body.category : 'General IT Request';
   const urgency = isOneOf(URGENCIES, body.urgency) ? body.urgency : 'Medium';
-  const team = isOneOf(TEAMS, body.assigned_team) ? body.assigned_team : 'Helpdesk Tier 1';
+  let team = 'Helpdesk Tier 1';
+  if (body.assigned_team !== undefined && body.assigned_team !== null && body.assigned_team !== '') {
+    const requestedTeam = str(body.assigned_team, 120, { min: 2, field: 'Team' });
+    if (isOneOf(TEAMS, requestedTeam)) {
+      team = requestedTeam;
+    } else {
+      const group = must(await db().from('tenant_groups').select('name')
+        .eq('tenant_id', session.tenantId).eq('kind', 'team').eq('name', requestedTeam).maybeSingle());
+      if (!group) throw bad('VALIDATION', 'Choose an existing IT team');
+      team = group.name;
+    }
+  }
 
   // Employees can only file tickets in their own name; staff may file on behalf of someone.
   const staff = session.role !== 'user';
@@ -180,7 +191,8 @@ export async function getTicketForSession(session: TenantSession, id: string): P
   if (error) throw new Error(error.message);
   const row = data as unknown as TicketRow | null;
   if (!row) throw notFoundErr('Ticket');
-  if (session.role === 'user' && row.reporter_email?.toLowerCase() !== session.sub.toLowerCase()) {
+  if (session.role === 'user' && !session.permissions?.some((permission) => permission === 'tickets:read_all' || permission === 'tickets:update')
+    && row.reporter_email?.toLowerCase() !== session.sub.toLowerCase()) {
     throw notFoundErr('Ticket'); // do not leak existence
   }
   return row;
@@ -218,11 +230,15 @@ export async function updateTicket(
     }
   }
   if (body.assigned_team !== undefined) {
-    if (!isOneOf(TEAMS, body.assigned_team)) throw bad('VALIDATION', 'Invalid team');
-    if (body.assigned_team !== current.assigned_team) {
-      patch.assigned_team = body.assigned_team;
+    const team = str(body.assigned_team, 120, { min: 2, field: 'Team' });
+    const customTeam = !isOneOf(TEAMS, team)
+      ? must(await db().from('tenant_groups').select('id').eq('tenant_id', session.tenantId).eq('kind', 'team').eq('name', team).maybeSingle())
+      : true;
+    if (!customTeam) throw bad('VALIDATION', 'Invalid team');
+    if (team !== current.assigned_team) {
+      patch.assigned_team = team;
       events.push('team');
-      eventArgs.push({ from: current.assigned_team, to: body.assigned_team });
+      eventArgs.push({ from: current.assigned_team, to: team });
     }
   }
   if (body.assigned_technician !== undefined) {
@@ -262,7 +278,7 @@ export async function addComment(
 ): Promise<void> {
   const ticket = await getTicketForSession(session, id);
   const text = str(body.body, 2000, { min: 1, field: 'Comment' });
-  const staff = session.role !== 'user';
+  const staff = session.role !== 'user' || session.permissions?.includes('tickets:update') === true;
   const internal = staff && body.internal === true;
 
   if (ticket.status === 'Closed') throw new HttpError(409, 'TICKET_CLOSED', 'This ticket is closed');
@@ -288,10 +304,10 @@ export async function listEvents(session: TenantSession, ticketId: string): Prom
     .eq('ticket_id', ticketId)
     .order('created_at', { ascending: true })
     .limit(300);
-  if (session.role === 'user') q = q.eq('internal', false);
+  if (session.role === 'user' && !session.permissions?.includes('tickets:update')) q = q.eq('internal', false);
   return (must(await q) ?? []) as unknown as TicketEvent[];
 }
 
 export function assertStaff(session: TenantSession) {
-  if (session.role === 'user') throw forbidden();
+  if (session.role === 'user' && !session.permissions?.includes('tickets:update')) throw forbidden();
 }

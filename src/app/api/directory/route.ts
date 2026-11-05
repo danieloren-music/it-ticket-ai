@@ -11,7 +11,7 @@ const COLUMNS =
 
 /** Directory is manager-only. The tenant always comes from the signed session, never from the request. */
 export const GET = route(async (req: NextRequest) => {
-  const session = await requireTenant(req, { roles: ['manager'] });
+  const session = await requireTenant(req, { permission: 'directory:manage' });
   const users = must(
     await db().from('tenant_users').select(COLUMNS).eq('tenant_id', session.tenantId).order('created_at', { ascending: false }).limit(2000)
   );
@@ -37,7 +37,7 @@ async function managerCount(tenantId: string): Promise<number> {
 
 /** Create or update a directory user. */
 export const POST = route(async (req: NextRequest) => {
-  const session = await requireTenant(req, { roles: ['manager'], blockDemo: true });
+  const session = await requireTenant(req, { permission: 'directory:manage', blockDemo: true });
   const body = await readJson(req);
 
   const userEmail = emailField(body.email);
@@ -93,6 +93,15 @@ export const POST = route(async (req: NextRequest) => {
     }
     const user = must(await db().from('tenant_users').update(patch)
       .eq('tenant_id', session.tenantId).eq('id', existing.id).select(COLUMNS).single());
+    if (fields.is_active === false || role === 'User') {
+      const teamGroups = must(await db().from('tenant_groups').select('id')
+        .eq('tenant_id', session.tenantId).eq('kind', 'team'));
+      const groupIds = (teamGroups ?? []).map((group) => group.id);
+      if (groupIds.length) {
+        must(await db().from('tenant_group_members').delete()
+          .eq('tenant_id', session.tenantId).eq('user_email', userEmail).in('group_id', groupIds));
+      }
+    }
     await audit({
       tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'user.updated',
       target: userEmail, meta: { role, active: fields.is_active, passwordReset: Boolean(passwordHash) }, ip: clientIp(req),
@@ -116,7 +125,7 @@ export const POST = route(async (req: NextRequest) => {
 });
 
 export const DELETE = route(async (req: NextRequest) => {
-  const session = await requireTenant(req, { roles: ['manager'], blockDemo: true });
+  const session = await requireTenant(req, { permission: 'directory:manage', blockDemo: true });
   const target = emailField(req.nextUrl.searchParams.get('email'));
 
   if (target === session.sub.toLowerCase()) {
@@ -130,6 +139,7 @@ export const DELETE = route(async (req: NextRequest) => {
     throw new HttpError(409, 'LAST_MANAGER', 'The organization must keep at least one active manager');
   }
 
+  must(await db().from('tenant_group_members').delete().eq('tenant_id', session.tenantId).eq('user_email', target));
   must(await db().from('tenant_users').delete()
     .eq('tenant_id', session.tenantId).eq('id', existing.id).select('id'));
   await audit({ tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'user.deleted', target, ip: clientIp(req) });

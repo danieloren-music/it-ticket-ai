@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Copy, ExternalLink, KeyRound, LogOut, Pencil, Plus, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { Check, Copy, ExternalLink, KeyRound, LogOut, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { fmtDate, fmtDateTime, useLang } from '@/lib/i18n';
 import { Badge, Brand, EmptyState, Field, LangSwitch, Modal, Spinner, btnDanger, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
@@ -13,7 +14,7 @@ import { PLATFORM_READONLY_ROLES, PLATFORM_ROLES } from '@/lib/constants';
 type Tab = 'overview' | 'tenants' | 'users' | 'leads' | 'audit';
 interface Tenant { id: string; name: string; domain: string; admin_email: string; status: string; created_at: string; user_count: number; ticket_count: number; open_tickets: number }
 interface Admin { id: string; email: string; full_name: string; role: string; department: string; last_login_at: string | null }
-interface Stats { tenants: { total: number; active: number }; users: number; tickets: { total: number; open: number; ai_created: number }; daily: { date: string; count: number }[]; leads: Lead[] }
+interface Stats { tenants: { total: number; active: number; trial: number; suspended: number }; users: number; tickets: { total: number; open: number; ai_created: number }; daily: { date: string; count: number }[]; leads: Lead[] }
 interface Lead { id: string; name: string; email: string; company: string; phone: string | null; message: string | null; created_at: string }
 interface AuditRow { id: string; tenant_id: string | null; actor_email: string; action: string; target: string | null; ip: string | null; created_at: string }
 interface Me { email: string; name: string; role: string; department: string }
@@ -21,7 +22,7 @@ interface Me { email: string; name: string; role: string; department: string }
 const statusTone = (s: string) => s.toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : s.toLowerCase() === 'trial' ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-amber-50 text-amber-700 ring-amber-200';
 
 export default function PlatformConsole() {
-  const { t, lang } = useLang();
+  const { t } = useLang();
   const { toast } = useToast();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('overview');
@@ -44,6 +45,7 @@ export default function PlatformConsole() {
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
           <Brand size={28} suffix={<span className="rounded-md bg-ink px-2 py-0.5 text-xs font-medium text-white">{t('קונסולת ספק', 'Vendor console')}</span>} />
           <div className="flex items-center gap-3">
+            <Link href="/home" className="hidden text-sm font-medium text-ink-soft hover:text-brand sm:inline">{t('לאתר SmartQ', 'SmartQ website')}</Link>
             <LangSwitch />
             <button type="button" onClick={() => setProfileOpen(true)} className="hidden text-start leading-tight hover:opacity-80 sm:block"><span className="block text-sm font-semibold">{me.name}</span><span className="block text-xs text-ink-soft">{me.role}</span></button>
             <button type="button" onClick={logout} className={btnSecondary}><LogOut className="h-4 w-4" /><span className="hidden sm:inline">{t('התנתקות', 'Sign out')}</span></button>
@@ -77,20 +79,49 @@ export default function PlatformConsole() {
 
 /* ───────── Overview ───────── */
 function OverviewTab() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [s, setS] = useState<Stats | null>(null);
-  useEffect(() => { api<Stats>('/api/platform/stats').then(setS).catch(() => undefined); }, []);
-  if (!s) return <div className="py-16 text-center text-brand"><Spinner className="h-6 w-6" /></div>;
+  const [updated, setUpdated] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const load = useCallback(async () => {
+    setRefreshing(true);
+    try { setS(await api<Stats>('/api/platform/stats')); setUpdated(new Date().toISOString()); setError(''); }
+    catch (ex) { setError(errorText(ex, lang)); }
+    finally { setRefreshing(false); }
+  }, [lang]);
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [load]);
+  if (!s && !error) return <div className="py-16 text-center text-brand"><Spinner className="h-6 w-6" /></div>;
+  if (!s) return <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>;
   const kpis: [string, string][] = [
-    [t('ארגונים פעילים', 'Active organizations'), `${s.tenants.active} / ${s.tenants.total}`],
+    [t('ארגונים', 'Organizations'), String(s.tenants.total)],
+    [t('פעילים', 'Active'), String(s.tenants.active)],
+    [t('בתקופת ניסיון', 'On trial'), String(s.tenants.trial)],
+    [t('מושהים', 'Suspended'), String(s.tenants.suspended)],
     [t('משתמשים', 'Users'), String(s.users)],
     [t('קריאות בסך הכל', 'Total tickets'), String(s.tickets.total)],
+    [t('קריאות פתוחות', 'Open tickets'), String(s.tickets.open)],
     [t('נפתחו דרך Tony', 'Created via Tony'), String(s.tickets.ai_created)],
   ];
   return (
     <div className="space-y-5">
+      {error && <p role="status" className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800">{t('הנתונים מוצגים מהעדכון האחרון. ', 'Showing the last successful snapshot. ')}{error}</p>}
       <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">{kpis.map(([k, v]) => <div key={k} className={`${cardCls} p-4`}><dt className="text-sm text-ink-soft">{k}</dt><dd className="mt-1 text-3xl font-bold tnum">{v}</dd></div>)}</dl>
-      <section className={`${cardCls} p-5`}><h2 className="mb-4 font-bold">{t('קריאות בכל הארגונים, 14 ימים', 'Tickets across all organizations, 14 days')}</h2><DailyBars data={s.daily} label={t('קריאות ליום', 'Tickets per day')} /></section>
+      <section className={`${cardCls} p-5`}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-bold">{t('קריאות בכל הארגונים, 14 ימים', 'Tickets across all organizations, 14 days')}</h2>
+          <div className="flex items-center gap-3 text-xs text-ink-soft">
+            <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />{t('מתעדכן כל 30 שניות', 'Live · refreshes every 30 seconds')}</span>
+            {updated && <span>{t('עודכן', 'Updated')} {fmtDateTime(updated, lang)}</span>}
+            <button type="button" className="rounded-md border border-line p-1.5 hover:bg-canvas" onClick={() => void load()} aria-label={t('רענון', 'Refresh')}><RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} /></button>
+          </div>
+        </div>
+        <DailyBars data={s.daily} label={t('קריאות ליום', 'Tickets per day')} />
+      </section>
     </div>
   );
 }
@@ -183,6 +214,7 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
   const { toast, confirm } = useToast();
   const [rows, setRows] = useState<Admin[] | null>(null);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Admin | null>(null);
   const [f, setF] = useState({ username: '', fullName: '', role: 'Lead Support Engineer', department: 'Cloud Operations' });
   const [saving, setSaving] = useState(false);
   const isSuper = me.role === 'Super Admin';
@@ -192,10 +224,11 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    const email = `${f.username.replace(/[^a-z0-9._-]/g, '')}@smartq.ai`;
+    const email = editing?.email ?? `${f.username.replace(/[^a-z0-9._-]/g, '')}@smartq.ai`;
     try {
       const d = await api<{ tempPassword?: string }>('/api/platform/admins', { method: 'POST', json: { email, fullName: f.fullName, role: f.role, department: f.department } });
       setOpen(false);
+      setEditing(null);
       if (d.tempPassword) onIssued({ title: t('סיסמה זמנית למשתמש פלטפורמה', 'Temporary password for the platform user'), email, password: d.tempPassword });
       load();
     } catch (ex) { toast(errorText(ex, lang), 'error'); } finally { setSaving(false); }
@@ -204,22 +237,29 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
     if (!(await confirm({ title: t('מחיקת משתמש', 'Delete user'), message: `${a.full_name} (${a.email})`, confirmLabel: t('מחיקה', 'Delete'), danger: true }))) return;
     try { await api(`/api/platform/admins?email=${encodeURIComponent(a.email)}`, { method: 'DELETE' }); load(); } catch (ex) { toast(errorText(ex, lang), 'error'); }
   };
+  const edit = (a: Admin) => {
+    setEditing(a);
+    setF({ username: a.email.split('@')[0], fullName: a.full_name, role: a.role, department: a.department });
+    setOpen(true);
+  };
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><button type="button" disabled={!isSuper} className={btnPrimary} onClick={() => setOpen(true)}><Plus className="h-4 w-4" />{t('משתמש פלטפורמה חדש', 'New platform user')}</button></div>
+      <div className="flex justify-end"><button type="button" disabled={!isSuper} className={btnPrimary} onClick={() => { setEditing(null); setF({ username: '', fullName: '', role: 'Lead Support Engineer', department: 'Cloud Operations' }); setOpen(true); }}><Plus className="h-4 w-4" />{t('משתמש פלטפורמה חדש', 'New platform user')}</button></div>
       <div className={`${cardCls} overflow-hidden`}>
         {!rows ? <div className="py-12 text-center text-brand"><Spinner className="h-5 w-5" /></div> : rows.length === 0 ? <EmptyState title={t('אין משתמשים במסד הנתונים', 'No users in the database')} hint={t('כרגע נכנסים עם משתמש ה-Bootstrap ממשתני הסביבה. צרו משתמש קבוע.', 'You are signed in with the bootstrap user from environment variables. Create a permanent user.')} /> : (
           <table className="w-full text-sm"><thead className="border-b border-line bg-canvas text-xs text-ink-soft"><tr>{[t('שם', 'Name'), t('אימייל', 'Email'), t('תפקיד', 'Role'), t('כניסה אחרונה', 'Last sign-in'), ''].map((h, i) => <th key={i} className="px-4 py-2.5 text-start font-semibold">{h}</th>)}</tr></thead>
-            <tbody className="divide-y divide-line">{rows.map((a) => <tr key={a.id}><td className="px-4 py-3 font-medium">{a.full_name}</td><td className="px-4 py-3 text-ink-soft" dir="ltr">{a.email}</td><td className="px-4 py-3"><Badge tone="bg-slate-100 text-slate-700 ring-slate-200">{a.role}</Badge></td><td className="px-4 py-3 text-xs text-ink-soft tnum">{fmtDateTime(a.last_login_at, lang)}</td><td className="px-4 py-3 text-end">{isSuper && a.email !== me.email && !readOnly && <button type="button" aria-label={t('מחיקה', 'Delete')} onClick={() => remove(a)} className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"><Trash2 className="h-4 w-4" /></button>}</td></tr>)}</tbody></table>
+            <tbody className="divide-y divide-line">{rows.map((a) => <tr key={a.id}><td className="px-4 py-3 font-medium">{a.full_name}</td><td className="px-4 py-3 text-ink-soft" dir="ltr">{a.email}</td><td className="px-4 py-3"><Badge tone="bg-slate-100 text-slate-700 ring-slate-200">{a.role}</Badge></td><td className="px-4 py-3 text-xs text-ink-soft tnum">{fmtDateTime(a.last_login_at, lang)}</td><td className="px-4 py-3 text-end"><div className="flex justify-end gap-1">{isSuper && a.email !== me.email && !readOnly && <><button type="button" aria-label={t('עריכה', 'Edit')} onClick={() => edit(a)} className="rounded-lg border border-line p-1.5 hover:bg-slate-50"><Pencil className="h-4 w-4" /></button><button type="button" aria-label={t('מחיקה', 'Delete')} onClick={() => remove(a)} className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"><Trash2 className="h-4 w-4" /></button></>}</div></td></tr>)}</tbody></table>
         )}
       </div>
-      <Modal open={open} onClose={() => setOpen(false)} title={t('משתמש פלטפורמה חדש', 'New platform user')}>
+      <Modal open={open} onClose={() => { setOpen(false); setEditing(null); }} title={editing ? t('עריכת משתמש פלטפורמה', 'Edit platform user') : t('משתמש פלטפורמה חדש', 'New platform user')}>
         <form onSubmit={save} className="space-y-3">
           <Field label={t('שם מלא', 'Full name')}><input required className={inputCls} value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></Field>
-          <Field label={t('שם משתמש', 'Username')}><div className="flex items-center overflow-hidden rounded-lg border border-line" dir="ltr"><input required className="w-full bg-transparent px-3 py-2 text-sm outline-none" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} /><span className="bg-canvas px-3 py-2 text-sm text-ink-soft">@smartq.ai</span></div></Field>
+          {editing ? <Field label={t('אימייל', 'Email')}><input disabled dir="ltr" className={inputCls} value={editing.email} /></Field>
+            : <Field label={t('שם משתמש', 'Username')}><div className="flex items-center overflow-hidden rounded-lg border border-line" dir="ltr"><input required className="w-full bg-transparent px-3 py-2 text-sm outline-none" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} /><span className="bg-canvas px-3 py-2 text-sm text-ink-soft">@smartq.ai</span></div></Field>}
           <Field label={t('תפקיד', 'Role')}><select className={inputCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{PLATFORM_ROLES.map((r) => <option key={r}>{r}</option>)}</select></Field>
-          <div className="flex justify-end gap-2 pt-2"><button type="button" className={btnSecondary} onClick={() => setOpen(false)}>{t('ביטול', 'Cancel')}</button><button type="submit" disabled={saving} className={btnPrimary}>{saving && <Spinner />}{t('יצירה', 'Create')}</button></div>
+          <Field label={t('מחלקה', 'Department')}><input className={inputCls} value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })} /></Field>
+          <div className="flex justify-end gap-2 pt-2"><button type="button" className={btnSecondary} onClick={() => { setOpen(false); setEditing(null); }}>{t('ביטול', 'Cancel')}</button><button type="submit" disabled={saving} className={btnPrimary}>{saving && <Spinner />}{t(editing ? 'שמירה' : 'יצירה', editing ? 'Save' : 'Create')}</button></div>
         </form>
       </Modal>
     </div>

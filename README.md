@@ -23,8 +23,11 @@ Browser ──► Next.js (Vercel) ──► Supabase (service-role key, RLS den
 | New request (Tony) | `/{tenant}/self-service` | employee, technician, manager |
 | Service queue | `/{tenant}/admins` | technician, manager |
 | Administration | `/{tenant}/manage` | manager |
-| Vendor console | `/platform` | SmartQ staff |
+| Vendor sign-in and console | `/platform/login` → `/platform` | SmartQ staff |
+| Tenant API reference | `/api/v1/openapi` | public documentation |
 | Public sandbox org | `/demo/*` via "Try SmartQ" | anyone (restricted, resets every 24h) |
+
+The root domain (`/`) opens the SmartQ vendor sign-in. The marketing site remains available at `/home`.
 
 ### Security model
 - **Sessions**: HMAC-SHA256 signed, `httpOnly`, `SameSite=Lax`, `Secure` cookies (`SESSION_SECRET`). The browser can no longer forge or read them.
@@ -33,6 +36,8 @@ Browser ──► Next.js (Vercel) ──► Supabase (service-role key, RLS den
 - **RBAC** enforced in the API (`requireTenant` / `requirePlatform`), not only in the UI. Employees only see their own tickets; internal notes are staff-only.
 - **OIDC and SAML**: each organization can enable either or both. OIDC uses Authorization Code + PKCE, validates issuer/state/nonce/signature via `openid-client`, restricts server-side discovery/token fetches to HTTPS public endpoints, and encrypts tenant-owned client secrets with AES-256-GCM. SAML assertions are signature/audience/validity checked against the organization's IdP certificate. Both require an active local SmartQ account; roles come from the organization's user directory, not Entra group assignment.
 - **Hardening**: same-origin check on all mutations, rate limiting, input validation/length caps, audit log, security headers, honeypot on the contact form.
+- **Tenant management**: access groups grant a bounded set of permissions; IT teams manage assignment and membership. Tenant automations support category routing, least-busy technician assignment, SLA escalation, idle-ticket closure, and signed webhooks. API credentials are tenant-bound, scope-limited, hashed at rest, and only shown once.
+- **Public API**: `/api/v1/tickets` and `/api/v1/tickets/{id}` accept tenant API keys with `tickets:read`, `tickets:create`, or `tickets:update` scopes. API keys are managed inside the tenant console; the OpenAPI document is served at `/api/v1/openapi`.
 - **Public chat simulation and demo workspace** use scripted replies and rule-based classification; they do not call Gemini. The home-page chat does not create real tickets; the separate demo workspace remains isolated from customer sessions.
 - **Contact form** stores requests in Supabase and sends a notification through Resend.
 
@@ -40,13 +45,15 @@ Browser ──► Next.js (Vercel) ──► Supabase (service-role key, RLS den
 1. `npm install`
 2. Copy `.env.example` → `.env.local` and fill it in (see comments).
 3. Run the read-only inventory `supabase/maintenance/001_review_database.sql`; confirm the base tables exist (`001_enterprise.sql` does not create a fresh database schema).
-4. Take a restorable backup, then run `supabase/migrations/001_enterprise.sql` and `supabase/migrations/003_oidc_sso.sql` in Supabase SQL Editor.
-5. Copy `.env.example`, replace its example values, and bulk-add the completed `.env` file in Vercel **Environment Variables**. At minimum, configure the Supabase URL and keys, `SESSION_SECRET`, `NEXT_PUBLIC_APP_URL`, and the Resend values for the contact form. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only. `IDP_ENCRYPTION_KEY` is only needed if organizations will store their own OIDC client secrets; redeploy after changing variables.
+4. Take a restorable backup, then run `supabase/migrations/001_enterprise.sql`, `supabase/migrations/003_oidc_sso.sql`, and `supabase/migrations/004_saas_platform.sql` in Supabase SQL Editor, in that order.
+5. Copy `.env.example`, replace its example values, and bulk-add the completed `.env` file in Vercel **Environment Variables**. At minimum, configure the Supabase URL and keys, `SESSION_SECRET`, `NEXT_PUBLIC_APP_URL`, and the Resend values for the contact form. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only. Set `IDP_ENCRYPTION_KEY` before enabling tenant-owned OIDC secrets or webhook automations; redeploy after changing variables.
 6. Sign in at `/platform/login` with `PLATFORM_BOOTSTRAP_EMAIL/PASSWORD`, create a permanent platform user, then remove the bootstrap variables.
 7. After verifying sign-in works, run `supabase/migrations/002_enable_rls.sql`.
 8. For database inventory and explicitly approved, guarded cleanup, see `supabase/maintenance/`. Review and back up before dropping any table.
 
 `npm run dev` · `npm run build` · `npm run typecheck`
+
+For scheduled SLA and idle-ticket automations, configure a random `CRON_SECRET` (at least 32 characters) and call `POST /api/cron/automations` from a trusted scheduler with `Authorization: Bearer <CRON_SECRET>`. Do not expose this secret in the browser. API key scopes are explained in the tenant console; the OpenAPI document includes request examples.
 
 For tenant onboarding, production configuration, Hebrew/RTL checks, and Entra/OIDC/SAML setup, see [docs/HEBREW-ENTERPRISE-SETUP.md](docs/HEBREW-ENTERPRISE-SETUP.md).
 

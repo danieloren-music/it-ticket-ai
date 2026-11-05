@@ -20,7 +20,7 @@
 <ol dir="rtl" align="right">
 <li>הריצו את <a href="../supabase/maintenance/001_review_database.sql">בדיקת המסד לקריאה בלבד</a> וודאו שטבלאות הבסיס קיימות.</li>
 <li>צרו גיבוי שניתן לשחזר.</li>
-<li>הריצו לפי הסדר את <a href="../supabase/migrations/001_enterprise.sql"><code dir="ltr">001_enterprise.sql</code></a> ואחריו את <a href="../supabase/migrations/003_oidc_sso.sql"><code dir="ltr">003_oidc_sso.sql</code></a>.</li>
+<li>הריצו לפי הסדר את <a href="../supabase/migrations/001_enterprise.sql"><code dir="ltr">001_enterprise.sql</code></a>, את <a href="../supabase/migrations/003_oidc_sso.sql"><code dir="ltr">003_oidc_sso.sql</code></a>, ואז את <a href="../supabase/migrations/004_saas_platform.sql"><code dir="ltr">004_saas_platform.sql</code></a>.</li>
 <li>שמרו את ה-<strong>Project URL</strong>, מפתח <code dir="ltr">anon</code> ומפתח <code dir="ltr">service_role</code> מתוך <strong dir="ltr">Project Settings → API</strong>.</li>
 </ol>
 
@@ -65,13 +65,14 @@
 <li><code dir="ltr">PLATFORM_BOOTSTRAP_EMAIL</code> ו-<code dir="ltr">PLATFORM_BOOTSTRAP_PASSWORD</code> — רק בהקמה הראשונה, אם עדיין אין מנהל SmartQ. אחרי יצירת מנהל קבוע ב-<code dir="ltr">/platform</code>, הסירו את שניהם מ-Vercel.</li>
 <li><code dir="ltr">GEMINI_API_KEY</code> — לסיווג קריאות AI בארגונים. ההדגמה הציבורית אינה זקוקה לו.</li>
 <li><code dir="ltr">OIDC_CLIENT_ID</code> ו-<code dir="ltr">OIDC_CLIENT_SECRET</code> — צמד אופציונלי לאפליקציית OIDC משותפת של SmartQ. הגדירו את שניהם יחד או השאירו את שניהם ריקים.</li>
-<li><code dir="ltr">IDP_ENCRYPTION_KEY</code> — נדרש רק אם ארגון שומר ב-SmartQ סוד OIDC משלו. צרו מפתח base64 אקראי של 32 bytes:</li>
+<li><code dir="ltr">IDP_ENCRYPTION_KEY</code> — נדרש אם ארגון שומר ב-SmartQ סוד OIDC משלו או מפעיל webhook חתום. צרו מפתח base64 אקראי של 32 bytes:</li>
 </ul>
 
 <pre dir="ltr"><code>node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"</code></pre>
 
 <ul dir="rtl" align="right">
 <li><code dir="ltr">DEMO_ENABLED=false</code> — מכבה את סביבת ההדגמה הציבורית. ברירת המחדל היא מופעלת.</li>
+<li><code dir="ltr">CRON_SECRET</code> — סוד אקראי באורך 32 תווים לפחות, נדרש להפעלת <code dir="ltr">POST /api/cron/automations</code> עבור הסלמות SLA וסגירת קריאות לא פעילות. יש לשמור אותו בסוד ולהגדיר ב-scheduler קריאה עם <code dir="ltr">Authorization: Bearer &lt;CRON_SECRET&gt;</code>.</li>
 </ul>
 
 <p dir="rtl" align="right">אחרי שינוי משתני סביבה ב-Vercel, בצעו <strong dir="ltr">Redeploy</strong>. השינוי לא נכנס לתוקף בפריסה קיימת.</p>
@@ -97,6 +98,7 @@ Copy-Item .env.example .env.local</code></pre>
 <li>בהקמה הראשונה, היכנסו אל <code dir="ltr">/platform/login</code> עם פרטי ה-bootstrap, צרו מנהל SmartQ קבוע, הסירו את משתני ה-bootstrap ובצעו Redeploy.</li>
 <li>ב-<code dir="ltr">/platform</code> צרו ארגון ומנהל ארגון. המנהל מקבל סיסמה זמנית ומחליף אותה בכניסה הראשונה.</li>
 <li>בדקו כניסה, שינוי סיסמה, פתיחת קריאה ותור טיפול עבור עובד, טכנאי ומנהל.</li>
+<li>בכל ארגון ניתן לנהל בנפרד קבוצות הרשאה, צוותי IT, אוטומציות ומפתחות API. מסמכי ה-API נמצאים ב-<code dir="ltr">/api/v1/openapi</code>; צרו מפתח מוגבל הרשאות באזור ניהול הארגון ושמרו את ערכו בזמן היצירה בלבד.</li>
 <li>רק אחרי שהבדיקות עוברות, הריצו ב-Supabase את <a href="../supabase/migrations/002_enable_rls.sql"><code dir="ltr">002_enable_rls.sql</code></a>. בדקו שוב את health ואת תהליכי הכניסה והקריאות.</li>
 </ol>
 

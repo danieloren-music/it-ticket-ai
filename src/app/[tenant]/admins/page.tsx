@@ -30,6 +30,7 @@ export default function QueuePage() {
   const [status, setStatus] = useState('ALL');
   const [urgency, setUrgency] = useState('ALL');
   const [team, setTeam] = useState('ALL');
+  const [teams, setTeams] = useState<string[]>([...TEAMS]);
   const [quick, setQuick] = useState<Quick>('open');
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -53,6 +54,10 @@ export default function QueuePage() {
   }, []);
 
   useEffect(() => { if (session && !session.mustChangePassword) load(); }, [session, load]);
+  useEffect(() => {
+    api<{ teams: string[] }>('/api/tenant/teams').then((data) => setTeams(data.teams))
+      .catch((error) => toast(errorText(error, lang), 'error'));
+  }, [lang, toast]);
   // Live queue: refresh every 30s while the tab is visible.
   useEffect(() => {
     const id = setInterval(() => { if (document.visibilityState === 'visible') load(true); }, 30_000);
@@ -152,7 +157,7 @@ export default function QueuePage() {
               <option value="ALL">{t('כל הדחיפויות', 'All urgencies')}</option>{URGENCIES.map((s) => <option key={s} value={s}>{label(URGENCY_LABELS, s, lang)}</option>)}
             </select>
             <select className={`${inputCls} w-auto`} value={team} onChange={(e) => setTeam(e.target.value)} aria-label={t('צוות', 'Team')}>
-              <option value="ALL">{t('כל הצוותים', 'All teams')}</option>{TEAMS.map((s) => <option key={s} value={s}>{label(TEAM_LABELS, s, lang)}</option>)}
+              <option value="ALL">{t('כל הצוותים', 'All teams')}</option>{teams.map((s) => <option key={s} value={s}>{label(TEAM_LABELS, s, lang)}</option>)}
             </select>
           </div>
         </div>

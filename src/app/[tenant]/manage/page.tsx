@@ -10,8 +10,11 @@ import { AppShell } from '@/components/AppShell';
 import { DailyBars, Distribution } from '@/components/Charts';
 import { Badge, EmptyState, Field, Modal, Spinner, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
 import { CATEGORY_LABELS, ROLES, ROLE_LABELS, TEAM_LABELS, URGENCY_LABELS, label, type DbRole } from '@/lib/constants';
+import { GroupsTab } from './GroupsTab';
+import { AutomationsTab } from './AutomationsTab';
+import { ApiKeysTab } from './ApiKeysTab';
 
-type Tab = 'overview' | 'users' | 'roles' | 'sso' | 'audit';
+type Tab = 'overview' | 'users' | 'roles' | 'sso' | 'audit' | 'groups' | 'automations' | 'api';
 
 interface DirUser {
   id: string; email: string; full_name: string; role: DbRole; job_title: string | null; department: string | null;
@@ -44,22 +47,36 @@ export default function ManagePage() {
   const { session, tenant, logout, reload } = useSession(tenantSlug);
   const [tab, setTab] = useState<Tab>('overview');
 
-  const tabs: [Tab, string][] = [['overview', t('סקירה', 'Overview')], ['users', t('משתמשים', 'Users')], ['roles', t('תפקידים והרשאות', 'Roles and permissions')], ['sso', t('כניסה אחידה (SSO)', 'Single sign-on')], ['audit', t('יומן ביקורת', 'Audit log')]];
+  const available: [Tab, string, string][] = [
+    ['overview', t('סקירה', 'Overview'), 'tickets:read_all'],
+    ['users', t('משתמשים', 'Users'), 'directory:manage'],
+    ['roles', t('תפקידים והרשאות', 'Roles and permissions'), 'groups:manage'],
+    ['groups', t('קבוצות וצוותים', 'Groups and teams'), 'groups:manage'],
+    ['automations', t('אוטומציות', 'Automations'), 'automations:manage'],
+    ['api', t('API ואינטגרציות', 'API and integrations'), 'api_keys:manage'],
+    ['sso', t('כניסה אחידה (SSO)', 'Single sign-on'), 'settings:manage'],
+    ['audit', t('יומן ביקורת', 'Audit log'), 'audit:read'],
+  ];
+  const tabs = available.filter(([, , permission]) => session?.permissions.includes(permission));
+  const activeTab = tabs.some(([key]) => key === tab) ? tab : tabs[0]?.[0];
 
   return (
     <AppShell tenant={tenantSlug} tenantName={tenant?.name ?? tenantSlug} session={session} active="manage" onLogout={logout} onReload={reload}>
       <div className="space-y-5">
         <div><h1 className="text-2xl font-bold">{t('ניהול הארגון', 'Organization administration')}</h1><p className="text-ink-soft">{tenant?.name} · {tenant?.domain}</p></div>
         <div role="tablist" className="flex flex-wrap gap-1 border-b border-line">
-          {tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={tab === k} type="button" onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold ${tab === k ? 'border-brand text-brand' : 'border-transparent text-ink-soft hover:text-ink'}`}>{l}</button>)}
+          {tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={activeTab === k} type="button" onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold ${activeTab === k ? 'border-brand text-brand' : 'border-transparent text-ink-soft hover:text-ink'}`}>{l}</button>)}
         </div>
         {session && !session.mustChangePassword && (
           <>
-            {tab === 'overview' && <Overview />}
-            {tab === 'users' && <UsersTab domain={tenant?.domain ?? ''} selfEmail={session.email} demo={session.demo} />}
-            {tab === 'roles' && <RolesTab />}
-            {tab === 'sso' && <SsoTab demo={session.demo} />}
-            {tab === 'audit' && <AuditTab />}
+            {activeTab === 'overview' && <Overview />}
+            {activeTab === 'users' && <UsersTab domain={tenant?.domain ?? ''} selfEmail={session.email} demo={session.demo} />}
+            {activeTab === 'roles' && <RolesTab />}
+            {activeTab === 'groups' && <GroupsTab />}
+            {activeTab === 'automations' && <AutomationsTab />}
+            {activeTab === 'api' && <ApiKeysTab />}
+            {activeTab === 'sso' && <SsoTab demo={session.demo} />}
+            {activeTab === 'audit' && <AuditTab />}
           </>
         )}
       </div>
@@ -242,7 +259,7 @@ function RolesTab() {
 /* ───────────────────────── SSO ───────────────────────── */
 function SsoTab({ demo }: { demo: boolean }) {
   const { t, lang } = useLang();
-  const { toast } = useToast();
+  const { toast, confirm } = useToast();
   const [s, setS] = useState<Sso | null>(null);
   const [sp, setSp] = useState<{ entityId: string; acsUrl: string; oidcCallbackUrl: string } | null>(null);
   const [saving, setSaving] = useState(false);
@@ -266,6 +283,20 @@ function SsoTab({ demo }: { demo: boolean }) {
       toast(t('הגדרות ה-SSO נשמרו', 'SSO settings saved'));
     }
     catch (ex) { toast(errorText(ex, lang), 'error'); } finally { setSaving(false); }
+  };
+  const removeConnection = async () => {
+    const accepted = await confirm({
+      title: t('מחיקת חיבורי SSO', 'Remove SSO connections'),
+      message: t('הגדרות SAML ו-OIDC של הארגון יימחקו. משתמשים יוכלו להיכנס בסיסמת SmartQ בלבד.', 'This removes the organization’s SAML and OIDC settings. Users will need to use SmartQ passwords.'),
+      confirmLabel: t('מחיקת חיבורים', 'Remove connections'),
+      danger: true,
+    });
+    if (!accepted) return;
+    try {
+      await api('/api/tenant/settings', { method: 'DELETE' });
+      setS({ ...s, saml_enabled: false, saml_login_url: '', saml_idp_cert: '', oidc_enabled: false, oidc_issuer: '', oidc_client_id: '', oidc_client_secret: '', has_oidc_client_secret: false });
+      toast(t('חיבורי ה-SSO נמחקו', 'SSO connections removed'));
+    } catch (error) { toast(errorText(error, lang), 'error'); }
   };
   const ro = (v: string) => <input readOnly dir="ltr" className={`${inputCls} bg-canvas font-mono text-xs`} value={v} onFocus={(e) => e.currentTarget.select()} />;
 
@@ -311,7 +342,10 @@ function SsoTab({ demo }: { demo: boolean }) {
           'SmartQ uses Authorization Code + PKCE, validates state/nonce and tokens, and does not request Graph permissions. Users must be active and provisioned in SmartQ.'
         )}</p>
       </section>
-      <div className="flex justify-end"><button type="submit" disabled={saving || demo} className={btnPrimary}>{saving && <Spinner />}{t('שמירת הגדרות', 'Save settings')}</button></div>
+      <div className="flex flex-wrap justify-between gap-2">
+        <button type="button" disabled={demo || (!s.saml_enabled && !s.oidc_enabled && !s.saml_login_url && !s.oidc_issuer)} onClick={() => void removeConnection()} className="inline-flex items-center gap-2 rounded-lg border border-rose-200 px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-40"><Trash2 className="h-4 w-4" />{t('מחיקת חיבור', 'Remove connection')}</button>
+        <button type="submit" disabled={saving || demo} className={btnPrimary}>{saving && <Spinner />}{t('שמירת הגדרות', 'Save settings')}</button>
+      </div>
     </form>
   );
 }

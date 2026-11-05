@@ -13,7 +13,7 @@ import {
   readTenantSession,
 } from './session';
 import { forbidden, unauthorized, HttpError } from './http';
-import { DEMO_TENANT, isOneOf, PLATFORM_READONLY_ROLES, PLATFORM_ROLES } from './constants';
+import { DEMO_TENANT, isOneOf, PLATFORM_READONLY_ROLES, PLATFORM_ROLES, ROLE_PERMISSIONS, type TenantPermission } from './constants';
 import { db } from './db';
 
 export const normalizeRole = (r: unknown): Role => {
@@ -38,6 +38,7 @@ export async function getTenantSessionFromCookies(): Promise<TenantSession | nul
 
 interface GuardOptions {
   roles?: Role[];
+  permission?: TenantPermission;
   /** allow access while a forced password change is pending (change-password, me, logout) */
   allowMustChange?: boolean;
   /** reject demo sessions (read-only sandbox protection) */
@@ -73,8 +74,36 @@ export async function requireTenant(req: NextRequest, opts: GuardOptions = {}): 
     if (!user) throw unauthorized();
     if (user.is_active === false) throw unauthorized();
     session.role = normalizeRole(user.role);
+
+    const memberships = await client
+      .from('tenant_group_members')
+      .select('group_id')
+      .eq('tenant_id', session.tenantId)
+      .eq('user_email', session.sub.toLowerCase());
+    if (memberships.error) throw new Error(`Could not load tenant access groups: ${memberships.error.message}`);
+    const groupIds = (memberships.data ?? []).map((membership) => membership.group_id);
+    if (groupIds.length) {
+      const groups = await client
+        .from('tenant_groups')
+        .select('permissions')
+        .eq('tenant_id', session.tenantId)
+        .eq('kind', 'access')
+        .in('id', groupIds);
+      if (groups.error) throw new Error(`Could not load tenant group permissions: ${groups.error.message}`);
+      session.permissions = [
+        ...new Set([
+          ...ROLE_PERMISSIONS[session.role],
+          ...(groups.data ?? []).flatMap((group) => (group.permissions ?? []) as TenantPermission[]),
+        ]),
+      ];
+    } else {
+      session.permissions = ROLE_PERMISSIONS[session.role];
+    }
+  } else {
+    session.permissions = ROLE_PERMISSIONS[session.role];
   }
   if (opts.roles && !opts.roles.includes(session.role)) throw forbidden();
+  if (opts.permission && !session.permissions?.includes(opts.permission)) throw forbidden();
   if (opts.blockDemo && session.demo) {
     throw new HttpError(403, 'DEMO_READONLY', 'This action is disabled in the public demo');
   }

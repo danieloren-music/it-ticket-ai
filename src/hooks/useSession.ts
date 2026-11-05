@@ -6,7 +6,7 @@ import { api, ApiError } from '@/lib/api';
 
 export interface SessionInfo {
   email: string; name: string; role: 'user' | 'admin' | 'manager'; tenantId: string;
-  demo: boolean; mustChangePassword: boolean; city: string; phone: string;
+  demo: boolean; mustChangePassword: boolean; city: string; phone: string; permissions: string[];
 }
 export interface TenantInfo { id: string; name: string; domain: string }
 

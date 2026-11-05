@@ -15,6 +15,7 @@ export const GET = route(async (req: NextRequest) => {
       email: session.sub,
       name: session.name,
       role: session.role,
+      permissions: session.permissions ?? [],
       tenantId: session.tenantId,
       demo: Boolean(session.demo),
       mustChangePassword: Boolean(session.mcp),

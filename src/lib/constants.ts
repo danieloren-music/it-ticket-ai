@@ -55,6 +55,27 @@ export const PLATFORM_ROLES = [
 /** Platform roles that are not allowed to change anything. */
 export const PLATFORM_READONLY_ROLES = new Set<string>(['Read-Only Viewer', 'Compliance & IAM Auditor']);
 
+export const TENANT_PERMISSIONS = [
+  'tickets:read_all',
+  'tickets:update',
+  'directory:manage',
+  'settings:manage',
+  'audit:read',
+  'groups:manage',
+  'automations:manage',
+  'api_keys:manage',
+] as const;
+export type TenantPermission = (typeof TENANT_PERMISSIONS)[number];
+
+export const ROLE_PERMISSIONS: Record<'user' | 'admin' | 'manager', TenantPermission[]> = {
+  user: [],
+  admin: ['tickets:read_all', 'tickets:update'],
+  manager: [...TENANT_PERMISSIONS],
+};
+
+export const API_KEY_SCOPES = ['tickets:read', 'tickets:create', 'tickets:update'] as const;
+export type ApiKeyScope = (typeof API_KEY_SCOPES)[number];
+
 type Label = { he: string; en: string };
 
 export const CATEGORY_LABELS: Record<Category, Label> = {

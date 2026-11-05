@@ -116,12 +116,14 @@ export async function requirePlatform(req: NextRequest, opts: { write?: boolean 
   const client = db();
   const { data: admin, error } = await client
     .from('platform_admins')
-    .select('role')
+    .select('role, password_changed_at')
     .eq('email', session.sub.toLowerCase())
     .maybeSingle();
   if (error) throw new Error(`Could not validate platform session: ${error.message}`);
   if (admin) {
     if (!isOneOf(PLATFORM_ROLES, admin.role)) throw unauthorized();
+    const passwordChangedAt = Date.parse(admin.password_changed_at);
+    if (Number.isFinite(passwordChangedAt) && session.iat < Math.floor(passwordChangedAt / 1000)) throw unauthorized();
     session.role = admin.role;
   } else {
     const bootstrapEmail = process.env.PLATFORM_BOOTSTRAP_EMAIL?.trim().toLowerCase();

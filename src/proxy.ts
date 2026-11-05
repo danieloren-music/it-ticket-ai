@@ -14,7 +14,9 @@ export async function proxy(req: NextRequest) {
 
   /* ───── Vendor platform ───── */
   if (pathname === '/platform' || pathname.startsWith('/platform/')) {
-    if (pathname === '/platform/login') return NextResponse.next();
+    if (['/platform/login', '/platform/forgot-password', '/platform/reset-password'].includes(pathname)) {
+      return NextResponse.next();
+    }
     const platform = await readPlatformSession(req.cookies.get(PLATFORM_COOKIE)?.value);
     if (!platform) return NextResponse.redirect(new URL('/platform/login', req.url));
     return NextResponse.next();

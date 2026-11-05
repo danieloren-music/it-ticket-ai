@@ -46,6 +46,11 @@ export default function PlatformLoginPage() {
             {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{error}</p>}
             <button type="submit" disabled={busy} className={`${btnPrimary} w-full`}>{busy && <Spinner />}{t('כניסה', 'Sign in')}</button>
           </form>
+          <p className="mt-4 text-center text-sm">
+            <Link href="/platform/forgot-password" className="font-medium text-brand hover:underline">
+              {t('שכחתם סיסמה?', 'Forgot your password?')}
+            </Link>
+          </p>
         </div>
         <p className="mt-5 text-center text-sm"><Link href="/home" className="text-ink-soft hover:text-ink">{t('לאתר SmartQ', 'Back to SmartQ')}</Link></p>
       </div>

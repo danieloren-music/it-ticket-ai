@@ -20,7 +20,7 @@
 <ol dir="rtl" align="right">
 <li>הריצו את <a href="../supabase/maintenance/001_review_database.sql">בדיקת המסד לקריאה בלבד</a> וודאו שטבלאות הבסיס קיימות.</li>
 <li>צרו גיבוי שניתן לשחזר.</li>
-<li>הריצו לפי הסדר את <a href="../supabase/migrations/001_enterprise.sql"><code dir="ltr">001_enterprise.sql</code></a>, את <a href="../supabase/migrations/003_oidc_sso.sql"><code dir="ltr">003_oidc_sso.sql</code></a>, ואז את <a href="../supabase/migrations/004_saas_platform.sql"><code dir="ltr">004_saas_platform.sql</code></a>.</li>
+<li>הריצו לפי הסדר את <a href="../supabase/migrations/001_enterprise.sql"><code dir="ltr">001_enterprise.sql</code></a>, את <a href="../supabase/migrations/003_oidc_sso.sql"><code dir="ltr">003_oidc_sso.sql</code></a>, את <a href="../supabase/migrations/004_saas_platform.sql"><code dir="ltr">004_saas_platform.sql</code></a>, ולבסוף את <a href="../supabase/migrations/005_platform_password_reset.sql"><code dir="ltr">005_platform_password_reset.sql</code></a>.</li>
 <li>שמרו את ה-<strong>Project URL</strong>, מפתח <code dir="ltr">anon</code> ומפתח <code dir="ltr">service_role</code> מתוך <strong dir="ltr">Project Settings → API</strong>.</li>
 </ol>
 
@@ -95,7 +95,7 @@ Copy-Item .env.example .env.local</code></pre>
 <ol dir="rtl" align="right">
 <li>פרסו ל-Vercel. ודאו ש-<code dir="ltr">NEXT_PUBLIC_APP_URL</code> מכיל את כתובת ה-HTTPS שבה תשתמשו.</li>
 <li>פתחו <code dir="ltr">https://&lt;הדומיין&gt;/api/health</code>. בדיקה תקינה מחזירה HTTP <code dir="ltr">200</code>, עם <code dir="ltr">status: "ok"</code> ו-<code dir="ltr">database: "ok"</code>.</li>
-<li>בהקמה הראשונה, היכנסו אל <code dir="ltr">/platform/login</code> עם פרטי ה-bootstrap, צרו מנהל SmartQ קבוע, הסירו את משתני ה-bootstrap ובצעו Redeploy.</li>
+<li>בהקמה הראשונה, היכנסו אל <code dir="ltr">/platform/login</code> עם פרטי ה-bootstrap רק אם עדיין אין Super Admin, צרו מנהל SmartQ קבוע, הסירו את משתני ה-bootstrap ובצעו Redeploy. לאיפוס סיסמה, השתמשו בכתובת המדויקת שרשומה ב-<code dir="ltr">platform_admins</code> (שאינה בהכרח כתובת ה-bootstrap). מנהלי SmartQ יכולים לבקש קישור איפוס חד-פעמי בדף הכניסה; נדרשים משתני Resend שמוגדרים למעלה.</li>
 <li>ב-<code dir="ltr">/platform</code> צרו ארגון ומנהל ארגון. המנהל מקבל סיסמה זמנית ומחליף אותה בכניסה הראשונה.</li>
 <li>בדקו כניסה, שינוי סיסמה, פתיחת קריאה ותור טיפול עבור עובד, טכנאי ומנהל.</li>
 <li>בכל ארגון ניתן לנהל בנפרד קבוצות הרשאה, צוותי IT, אוטומציות ומפתחות API. מסמכי ה-API נמצאים ב-<code dir="ltr">/api/v1/openapi</code>; צרו מפתח מוגבל הרשאות באזור ניהול הארגון ושמרו את ערכו בזמן היצירה בלבד.</li>

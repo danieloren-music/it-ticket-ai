@@ -32,6 +32,7 @@ The root domain (`/`) opens the SmartQ vendor sign-in. The marketing site remain
 ### Security model
 - **Sessions**: HMAC-SHA256 signed, `httpOnly`, `SameSite=Lax`, `Secure` cookies (`SESSION_SECRET`). The browser can no longer forge or read them.
 - **Passwords**: scrypt hashes. Legacy plaintext rows are upgraded transparently on next login. No shared/backdoor password. New users get a one-time temporary password and must change it at first sign-in. Accounts lock for 15 min after 5 failures.
+- **Platform password recovery**: SmartQ platform admins can request a single-use, 30-minute reset link by email. Only a token hash is stored; password resets revoke existing platform sessions. This requires the Resend settings and `supabase/migrations/005_platform_password_reset.sql`.
 - **Tenant isolation**: every protected page must match the signed session's tenant; every tenant API query and write is scoped to the tenant ID from that session. Ticket history is also scoped by tenant and reporter. The database is accessed only by the server (service-role key); RLS denies direct access using public `anon`/`authenticated` keys (`supabase/migrations/002_enable_rls.sql`).
 - **RBAC** enforced in the API (`requireTenant` / `requirePlatform`), not only in the UI. Employees only see their own tickets; internal notes are staff-only.
 - **OIDC and SAML**: each organization can enable either or both. OIDC uses Authorization Code + PKCE, validates issuer/state/nonce/signature via `openid-client`, restricts server-side discovery/token fetches to HTTPS public endpoints, and encrypts tenant-owned client secrets with AES-256-GCM. SAML assertions are signature/audience/validity checked against the organization's IdP certificate. Both require an active local SmartQ account; roles come from the organization's user directory, not Entra group assignment.
@@ -45,9 +46,9 @@ The root domain (`/`) opens the SmartQ vendor sign-in. The marketing site remain
 1. `npm install`
 2. Copy `.env.example` → `.env.local` and fill it in (see comments).
 3. Run the read-only inventory `supabase/maintenance/001_review_database.sql`; confirm the base tables exist (`001_enterprise.sql` does not create a fresh database schema).
-4. Take a restorable backup, then run `supabase/migrations/001_enterprise.sql`, `supabase/migrations/003_oidc_sso.sql`, and `supabase/migrations/004_saas_platform.sql` in Supabase SQL Editor, in that order.
+4. Take a restorable backup, then run `supabase/migrations/001_enterprise.sql`, `supabase/migrations/003_oidc_sso.sql`, `supabase/migrations/004_saas_platform.sql`, and `supabase/migrations/005_platform_password_reset.sql` in Supabase SQL Editor, in that order.
 5. Copy `.env.example`, replace its example values, and bulk-add the completed `.env` file in Vercel **Environment Variables**. At minimum, configure the Supabase URL and keys, `SESSION_SECRET`, `NEXT_PUBLIC_APP_URL`, and the Resend values for the contact form. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only. Set `IDP_ENCRYPTION_KEY` before enabling tenant-owned OIDC secrets or webhook automations; redeploy after changing variables.
-6. Sign in at `/platform/login` with `PLATFORM_BOOTSTRAP_EMAIL/PASSWORD`, create a permanent platform user, then remove the bootstrap variables.
+6. Sign in at `/platform/login` with `PLATFORM_BOOTSTRAP_EMAIL/PASSWORD` only if no Super Admin exists yet; create a permanent platform user, then remove the bootstrap variables. Platform admins can request a one-time password reset link from the sign-in page (requires the Resend email settings).
 7. After verifying sign-in works, run `supabase/migrations/002_enable_rls.sql`.
 8. For database inventory and explicitly approved, guarded cleanup, see `supabase/maintenance/`. Review and back up before dropping any table.
 

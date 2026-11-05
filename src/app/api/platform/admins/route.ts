@@ -63,8 +63,16 @@ export const POST = route(async (req: NextRequest) => {
 
   if (existing) {
     const patch: Record<string, unknown> = { full_name: fullName, role, department, updated_at: new Date().toISOString() };
-    if (passwordHash) { patch.password_hash = passwordHash; patch.failed_attempts = 0; patch.locked_until = null; }
+    if (passwordHash) {
+      patch.password_hash = passwordHash;
+      patch.password_changed_at = new Date().toISOString();
+      patch.failed_attempts = 0;
+      patch.locked_until = null;
+    }
     const admin = must(await db().from('platform_admins').update(patch).eq('id', existing.id).select(COLS).single());
+    if (passwordHash) {
+      must(await db().from('platform_password_resets').delete().eq('admin_email', target));
+    }
     await audit({ actor: session.sub, role: session.role, action: 'platform.user_updated', target, meta: { role }, ip: clientIp(req) });
     return NextResponse.json({ success: true, admin });
   }
@@ -82,6 +90,7 @@ export const DELETE = route(async (req: NextRequest) => {
   const target = email(req.nextUrl.searchParams.get('email'));
   if (target === session.sub.toLowerCase()) throw new HttpError(409, 'CANNOT_DELETE_SELF', 'You cannot delete your own account');
 
+  must(await db().from('platform_password_resets').delete().eq('admin_email', target));
   must(await db().from('platform_admins').delete().eq('email', target).select('id'));
   await audit({ actor: session.sub, role: session.role, action: 'platform.user_deleted', target, ip: clientIp(req) });
   return NextResponse.json({ success: true });

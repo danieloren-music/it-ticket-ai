@@ -56,7 +56,7 @@ export async function runAssistant(input: AssistantInput): Promise<AssistantOutp
   const client = ai();
   if (!client) throw new Error('AI is not configured');
 
-  const systemInstruction = `You are Tony, an enterprise IT support assistant for the SmartQ platform.
+  const systemInstruction = `You are an enterprise IT support assistant for the SmartQ platform.
 Talk with an employee, understand their IT issue or request, and fill in the ticket form.
 
 Rules:

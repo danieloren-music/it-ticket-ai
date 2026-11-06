@@ -34,7 +34,7 @@ const MESSAGES: Record<string, { he: string; en: string }> = {
   LAST_MANAGER: { he: 'חייב להישאר לפחות מנהל פעיל אחד בארגון', en: 'The organization must keep at least one active manager' },
   CANNOT_DELETE_SELF: { he: 'לא ניתן למחוק את החשבון המחובר', en: 'You cannot delete your own account' },
   AI_UNAVAILABLE: { he: 'עוזר ה-AI אינו זמין כרגע', en: 'The AI assistant is currently unavailable' },
-  AI_FAILED: { he: 'Tony לא הצליח לעבד את הבקשה. נסו שוב.', en: 'Tony could not process the request. Please try again.' },
+  AI_FAILED: { he: 'העוזר החכם לא הצליח לעבד את הבקשה. נסו שוב.', en: 'The AI assistant could not process the request. Please try again.' },
   CONTACT_EMAIL_NOT_CONFIGURED: { he: 'טופס יצירת הקשר אינו מוגדר כרגע. אפשר לנסות שוב מאוחר יותר.', en: 'The contact form is not configured right now. Please try again later.' },
   CONTACT_NOTIFICATION_FAILED: { he: 'הפנייה נשמרה במערכת, אבל הודעת ההתראה לא נשלחה. אין צורך לשלוח שוב — צוות SmartQ יבדוק את הפנייה דרך לוח הניהול.', en: 'Your request was saved, but the notification email failed. Please do not submit again; the SmartQ team can review it in the admin console.' },
   PASSWORD_RESET_EMAIL_FAILED: { he: 'שליחת הודעת איפוס הסיסמה נכשלה. נסו שוב מאוחר יותר.', en: 'Could not send the password reset email. Please try again later.' },

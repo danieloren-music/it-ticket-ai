@@ -8,7 +8,7 @@ import { fmtDate, fmtDateTime, useLang } from '@/lib/i18n';
 import { Badge, EmptyState, Field, Modal, Spinner, SuccessDialog, btnDanger, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
 import { A11yWidget } from '@/components/A11yWidget';
 import { DailyBars } from '@/components/Charts';
-import { ConsoleSidebar, type ConsoleNavItem } from '@/components/ConsoleSidebar';
+import { ConsoleSidebar, type ConsoleNavGroup } from '@/components/ConsoleSidebar';
 import { PLATFORM_EMAIL_DOMAIN, PLATFORM_READONLY_ROLES, PLATFORM_ROLES } from '@/lib/constants';
 
 type Tab = 'overview' | 'tenants' | 'users' | 'leads' | 'audit';
@@ -35,18 +35,37 @@ export default function PlatformConsole() {
 
   const logout = async () => { await api('/api/platform/auth', { method: 'DELETE' }).catch(() => undefined); router.replace('/platform/login'); };
   const readOnly = me ? PLATFORM_READONLY_ROLES.has(me.role) : true;
-  const tabs = [
-    { id: 'overview' as const, label: t('סקירה', 'Overview'), icon: Activity },
-    { id: 'tenants' as const, label: t('ארגונים', 'Organizations'), icon: Building2 },
-    { id: 'users' as const, label: t('צוות הפלטפורמה', 'Platform team'), icon: UsersRound },
-    { id: 'leads' as const, label: t('פניות מהאתר', 'Website leads'), icon: MessageCircle },
-    { id: 'audit' as const, label: t('יומן ביקורת', 'Audit log'), icon: TicketCheck },
-  ];
-  const navItems: ConsoleNavItem[] = [
-    ...tabs.map(({ id, label, icon }) => ({
-      key: id, label, icon, active: tab === id, onClick: () => setTab(id),
-    })),
-    { key: 'website', label: t('לאתר SmartQ', 'SmartQ Website'), icon: ExternalLink, href: '/home' },
+  const navGroups: ConsoleNavGroup[] = [
+    {
+      key: 'overview',
+      label: t('סקירה', 'Overview'),
+      icon: Activity,
+      items: [{ key: 'overview', label: t('סקירה', 'Overview'), icon: Activity, active: tab === 'overview', onClick: () => setTab('overview') }],
+    },
+    {
+      key: 'workspaces',
+      label: t('סביבות ומשתמשים', 'Workspaces & users'),
+      icon: Building2,
+      items: [
+        { key: 'tenants', label: t('ארגונים', 'Organizations'), icon: Building2, active: tab === 'tenants', onClick: () => setTab('tenants') },
+        { key: 'users', label: t('צוות הפלטפורמה', 'Platform team'), icon: UsersRound, active: tab === 'users', onClick: () => setTab('users') },
+      ],
+    },
+    {
+      key: 'activity',
+      label: t('פעילות', 'Activity'),
+      icon: TicketCheck,
+      items: [
+        { key: 'leads', label: t('פניות מהאתר', 'Website leads'), icon: MessageCircle, active: tab === 'leads', onClick: () => setTab('leads') },
+        { key: 'audit', label: t('יומן ביקורת', 'Audit log'), icon: TicketCheck, active: tab === 'audit', onClick: () => setTab('audit') },
+      ],
+    },
+    {
+      key: 'website',
+      label: t('SmartQ', 'SmartQ'),
+      icon: ExternalLink,
+      items: [{ key: 'website', label: t('לאתר SmartQ', 'SmartQ Website'), icon: ExternalLink, href: '/home' }],
+    },
   ];
 
   if (!me) return <div className="grid min-h-screen place-items-center text-brand"><Spinner className="h-6 w-6" /></div>;
@@ -57,12 +76,12 @@ export default function PlatformConsole() {
         workspace="SmartQ Platform"
         identity={me.name}
         secondaryIdentity={me.role}
-        items={navItems}
+        groups={navGroups}
         onProfile={() => setProfileOpen(true)}
         onLogout={logout}
         suffix={<span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-medium text-white">PLATFORM</span>}
       />
-      <main className="min-h-screen pt-14 lg:ms-64 lg:pt-0">
+      <main className="min-h-screen pt-14 lg:ml-14 lg:pt-0">
         <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
           {readOnly && <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800">{t('התפקיד שלכם הוא לקריאה בלבד.', 'Your role is read-only.')}</p>}
           {tab === 'overview' && <OverviewTab me={me} onNavigate={setTab} />}
@@ -116,7 +135,7 @@ function OverviewTab({ me, onNavigate }: { me: Me; onNavigate: (tab: Tab) => voi
     { label: t('ארגונים', 'Organizations'), value: s.tenants.total, note: t(`${s.tenants.active} פעילים`, `${s.tenants.active} active`), icon: Building2, tone: 'bg-indigo-100 text-indigo-700' },
     { label: t('משתמשים', 'Users'), value: s.users, note: t('בכל הארגונים', 'Across all organizations'), icon: UsersRound, tone: 'bg-sky-100 text-sky-700' },
     { label: t('קריאות פתוחות', 'Open requests'), value: s.tickets.open, note: t(`${s.tickets.total} קריאות בסך הכול`, `${s.tickets.total} requests total`), icon: TicketCheck, tone: 'bg-amber-100 text-amber-700' },
-    { label: t('נפתחו דרך Tony', 'Created with Tony'), value: s.tickets.ai_created, note: t('קריאות שסווגו בעזרת AI', 'Requests classified with AI'), icon: Sparkles, tone: 'bg-violet-100 text-violet-700' },
+    { label: t('קריאות בסיוע AI', 'AI-assisted requests'), value: s.tickets.ai_created, note: t('קריאות שסווגו בעזרת AI', 'Requests classified with AI'), icon: Sparkles, tone: 'bg-violet-100 text-violet-700' },
   ];
   return (
     <div className="space-y-6">
@@ -131,11 +150,11 @@ function OverviewTab({ me, onNavigate }: { me: Me; onNavigate: (tab: Tab) => voi
             </p>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t(`שלום ${me.name.split(' ')[0]}, הנה תמונת המצב`, `Welcome back, ${me.name.split(' ')[0]}`)}</h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-indigo-100/80 sm:text-base">
-              {t('כל הארגונים, המשתמשים והקריאות שלך במקום אחד. בחר ארגון כדי לפתוח את סביבת העבודה ולהמשיך עם Tony.', 'Your organizations, users, and requests in one place. Choose an organization to open its workspace and continue with Tony.')}
+              {t('כל הארגונים, המשתמשים והקריאות שלך במקום אחד. בחר ארגון כדי לפתוח את סביבת העבודה ולנהל את השירות.', 'Your organizations, users, and requests in one place. Choose an organization to open its workspace and manage its service desk.')}
             </p>
           </div>
           <button type="button" onClick={() => onNavigate('tenants')} className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-[#182758] shadow-lg transition hover:-translate-y-0.5 hover:bg-indigo-50">
-            <Building2 className="h-4 w-4" />{t('לארגונים ופתיחת Tony', 'Organizations & Tony')}<ArrowUpLeft className="h-4 w-4" />
+            <Building2 className="h-4 w-4" />{t('לארגונים', 'View organizations')}<ArrowUpLeft className="h-4 w-4" />
           </button>
         </div>
         <dl className="mt-8 grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -177,7 +196,7 @@ function OverviewTab({ me, onNavigate }: { me: Me; onNavigate: (tab: Tab) => voi
           <p className="text-xs font-semibold uppercase tracking-wider text-violet">{t('הצעד הבא', 'GET STARTED')}</p>
           <h2 className="mt-1 text-lg font-bold">{t('מוכנים להיכנס לארגון?', 'Ready to open an organization?')}</h2>
           <p className="mt-1 text-sm leading-relaxed text-ink-soft">
-            {t('פתחו סביבת ארגון, היכנסו עם פרטי מנהל הארגון, ונסו לפתוח פנייה עם Tony.', 'Open an organization workspace, sign in with its manager account, and try a request with Tony.')}
+            {t('פתחו סביבת ארגון, היכנסו עם פרטי מנהל הארגון, ונהלו את פניות השירות.', 'Open an organization workspace, sign in with its manager account, and manage its service requests.')}
           </p>
           <div className="mt-5 grid grid-cols-3 gap-2">
             {[
@@ -277,7 +296,7 @@ function TenantsTab({ readOnly, me, onIssued }: { me: Me; readOnly: boolean; onI
           <div>
             <p className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-brand"><Building2 className="h-4 w-4" />{t('ניהול סביבות', 'WORKSPACES')}</p>
             <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">{t('הארגונים שלך', 'Your organizations')}</h1>
-            <p className="mt-1 max-w-2xl text-sm text-ink-soft">{t('כל סביבת עבודה, מנהל ומדדי השירות — עם גישה מהירה לפתיחת Tony.', 'Every workspace, manager, and service metric—with a quick way to launch Tony.')}</p>
+            <p className="mt-1 max-w-2xl text-sm text-ink-soft">{t('כל סביבת עבודה, מנהל ומדדי השירות — עם גישה מהירה לניהול הארגון.', 'Every workspace, manager, and service metric—with quick access to organization management.')}</p>
           </div>
           <button type="button" disabled={readOnly} className={`${btnPrimary} shadow-lg shadow-brand/15`} onClick={() => { setF(blankTenant); setModal('create'); }}>
             <Plus className="h-4 w-4" />{t('יצירת ארגון', 'Create organization')}
@@ -357,7 +376,7 @@ function TenantsTab({ readOnly, me, onIssued }: { me: Me; readOnly: boolean; onI
 
               <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4">
                 <a href={`/${r.id}/self-service`} target="_blank" rel="noreferrer" className={`${btnPrimary} flex-1`}>
-                  <MessageCircle className="h-4 w-4" />{t('פתיחת Tony', 'Open Tony')}<ExternalLink className="h-3.5 w-3.5" />
+                  <MessageCircle className="h-4 w-4" />{t('פתיחת סביבת השירות', 'Open service desk')}<ExternalLink className="h-3.5 w-3.5" />
                 </a>
                 <a href={`/${r.id}/login`} target="_blank" rel="noreferrer" className={`${btnSecondary} flex-1`}>
                   {t('כניסה לארגון', 'Organization sign in')}<ArrowUpRight className="h-4 w-4" />

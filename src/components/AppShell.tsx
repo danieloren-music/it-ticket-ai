@@ -6,7 +6,7 @@ import { ExternalLink, Inbox, MessageSquare, Settings2 } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { ROLE_LABELS, label } from '@/lib/constants';
 import type { SessionInfo } from '@/hooks/useSession';
-import { ConsoleSidebar, type ConsoleNavItem } from './ConsoleSidebar';
+import { ConsoleSidebar, type ConsoleNavGroup } from './ConsoleSidebar';
 import { A11yWidget } from './A11yWidget';
 import { TenantProfileDialog } from './TenantProfileDialog';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
@@ -32,11 +32,28 @@ export function AppShell({ tenant, tenantName, session, active, onLogout, onRelo
 
   const canManage = ['directory:manage', 'settings:manage', 'audit:read', 'groups:manage', 'automations:manage', 'api_keys:manage']
     .some((permission) => session?.permissions.includes(permission));
-  const items: ConsoleNavItem[] = [
-    { key: 'self-service', href: `/${tenant}/self-service`, label: t('פתיחת קריאה', 'New request'), icon: MessageSquare, active: active === 'self-service' },
-    { key: 'admins', href: `/${tenant}/admins`, label: t('תור קריאות', 'Service queue'), icon: Inbox, active: active === 'admins', visible: session?.role !== 'user' || session.permissions.includes('tickets:read_all') },
-    { key: 'manage', href: `/${tenant}/manage`, label: t('ניהול', 'Administration'), icon: Settings2, active: active === 'manage', visible: canManage || session?.role === 'manager' },
-    { key: 'website', href: '/home', label: t('לאתר SmartQ', 'SmartQ Website'), icon: ExternalLink },
+  const groups: ConsoleNavGroup[] = [
+    {
+      key: 'requests',
+      label: t('קריאות שירות', 'Service requests'),
+      icon: MessageSquare,
+      items: [
+        { key: 'self-service', href: `/${tenant}/self-service`, label: t('פתיחת קריאה', 'New request'), icon: MessageSquare, active: active === 'self-service' },
+        { key: 'admins', href: `/${tenant}/admins`, label: t('תור קריאות', 'Service queue'), icon: Inbox, active: active === 'admins' },
+      ].filter((item) => item.key !== 'admins' || session?.role !== 'user' || session.permissions.includes('tickets:read_all')),
+    },
+    ...(canManage || session?.role === 'manager' ? [{
+      key: 'administration',
+      label: t('ניהול', 'Administration'),
+      icon: Settings2,
+      items: [{ key: 'manage', href: `/${tenant}/manage`, label: t('ניהול הארגון', 'Organization administration'), icon: Settings2, active: active === 'manage' }],
+    }] : []),
+    {
+      key: 'website',
+      label: t('SmartQ', 'SmartQ'),
+      icon: ExternalLink,
+      items: [{ key: 'website', href: '/home', label: t('לאתר SmartQ', 'SmartQ Website'), icon: ExternalLink }],
+    },
   ];
 
   if (!session) return <div className="grid min-h-screen place-items-center text-brand"><Spinner className="h-6 w-6" /></div>;
@@ -48,13 +65,13 @@ export function AppShell({ tenant, tenantName, session, active, onLogout, onRelo
         workspace={tenantName}
         identity={session.name}
         secondaryIdentity={label(ROLE_LABELS, session.role === 'manager' ? 'Manager' : session.role === 'admin' ? 'Admin' : 'User', lang)}
-        items={items.filter((item) => item.visible !== false)}
+        groups={groups}
         onProfile={() => setProfileOpen(true)}
         onChangePassword={session.demo ? undefined : () => setPwOpen(true)}
         onLogout={onLogout}
         suffix={<span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-medium text-white">IT</span>}
       />
-      <main id="main" className="min-h-screen pt-14 lg:ms-64 lg:pt-0">
+      <main id="main" className="min-h-screen pt-14 lg:ml-14 lg:pt-0">
         {session.demo && (
           <div className="bg-ink px-4 py-1.5 text-center text-xs text-white">
             {t('סביבת הדגמה ציבורית – הנתונים מתאפסים כל 24 שעות ופעולות ניהול משתמשים מושבתות. ', 'Public demo – data resets every 24 hours and user administration is disabled. ')}

@@ -146,14 +146,14 @@ export default function SelfServicePage() {
       <div className="mx-auto max-w-3xl space-y-6">
         <div>
           <h1 className="text-2xl font-bold">{t('פתיחת קריאה', 'New request')}</h1>
-          <p className="text-ink-soft">{t('תארו את הבעיה ל-Tony. הוא יסווג אותה ויכין את הקריאה.', 'Describe the problem to Tony. He will classify it and prepare the ticket.')}</p>
+          <p className="text-ink-soft">{t('תארו את הבעיה בצ׳אט. העוזר יסווג אותה ויכין את הקריאה.', 'Describe the problem in the chat. The assistant will classify it and prepare the ticket.')}</p>
         </div>
 
-        <section className={`${cardCls} overflow-hidden`} aria-label="Tony">
+        <section className={`${cardCls} overflow-hidden`} aria-label={t('צ׳אט פתיחת קריאה', 'Request creation chat')}>
           <div className="flex items-center justify-between border-b border-line px-4 py-3">
             <div className="flex items-center gap-2.5">
               <span className="grid h-8 w-8 place-items-center rounded-full bg-brand text-sm font-bold text-white">T</span>
-              <div className="leading-tight"><p className="text-sm font-bold">Tony</p><p className="text-xs text-ink-soft">{t('עוזר תמיכה חכם', 'AI support assistant')}</p></div>
+              <div className="leading-tight"><p className="text-sm font-bold">{t('עוזר SmartQ', 'SmartQ Assistant')}</p><p className="text-xs text-ink-soft">{t('עוזר תמיכה חכם', 'AI support assistant')}</p></div>
             </div>
             {ready && <button type="button" onClick={() => formRef.current?.scrollIntoView({ behavior: 'smooth' })} className="inline-flex items-center gap-1 text-xs font-semibold text-brand">{t('לטופס', 'Go to form')}<ArrowDown className="h-3 w-3" /></button>}
           </div>
@@ -163,14 +163,14 @@ export default function SelfServicePage() {
                 <p className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'bg-brand text-white' : 'border border-line bg-white'}`}>{m.content}</p>
               </div>
             ))}
-            {thinking && <div className="flex items-center gap-2 text-sm text-ink-soft"><Spinner />{t('Tony מנתח…', 'Tony is analyzing…')}</div>}
+            {thinking && <div className="flex items-center gap-2 text-sm text-ink-soft"><Spinner />{t('מנתח את הבקשה…', 'Analyzing your request…')}</div>}
           </div>
           <div className="space-y-2 border-t border-line p-3">
             <div className="flex flex-wrap gap-2">
               {quick.map((q) => <button key={q} type="button" onClick={() => send(q)} disabled={thinking} className="rounded-full border border-line px-3 py-1 text-xs text-ink-soft hover:border-brand hover:text-brand disabled:opacity-50">{q}</button>)}
             </div>
             <form onSubmit={(e) => { e.preventDefault(); send(); }} className="flex gap-2">
-              <input className={inputCls} value={input} maxLength={1500} onChange={(e) => setInput(e.target.value)} placeholder={t('מה קרה?', 'What happened?')} aria-label={t('הודעה ל-Tony', 'Message to Tony')} />
+              <input className={inputCls} value={input} maxLength={1500} onChange={(e) => setInput(e.target.value)} placeholder={t('מה קרה?', 'What happened?')} aria-label={t('תיאור הבעיה', 'Describe your issue')} />
               <button type="submit" disabled={thinking || !input.trim()} className={btnPrimary}><Send className={`h-4 w-4 ${isHe ? 'rotate-180' : ''}`} /><span className="hidden sm:inline">{t('שליחה', 'Send')}</span></button>
             </form>
           </div>
@@ -179,7 +179,7 @@ export default function SelfServicePage() {
         <section ref={formRef} className={`${cardCls} p-5 sm:p-6`}>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-bold">{t('פרטי הקריאה', 'Ticket details')}</h2>
-            {aiUsed && <Badge tone="bg-violet-50 text-violet-700 ring-violet-200"><Sparkles className="me-1 h-3 w-3" />{t('מולא ע״י Tony', 'Filled by Tony')}</Badge>}
+            {aiUsed && <Badge tone="bg-violet-50 text-violet-700 ring-violet-200"><Sparkles className="me-1 h-3 w-3" />{t('מולא בעזרת AI', 'AI-assisted')}</Badge>}
           </div>
           <form onSubmit={submit} className="space-y-4">
             <Field label={t('נושא', 'Subject')}><input required minLength={3} maxLength={160} className={inputCls} value={form.title} onChange={set('title')} /></Field>

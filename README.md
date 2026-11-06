@@ -1,6 +1,6 @@
 # SmartQ – AI service desk
 
-Multi-tenant IT service desk. An employee describes a problem in plain language, **Tony** (Google Gemini) turns it into a classified, prioritized and routed ticket, and IT staff work it from a live queue with SLA tracking.
+Multi-tenant IT service desk. An employee describes a problem in plain language, the AI assistant turns it into a classified, prioritized and routed ticket, and IT staff work it from a live queue with SLA tracking.
 
 **Live:** https://smartq-ai.com/home  ·  Try the full product without signing up from the home page ("Try SmartQ").
 
@@ -20,7 +20,7 @@ Browser ──► Next.js (Vercel) ──► Supabase (service-role key, RLS den
 |---|---|---|
 | Marketing + live demo | `/home` | public |
 | Tenant login | `/{tenant}/login` | public |
-| New request (Tony) | `/{tenant}/self-service` | employee, technician, manager |
+| New request | `/{tenant}/self-service` | employee, technician, manager |
 | Service queue | `/{tenant}/admins` | technician, manager |
 | Administration | `/{tenant}/manage` | manager |
 | Vendor sign-in and console | `/platform/login` → `/platform` | SmartQ staff |

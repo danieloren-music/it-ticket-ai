@@ -96,8 +96,8 @@ export default function HomeClient() {
     const openingMessage: ChatMessage = {
       role: 'assistant',
       content: t(
-        'היי, אני Tony מ-SmartQ. ספרו לי מה קרה ואעזור לכם לפתוח קריאה.',
-        "Hi, I'm Tony from SmartQ. Tell me what happened and I'll help you raise a request."
+        'היי, אני העוזר החכם של SmartQ. ספרו לי מה קרה ואעזור לכם לפתוח קריאה.',
+        "Hi, I'm SmartQ's AI support assistant. Tell me what happened and I'll help you raise a request."
       ),
     };
     const nextMessages: ChatMessage[] = [...(messages.length ? messages : [openingMessage]), { role: 'user', content }];
@@ -284,13 +284,13 @@ export default function HomeClient() {
 
               <div className="grid gap-5 p-4 sm:p-5 md:grid-cols-2">
                 <div className="flex min-h-80 flex-col">
-                  <div className="mb-3 flex-1 space-y-3 overflow-y-auto" aria-live="polite" aria-label={t('שיחה עם Tony', 'Conversation with Tony')}>
+                  <div className="mb-3 flex-1 space-y-3 overflow-y-auto" aria-live="polite" aria-label={t('שיחה עם העוזר החכם', 'AI assistant conversation')}>
                     {messages.length === 0 && (
                       <>
                         <div className="me-auto max-w-[90%] rounded-xl bg-canvas px-3 py-2.5 text-sm leading-relaxed text-ink">
                           <TypingMessage key={lang} text={t(
-                            'היי, אני Tony מ-SmartQ. ספרו לי מה קרה ואעזור לכם לפתוח קריאה.',
-                            "Hi, I'm Tony from SmartQ. Tell me what happened and I'll help you raise a request."
+                            'היי, אני העוזר החכם של SmartQ. ספרו לי מה קרה ואעזור לכם לפתוח קריאה.',
+                            "Hi, I'm SmartQ's AI support assistant. Tell me what happened and I'll help you raise a request."
                           )} />
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -319,7 +319,7 @@ export default function HomeClient() {
                     ))}
                     {chatBusy && (
                       <div className="me-auto flex items-center gap-2 rounded-xl bg-canvas px-3 py-2.5 text-sm text-ink-soft" role="status">
-                        {t('Tony מקליד', 'Tony is typing')}
+                        {t('העוזר מקליד', 'Assistant is typing')}
                         <span className="flex gap-1" aria-hidden="true">
                           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.2s]" />
                           <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:-0.1s]" />

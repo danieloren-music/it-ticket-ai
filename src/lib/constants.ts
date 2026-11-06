@@ -41,6 +41,7 @@ export const RESERVED_SLUGS = new Set([
 ]);
 
 export const DEMO_TENANT = 'demo';
+export const PLATFORM_EMAIL_DOMAIN = 'smartq-ai.com';
 
 export const PLATFORM_ROLES = [
   'Super Admin',

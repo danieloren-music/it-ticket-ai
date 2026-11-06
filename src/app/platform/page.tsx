@@ -9,7 +9,7 @@ import { fmtDate, fmtDateTime, useLang } from '@/lib/i18n';
 import { Badge, Brand, EmptyState, Field, LangSwitch, Modal, Spinner, btnDanger, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
 import { A11yWidget } from '@/components/A11yWidget';
 import { DailyBars } from '@/components/Charts';
-import { PLATFORM_READONLY_ROLES, PLATFORM_ROLES } from '@/lib/constants';
+import { PLATFORM_EMAIL_DOMAIN, PLATFORM_READONLY_ROLES, PLATFORM_ROLES } from '@/lib/constants';
 
 type Tab = 'overview' | 'tenants' | 'users' | 'leads' | 'audit';
 interface Tenant { id: string; name: string; domain: string; admin_email: string; status: string; created_at: string; user_count: number; ticket_count: number; open_tickets: number }
@@ -248,7 +248,7 @@ function TenantsTab({ readOnly, me, onIssued }: { me: Me; readOnly: boolean; onI
       .some((value) => value.toLowerCase().includes(query.trim().toLowerCase()))
   ) ?? [];
 
-  const save = async (e: React.FormEvent, reset = false) => {
+  const save = async (e: React.SyntheticEvent, reset = false) => {
     e.preventDefault(); setSaving(true);
     try {
       const d = await api<{ tempPassword?: string; managerEmail: string }>('/api/platform/tenants', { method: 'POST', json: { ...f, resetManagerPassword: reset } });
@@ -371,7 +371,7 @@ function TenantsTab({ readOnly, me, onIssued }: { me: Me; readOnly: boolean; onI
           <Field label={t('אימייל מנהל ראשי', 'Primary manager email')}><input type="email" dir="ltr" className={inputCls} value={f.adminEmail} onChange={(e) => setF({ ...f, adminEmail: e.target.value })} /></Field>
           <Field label={t('סטטוס', 'Status')}><select className={inputCls} value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}>{['Active', 'Trial', 'Suspended'].map((s) => <option key={s}>{s}</option>)}</select></Field>
           <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-            {modal === 'edit' ? <button type="button" className={btnSecondary} onClick={(e) => save(e as unknown as React.FormEvent, true)}><KeyRound className="h-4 w-4" />{t('איפוס סיסמת מנהל', 'Reset manager password')}</button> : <span />}
+            {modal === 'edit' ? <button type="button" className={btnSecondary} onClick={(e) => save(e, true)}><KeyRound className="h-4 w-4" />{t('איפוס סיסמת מנהל', 'Reset manager password')}</button> : <span />}
             <div className="flex gap-2"><button type="button" className={btnSecondary} onClick={() => setModal(null)}>{t('ביטול', 'Cancel')}</button><button type="submit" disabled={saving} className={btnPrimary}>{saving && <Spinner />}{t('שמירה', 'Save')}</button></div>
           </div>
         </form>
@@ -402,7 +402,7 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    const email = editing?.email ?? `${f.username.replace(/[^a-z0-9._-]/g, '')}@smartq.ai`;
+    const email = editing?.email ?? `${f.username.replace(/[^a-z0-9._-]/g, '')}@${PLATFORM_EMAIL_DOMAIN}`;
     try {
       const d = await api<{ tempPassword?: string }>('/api/platform/admins', { method: 'POST', json: { email, fullName: f.fullName, role: f.role, department: f.department } });
       setOpen(false);
@@ -434,7 +434,7 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
         <form onSubmit={save} className="space-y-3">
           <Field label={t('שם מלא', 'Full name')}><input required className={inputCls} value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></Field>
           {editing ? <Field label={t('אימייל', 'Email')}><input disabled dir="ltr" className={inputCls} value={editing.email} /></Field>
-            : <Field label={t('שם משתמש', 'Username')}><div className="flex items-center overflow-hidden rounded-lg border border-line" dir="ltr"><input required className="w-full bg-transparent px-3 py-2 text-sm outline-none" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} /><span className="bg-canvas px-3 py-2 text-sm text-ink-soft">@smartq.ai</span></div></Field>}
+            : <Field label={t('שם משתמש', 'Username')}><div className="flex items-center overflow-hidden rounded-lg border border-line" dir="ltr"><input required className="w-full bg-transparent px-3 py-2 text-sm outline-none" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} /><span className="bg-canvas px-3 py-2 text-sm text-ink-soft">@{PLATFORM_EMAIL_DOMAIN}</span></div></Field>}
           <Field label={t('תפקיד', 'Role')}><select className={inputCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{PLATFORM_ROLES.map((r) => <option key={r}>{r}</option>)}</select></Field>
           <Field label={t('מחלקה', 'Department')}><input className={inputCls} value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })} /></Field>
           <div className="flex justify-end gap-2 pt-2"><button type="button" className={btnSecondary} onClick={() => { setOpen(false); setEditing(null); }}>{t('ביטול', 'Cancel')}</button><button type="submit" disabled={saving} className={btnPrimary}>{saving && <Spinner />}{t(editing ? 'שמירה' : 'יצירה', editing ? 'Save' : 'Create')}</button></div>

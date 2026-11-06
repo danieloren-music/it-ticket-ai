@@ -49,9 +49,9 @@ export default function LoginForm({ tenant, tenantName, tenantDomain, returnTo, 
   return (
     <div className="grid min-h-screen place-items-center bg-canvas p-4">
       <div className="absolute end-4 top-4"><LangSwitch /></div>
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-2xl">
         <div className="mb-8 flex justify-center"><Brand size={44} /></div>
-        <div className="rounded-2xl border border-line bg-white p-8 shadow-sm sm:p-10">
+        <div className="rounded-2xl border border-line bg-white p-8 shadow-sm sm:p-12">
           <div className="mb-5">
             <h1 className="text-2xl font-bold">{t('כניסה למערכת', 'Sign in')}</h1>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-soft"><Building2 className="h-4 w-4" />{tenantName}</p>
@@ -62,9 +62,12 @@ export default function LoginForm({ tenant, tenantName, tenantDomain, returnTo, 
           ) : (
             <form onSubmit={submit} className="space-y-5">
               <Field label={t('שם משתמש', 'Username')}>
-                <div className="relative flex" dir="ltr"><Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input type="text" required pattern="[^@\s]+" maxLength={64} dir="ltr" autoComplete="username" autoCapitalize="none" spellCheck={false} className={`${inputCls} rounded-e-none border-e-0 ps-9`} value={username} onChange={(e) => setUsername(e.target.value)} />
-                  <span className="inline-flex items-center rounded-e-lg border border-line bg-slate-50 px-3 text-sm text-ink-soft">@{tenantDomain}</span>
+                <div dir="ltr" className="flex overflow-hidden rounded-lg border border-line bg-white transition focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20">
+                  <div className="relative min-w-0 flex-1">
+                    <Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
+                    <input type="text" required pattern="[^@\s]+" maxLength={64} dir="ltr" autoComplete="username" autoCapitalize="none" spellCheck={false} className={`${inputCls} min-w-0 border-0 ps-9 focus:border-0 focus:ring-0`} value={username} onChange={(e) => setUsername(e.target.value)} />
+                  </div>
+                  <div title={`@${tenantDomain}`} className="max-w-[55%] flex-none overflow-x-auto whitespace-nowrap border-s border-line bg-slate-50 px-3 py-2 text-sm text-ink-soft">@{tenantDomain}</div>
                 </div>
               </Field>
               <Field label={t('סיסמה', 'Password')}>

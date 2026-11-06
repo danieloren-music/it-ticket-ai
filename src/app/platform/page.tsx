@@ -2,13 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Activity, ArrowUpLeft, ArrowUpRight, Building2, Check, Copy, ExternalLink, KeyRound, LogOut, MessageCircle, Pencil, Plus, RefreshCw, Search, Sparkles, TicketCheck, Trash2, UsersRound } from 'lucide-react';
+import { Activity, ArrowUpLeft, ArrowUpRight, Building2, Check, Copy, ExternalLink, KeyRound, MessageCircle, Pencil, Plus, RefreshCw, Search, Sparkles, TicketCheck, Trash2, UsersRound } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { fmtDate, fmtDateTime, useLang } from '@/lib/i18n';
-import { Badge, Brand, EmptyState, Field, LangSwitch, Modal, Spinner, btnDanger, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
+import { Badge, EmptyState, Field, Modal, Spinner, btnDanger, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
 import { A11yWidget } from '@/components/A11yWidget';
 import { DailyBars } from '@/components/Charts';
+import { ConsoleSidebar, type ConsoleNavItem } from '@/components/ConsoleSidebar';
 import { PLATFORM_EMAIL_DOMAIN, PLATFORM_READONLY_ROLES, PLATFORM_ROLES } from '@/lib/constants';
 
 type Tab = 'overview' | 'tenants' | 'users' | 'leads' | 'audit';
@@ -42,36 +42,35 @@ export default function PlatformConsole() {
     { id: 'leads' as const, label: t('פניות מהאתר', 'Website leads'), icon: MessageCircle },
     { id: 'audit' as const, label: t('יומן ביקורת', 'Audit log'), icon: TicketCheck },
   ];
+  const navItems: ConsoleNavItem[] = [
+    ...tabs.map(({ id, label, icon }) => ({
+      key: id, label, icon, active: tab === id, onClick: () => setTab(id),
+    })),
+    { key: 'website', label: t('לאתר SmartQ', 'SmartQ Website'), icon: ExternalLink, href: '/home' },
+  ];
 
   if (!me) return <div className="grid min-h-screen place-items-center text-brand"><Spinner className="h-6 w-6" /></div>;
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_#eef1ff_0,_#f5f7fa_38rem)]">
-      <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Brand size={28} suffix={<span className="rounded-md bg-ink px-2 py-0.5 text-xs font-medium text-white">SmartQ Platform</span>} />
-          <div className="flex items-center gap-3">
-            <Link href="/home" className="hidden text-sm font-medium text-ink-soft hover:text-brand sm:inline">{t('לאתר SmartQ', 'SmartQ website')}</Link>
-            <LangSwitch />
-            <button type="button" onClick={() => setProfileOpen(true)} className="hidden text-start leading-tight hover:opacity-80 sm:block"><span className="block text-sm font-semibold">{me.name}</span><span className="block text-xs text-ink-soft">{me.role}</span></button>
-            <button type="button" onClick={logout} className={btnSecondary}><LogOut className="h-4 w-4" /><span className="hidden sm:inline">{t('התנתקות', 'Sign out')}</span></button>
-          </div>
+    <div className="platform-console min-h-screen bg-[radial-gradient(ellipse_at_top,_#eef1ff_0,_#f5f7fa_38rem)]">
+      <ConsoleSidebar
+        workspace="SmartQ Platform"
+        identity={me.name}
+        secondaryIdentity={me.role}
+        items={navItems}
+        onProfile={() => setProfileOpen(true)}
+        onLogout={logout}
+        suffix={<span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-medium text-white">PLATFORM</span>}
+      />
+      <main className="min-h-screen pt-14 lg:ms-64 lg:pt-0">
+        <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
+          {readOnly && <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800">{t('התפקיד שלכם הוא לקריאה בלבד.', 'Your role is read-only.')}</p>}
+          {tab === 'overview' && <OverviewTab me={me} onNavigate={setTab} />}
+          {tab === 'tenants' && <TenantsTab me={me} readOnly={readOnly} onIssued={setIssued} />}
+          {tab === 'users' && <UsersTab me={me} readOnly={readOnly} onIssued={setIssued} />}
+          {tab === 'leads' && <LeadsTab />}
+          {tab === 'audit' && <AuditTab />}
         </div>
-      </header>
-      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
-        {readOnly && <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800">{t('התפקיד שלכם הוא לקריאה בלבד.', 'Your role is read-only.')}</p>}
-        <div role="tablist" aria-label={t('ניווט בממשק הניהול', 'Platform navigation')} className="flex gap-1 overflow-x-auto rounded-2xl border border-white/80 bg-white/80 p-1.5 shadow-sm backdrop-blur">
-          {tabs.map(({ id, label, icon: Icon }) => (
-            <button key={id} role="tab" aria-selected={tab === id} type="button" onClick={() => setTab(id)} className={`inline-flex shrink-0 items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition sm:px-4 ${tab === id ? 'bg-gradient-to-r from-brand to-[#5264e8] text-white shadow-md shadow-brand/20' : 'text-ink-soft hover:bg-canvas hover:text-ink'}`}>
-              <Icon className="h-4 w-4" />{label}
-            </button>
-          ))}
-        </div>
-        {tab === 'overview' && <OverviewTab me={me} onNavigate={setTab} />}
-        {tab === 'tenants' && <TenantsTab me={me} readOnly={readOnly} onIssued={setIssued} />}
-        {tab === 'users' && <UsersTab me={me} readOnly={readOnly} onIssued={setIssued} />}
-        {tab === 'leads' && <LeadsTab />}
-        {tab === 'audit' && <AuditTab />}
       </main>
 
       <Modal open={!!issued} onClose={() => setIssued(null)} title={issued?.title ?? ''}>
@@ -84,7 +83,7 @@ export default function PlatformConsole() {
           <button type="button" className={`${btnPrimary} flex-1`} onClick={() => setIssued(null)}>{t('סיימתי', 'Done')}</button>
         </div>
       </Modal>
-      <ProfileModal open={profileOpen} me={me} onClose={() => setProfileOpen(false)} onSaved={(m) => { setMe(m); toast(t('הפרופיל עודכן', 'Profile updated')); }} />
+      {profileOpen && <ProfileModal open me={me} onClose={() => setProfileOpen(false)} onSaved={(m) => { setMe(m); toast(t('הפרופיל עודכן', 'Profile updated')); }} />}
       <A11yWidget />
     </div>
   );
@@ -104,6 +103,8 @@ function OverviewTab({ me, onNavigate }: { me: Me; onNavigate: (tab: Tab) => voi
     finally { setRefreshing(false); }
   }, [lang]);
   useEffect(() => {
+    // Load the dashboard immediately, then refresh it while the page is visible.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
     const timer = window.setInterval(() => { if (document.visibilityState === 'visible') void load(); }, 30_000);
     return () => window.clearInterval(timer);
@@ -242,7 +243,11 @@ function TenantsTab({ readOnly, me, onIssued }: { me: Me; readOnly: boolean; onI
   const [query, setQuery] = useState('');
 
   const load = useCallback(async () => { try { setRows((await api<{ tenants: Tenant[] }>('/api/platform/tenants')).tenants); } catch (e) { toast(errorText(e, lang), 'error'); setRows([]); } }, [lang, toast]);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Populate the table when this tab first mounts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [load]);
   const visibleRows = rows?.filter((tenant) =>
     [tenant.name, tenant.id, tenant.domain, tenant.admin_email, tenant.status]
       .some((value) => value.toLowerCase().includes(query.trim().toLowerCase()))
@@ -398,7 +403,11 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
   const isSuper = me.role === 'Super Admin';
 
   const load = useCallback(async () => { try { setRows((await api<{ admins: Admin[] }>('/api/platform/admins')).admins); } catch { setRows([]); } }, []);
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    // Populate the user list when this tab first mounts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void load();
+  }, [load]);
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);

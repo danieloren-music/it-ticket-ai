@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Heebo, Geist_Mono } from 'next/font/google';
 import { LangProvider } from '@/lib/i18n';
+import { ThemeProvider } from '@/components/ThemeProvider';
 import { ToastProvider } from '@/components/ui';
 import './globals.css';
 
@@ -30,7 +31,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="he" dir="rtl" className={`${heebo.variable} ${mono.variable}`}>
       <body className="min-h-screen">
         <LangProvider>
-          <ToastProvider>{children}</ToastProvider>
+          <ThemeProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </ThemeProvider>
         </LangProvider>
       </body>
     </html>

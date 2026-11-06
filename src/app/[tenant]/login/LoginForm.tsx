@@ -49,9 +49,9 @@ export default function LoginForm({ tenant, tenantName, tenantDomain, returnTo, 
   return (
     <div className="grid min-h-screen place-items-center bg-canvas p-4">
       <div className="absolute end-4 top-4"><LangSwitch /></div>
-      <div className="w-full max-w-lg">
-        <div className="mb-8 flex justify-center"><Brand size={56} /></div>
-        <div className="rounded-2xl border border-line bg-white p-8 shadow-sm sm:p-12">
+      <div className="w-full max-w-xl">
+        <div className="mb-8 flex justify-center"><Brand size={68} large /></div>
+        <div className="rounded-2xl border border-line bg-white p-8 shadow-sm sm:p-14">
           <div className="mb-5">
             <h1 className="text-2xl font-bold">{t('כניסה למערכת', 'Sign in')}</h1>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-ink-soft"><Building2 className="h-4 w-4" />{tenantName}</p>
@@ -97,7 +97,7 @@ export default function LoginForm({ tenant, tenantName, tenantDomain, returnTo, 
             </div>
           )}
         </div>
-        <p className="mt-5 text-center text-sm"><Link href="/home" className="text-ink-soft hover:text-ink">{t('לאתר SmartQ', 'Back to SmartQ')}</Link></p>
+        <p className="mt-5 text-center text-sm"><Link href="/home" className="text-ink-soft hover:text-ink">{t('לאתר SmartQ', 'SmartQ Website')}</Link></p>
       </div>
       <A11yWidget />
     </div>

@@ -5,20 +5,57 @@
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* Brand palette taken from the SmartQ mark: deep navy wordmark, cobalt body, violet spark */
-  --color-ink: #0f1b3d;
-  --color-ink-soft: #3b4766;
+  --color-ink: var(--app-ink);
+  --color-ink-soft: var(--app-ink-soft);
   --color-brand: #2f45d6;
   --color-brand-strong: #2336b0;
-  --color-brand-soft: #edf0fe;
+  --color-brand-soft: var(--app-brand-soft);
   --color-violet: #7c3aed;
-  --color-canvas: #f5f7fa;
-  --color-line: #e3e7ee;
+  --color-canvas: var(--app-canvas);
+  --color-line: var(--app-line);
   --color-console: #0b1430;
   --color-console-line: #25315a;
 }
 
 :root {
   color-scheme: light;
+  --app-ink: #0f1b3d;
+  --app-ink-soft: #3b4766;
+  --app-brand-soft: #edf0fe;
+  --app-canvas: #f5f7fa;
+  --app-line: #e3e7ee;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --app-ink: #edf2ff;
+  --app-ink-soft: #b0bdd8;
+  --app-brand-soft: #202c53;
+  --app-canvas: #0c1428;
+  --app-line: #293653;
+}
+
+html[data-theme="dark"] .bg-white { background-color: #121d35; }
+html[data-theme="dark"] .bg-slate-50 { background-color: #192541; }
+html[data-theme="dark"] .bg-slate-100 { background-color: #202d49; }
+html[data-theme="dark"] .hover\:bg-slate-50:hover { background-color: #202d49; }
+html[data-theme="dark"] .hover\:bg-slate-100:hover { background-color: #263451; }
+html[data-theme="dark"] .border-white { border-color: #293653; }
+html[data-theme="dark"] .text-slate-400 { color: #8998b5; }
+html[data-theme="dark"] .text-slate-500 { color: #a0aec8; }
+html[data-theme="dark"] .text-slate-600 { color: #bdc8dc; }
+html[data-theme="dark"] .text-slate-700 { color: #d3dced; }
+html[data-theme="dark"] .placeholder\:text-slate-400::placeholder { color: #8998b5; }
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select { color-scheme: dark; }
+html[data-theme="dark"] .home-hero {
+  background:
+    radial-gradient(ellipse at 82% 18%, rgb(91 108 245 / 16%), transparent 36%),
+    linear-gradient(135deg, #121d35 0%, #0c1428 55%, #171a39 100%);
+}
+html[data-theme="dark"] .platform-console {
+  background: radial-gradient(ellipse at top, #172344 0, #0c1428 38rem);
 }
 
 html {

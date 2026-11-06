@@ -2,13 +2,15 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, KeyRound, LogOut } from 'lucide-react';
+import { ExternalLink, Inbox, MessageSquare, Settings2 } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { ROLE_LABELS, label } from '@/lib/constants';
 import type { SessionInfo } from '@/hooks/useSession';
+import { ConsoleSidebar, type ConsoleNavItem } from './ConsoleSidebar';
 import { A11yWidget } from './A11yWidget';
+import { TenantProfileDialog } from './TenantProfileDialog';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
-import { Brand, LangSwitch, Spinner } from './ui';
+import { Spinner } from './ui';
 
 export type NavKey = 'self-service' | 'admins' | 'manage';
 
@@ -23,79 +25,48 @@ interface Props {
   children: ReactNode;
 }
 
-const initials = (n: string) => n.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') || '?';
-
 export function AppShell({ tenant, tenantName, session, active, onLogout, onReload, actions, children }: Props) {
   const { t, lang } = useLang();
-  const [menu, setMenu] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
 
   const canManage = ['directory:manage', 'settings:manage', 'audit:read', 'groups:manage', 'automations:manage', 'api_keys:manage']
     .some((permission) => session?.permissions.includes(permission));
-  const tabs: { key: NavKey; href: string; label: string; visible: boolean }[] = [
-    { key: 'self-service', href: `/${tenant}/self-service`, label: t('פתיחת קריאה', 'New request'), visible: true },
-    { key: 'admins', href: `/${tenant}/admins`, label: t('תור קריאות', 'Service queue'), visible: session?.role !== 'user' || session.permissions.includes('tickets:read_all') },
-    { key: 'manage', href: `/${tenant}/manage`, label: t('ניהול', 'Administration'), visible: canManage || session?.role === 'manager' },
+  const items: ConsoleNavItem[] = [
+    { key: 'self-service', href: `/${tenant}/self-service`, label: t('פתיחת קריאה', 'New request'), icon: MessageSquare, active: active === 'self-service' },
+    { key: 'admins', href: `/${tenant}/admins`, label: t('תור קריאות', 'Service queue'), icon: Inbox, active: active === 'admins', visible: session?.role !== 'user' || session.permissions.includes('tickets:read_all') },
+    { key: 'manage', href: `/${tenant}/manage`, label: t('ניהול', 'Administration'), icon: Settings2, active: active === 'manage', visible: canManage || session?.role === 'manager' },
+    { key: 'website', href: '/home', label: t('לאתר SmartQ', 'SmartQ Website'), icon: ExternalLink },
   ];
 
   if (!session) return <div className="grid min-h-screen place-items-center text-brand"><Spinner className="h-6 w-6" /></div>;
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="min-h-screen">
       <a href="#main" className="skip-link">{t('דלג לתוכן', 'Skip to content')}</a>
-
-      {session.demo && (
-        <div className="bg-ink px-4 py-1.5 text-center text-xs text-white">
-          {t('סביבת הדגמה ציבורית – הנתונים מתאפסים כל 24 שעות ופעולות ניהול משתמשים מושבתות. ', 'Public demo – data resets every 24 hours and user administration is disabled. ')}
-          <Link href="/home" className="font-semibold underline underline-offset-2">{t('חזרה לאתר', 'Back to site')}</Link>
-        </div>
-      )}
-
-      <header className="sticky top-0 z-30 border-b border-line bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-7xl items-center gap-6 px-4 sm:px-6">
-          <Brand size={28} />
-          <span className="hidden rounded-md bg-canvas px-2 py-1 text-xs font-medium text-ink-soft sm:inline">{tenantName}</span>
-          <Link href="/home" className="hidden text-sm font-medium text-ink-soft hover:text-brand md:inline-flex">{t('לאתר SmartQ', 'SmartQ website')}</Link>
-
-          <nav aria-label="Main" className="flex flex-1 items-center gap-1">
-            {tabs.filter((x) => x.visible).map((x) => (
-              <Link key={x.key} href={x.href} aria-current={active === x.key ? 'page' : undefined}
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${active === x.key ? 'bg-brand-soft text-brand' : 'text-ink-soft hover:bg-slate-100 hover:text-ink'}`}>
-                {x.label}
-              </Link>
-            ))}
-          </nav>
-
-          {actions}
-          <LangSwitch />
-
-          <div className="relative">
-            <button type="button" onClick={() => setMenu(!menu)} aria-expanded={menu} aria-haspopup="menu" className="flex items-center gap-2 rounded-lg p-1 hover:bg-slate-100">
-              <span className="grid h-8 w-8 place-items-center rounded-full bg-ink text-xs font-bold text-white">{initials(session.name)}</span>
-              <span className="hidden text-start leading-tight md:block">
-                <span className="block text-sm font-semibold">{session.name}</span>
-                <span className="block text-xs text-ink-soft">{label(ROLE_LABELS, session.role === 'manager' ? 'Manager' : session.role === 'admin' ? 'Admin' : 'User', lang)}</span>
-              </span>
-              <ChevronDown className="h-4 w-4 text-ink-soft" />
-            </button>
-            {menu && (
-              <div role="menu" className="rise absolute end-0 mt-2 w-60 rounded-xl border border-line bg-white p-1.5 shadow-lg" onMouseLeave={() => setMenu(false)}>
-                <div className="border-b border-line px-3 py-2 text-xs text-ink-soft"><span className="block truncate font-medium text-ink">{session.email}</span></div>
-              <Link role="menuitem" href="/home" onClick={() => setMenu(false)} className="block rounded-lg px-3 py-2 text-sm text-ink-soft hover:bg-slate-100">{t('לאתר SmartQ', 'SmartQ website')}</Link>
-                {!session.demo && (
-                  <button role="menuitem" type="button" onClick={() => { setMenu(false); setPwOpen(true); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-slate-100"><KeyRound className="h-4 w-4" />{t('שינוי סיסמה', 'Change password')}</button>
-                )}
-                <button role="menuitem" type="button" onClick={onLogout} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"><LogOut className="h-4 w-4" />{t('התנתקות', 'Sign out')}</button>
-              </div>
-            )}
+      <ConsoleSidebar
+        workspace={tenantName}
+        identity={session.name}
+        secondaryIdentity={label(ROLE_LABELS, session.role === 'manager' ? 'Manager' : session.role === 'admin' ? 'Admin' : 'User', lang)}
+        items={items.filter((item) => item.visible !== false)}
+        onProfile={() => setProfileOpen(true)}
+        onChangePassword={session.demo ? undefined : () => setPwOpen(true)}
+        onLogout={onLogout}
+        suffix={<span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-medium text-white">IT</span>}
+      />
+      <main id="main" className="min-h-screen pt-14 lg:ms-64 lg:pt-0">
+        {session.demo && (
+          <div className="bg-ink px-4 py-1.5 text-center text-xs text-white">
+            {t('סביבת הדגמה ציבורית – הנתונים מתאפסים כל 24 שעות ופעולות ניהול משתמשים מושבתות. ', 'Public demo – data resets every 24 hours and user administration is disabled. ')}
+            <Link href="/home" className="font-semibold underline underline-offset-2">{t('חזרה לאתר', 'SmartQ Website')}</Link>
           </div>
-        </div>
-      </header>
-
-      <main id="main" className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6">{children}</main>
-
-      <A11yWidget />
+        )}
+        {actions && <div className="mx-auto flex max-w-7xl justify-end px-4 pt-4 sm:px-6">{actions}</div>}
+        <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6">{children}</div>
+      </main>
+      {profileOpen && <TenantProfileDialog open name={session.name} email={session.email} onClose={() => setProfileOpen(false)} onSaved={onReload} />}
       <ChangePasswordDialog open={pwOpen || session.mustChangePassword} forced={session.mustChangePassword} onClose={() => setPwOpen(false)} onDone={() => { setPwOpen(false); onReload(); }} />
+      <A11yWidget />
     </div>
   );
 }

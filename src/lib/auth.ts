@@ -66,7 +66,7 @@ export async function requireTenant(req: NextRequest, opts: GuardOptions = {}): 
 
     const { data: user, error: userError } = await client
       .from('tenant_users')
-      .select('role, is_active')
+      .select('role, is_active, full_name')
       .eq('tenant_id', session.tenantId)
       .eq('email', session.sub)
       .maybeSingle();
@@ -74,6 +74,7 @@ export async function requireTenant(req: NextRequest, opts: GuardOptions = {}): 
     if (!user) throw unauthorized();
     if (user.is_active === false) throw unauthorized();
     session.role = normalizeRole(user.role);
+    session.name = user.full_name || session.name;
 
     const memberships = await client
       .from('tenant_group_members')
@@ -116,7 +117,7 @@ export async function requirePlatform(req: NextRequest, opts: { write?: boolean 
   const client = db();
   const { data: admin, error } = await client
     .from('platform_admins')
-    .select('role, password_changed_at')
+    .select('role, password_changed_at, full_name')
     .eq('email', session.sub.toLowerCase())
     .maybeSingle();
   if (error) throw new Error(`Could not validate platform session: ${error.message}`);
@@ -125,6 +126,7 @@ export async function requirePlatform(req: NextRequest, opts: { write?: boolean 
     const passwordChangedAt = Date.parse(admin.password_changed_at);
     if (Number.isFinite(passwordChangedAt) && session.iat < Math.floor(passwordChangedAt / 1000)) throw unauthorized();
     session.role = admin.role;
+    session.name = admin.full_name || session.name;
   } else {
     const bootstrapEmail = process.env.PLATFORM_BOOTSTRAP_EMAIL?.trim().toLowerCase();
     if (session.sub.toLowerCase() !== bootstrapEmail) throw unauthorized();

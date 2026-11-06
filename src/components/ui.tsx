@@ -33,11 +33,11 @@ export function Badge({ tone, children }: { tone: string; children: ReactNode })
 }
 
 /* ───────── brand ───────── */
-export function Brand({ size = 32, suffix }: { size?: number; suffix?: ReactNode }) {
+export function Brand({ size = 32, large = false, suffix }: { size?: number; large?: boolean; suffix?: ReactNode }) {
   return (
     <span className="inline-flex items-center gap-2.5">
       <Image src="/smartq-brand-mark.png" alt="" width={size} height={size} className="rounded-lg" priority />
-      <span className="text-lg font-bold tracking-tight text-ink">SmartQ</span>
+      <span className={`${large ? 'text-2xl sm:text-3xl' : 'text-lg'} font-bold tracking-tight text-ink`}>SmartQ</span>
       {suffix}
     </span>
   );

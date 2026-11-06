@@ -14,7 +14,7 @@ const SSO_ERRORS: Record<string, [string, string]> = {
   sso_unavailable: ['שירות ההתחברות הארגוני אינו זמין כרגע. נסו שוב או פנו למנהל המערכת.', 'Organization sign-in is unavailable. Try again or contact your administrator.'],
   sso_not_configured: ['SSO עדיין לא הוגדר לארגון זה.', 'SSO is not configured for this organization yet.'],
   account_disabled: ['החשבון הושבת. פנו למנהל המערכת.', 'This account is disabled. Contact your administrator.'],
-  account_not_provisioned: ['החשבון אינו מוגדר בארגון. פנו למנהל המערכת.', 'Your account is not provisioned for this organization. Contact your administrator.'],
+  account_not_provisioned: ['המשתמש מ-Entra לא נוסף ל-SmartQ או שהאימייל שהתקבל שונה. הוסיפו ב-SmartQ את כתובת ה-UPN / email המדויקת מ-Entra; אין צורך בדומיין הארגון.', 'This Entra user is not in SmartQ, or the email claim did not match. Add the exact Entra UPN / email to SmartQ; it does not need to use the organization domain.'],
 };
 
 export default function LoginForm({ tenant, tenantName, tenantDomain, returnTo, initialError, isDemo, ssoProviders }: {

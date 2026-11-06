@@ -10,6 +10,7 @@ import { A11yWidget } from '@/components/A11yWidget';
 import { DailyBars } from '@/components/Charts';
 import { ConsoleSidebar, type ConsoleNavGroup } from '@/components/ConsoleSidebar';
 import { PLATFORM_EMAIL_DOMAIN, PLATFORM_READONLY_ROLES, PLATFORM_ROLES } from '@/lib/constants';
+import { PlatformTenantApiKeysDialog } from './PlatformTenantApiKeysDialog';
 
 type Tab = 'overview' | 'tenants' | 'users' | 'leads' | 'audit';
 interface Tenant { id: string; name: string; domain: string; admin_email: string; status: string; created_at: string; user_count: number; ticket_count: number; open_tickets: number }
@@ -260,6 +261,7 @@ function TenantsTab({ readOnly, me, onIssued }: { me: Me; readOnly: boolean; onI
   const [del, setDel] = useState<Tenant | null>(null);
   const [confirmText, setConfirmText] = useState('');
   const [query, setQuery] = useState('');
+  const [apiKeysTenant, setApiKeysTenant] = useState<Tenant | null>(null);
 
   const load = useCallback(async () => { try { setRows((await api<{ tenants: Tenant[] }>('/api/platform/tenants')).tenants); } catch (e) { toast(errorText(e, lang), 'error'); setRows([]); } }, [lang, toast]);
   useEffect(() => {
@@ -375,9 +377,12 @@ function TenantsTab({ readOnly, me, onIssued }: { me: Me; readOnly: boolean; onI
               </div>
 
               <div className="mt-5 flex flex-wrap gap-2 border-t border-line pt-4">
-                <a href={`/${r.id}/self-service`} target="_blank" rel="noreferrer" className={`${btnPrimary} flex-1`}>
-                  <MessageCircle className="h-4 w-4" />{t('פתיחת סביבת השירות', 'Open service desk')}<ExternalLink className="h-3.5 w-3.5" />
-                </a>
+              <button type="button" disabled={readOnly} onClick={() => setApiKeysTenant(r)} className={`${btnSecondary} flex-1 disabled:opacity-40`}>
+                <KeyRound className="h-4 w-4" />{t('מפתחות API', 'API keys')}
+              </button>
+              <a href={`/${r.id}/self-service`} target="_blank" rel="noreferrer" className={`${btnPrimary} flex-1`}>
+                <MessageCircle className="h-4 w-4" />{t('פתיחת סביבת השירות', 'Open service desk')}<ExternalLink className="h-3.5 w-3.5" />
+              </a>
                 <a href={`/${r.id}/login`} target="_blank" rel="noreferrer" className={`${btnSecondary} flex-1`}>
                   {t('כניסה לארגון', 'Organization sign in')}<ArrowUpRight className="h-4 w-4" />
                 </a>
@@ -406,6 +411,7 @@ function TenantsTab({ readOnly, me, onIssued }: { me: Me; readOnly: boolean; onI
         <input dir="ltr" className={`${inputCls} mt-3`} value={confirmText} onChange={(e) => setConfirmText(e.target.value)} aria-label="Confirm" />
         <div className="mt-4 flex justify-end gap-2"><button type="button" className={btnSecondary} onClick={() => setDel(null)}>{t('ביטול', 'Cancel')}</button><button type="button" className={btnDanger} disabled={confirmText !== del?.id} onClick={remove}>{t('מחיקה לצמיתות', 'Delete permanently')}</button></div>
       </Modal>
+      {apiKeysTenant && <PlatformTenantApiKeysDialog tenantId={apiKeysTenant.id} tenantName={apiKeysTenant.name} onClose={() => setApiKeysTenant(null)} />}
     </div>
   );
 }

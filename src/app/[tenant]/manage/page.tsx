@@ -320,8 +320,8 @@ function SsoTab({ demo }: { demo: boolean }) {
     <form onSubmit={save} className="space-y-5">
       <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
         {t(
-          'אפשר להפעיל SAML 2.0, OpenID Connect או את שניהם. משתמש חייב להיות מוגדר ופעיל ב-SmartQ; התפקיד שלו מנוהל כאן ואינו דורש הקצאת קבוצות ב-Entra.',
-          'Enable SAML 2.0, OpenID Connect, or both. Users must be provisioned and active in SmartQ; their role is managed here and does not require Entra group assignment.'
+          'מצב POC: אין דרישה שכתובת המשתמש תסתיים בדומיין הארגון. כדי לשלוט בהרשאות ובהסרת גישה, יש להוסיף משתמש פעיל ב-SmartQ עם אותה כתובת שמגיעה מ-Entra (UPN / email / NameID); התפקיד מנוהל כאן.',
+          'POC mode: user email does not have to match the organization domain. To control permissions and revoke access, add an active SmartQ user with the same address Entra sends (UPN / email / NameID); assign their role here.'
         )}
       </p>
       <section className={`${cardCls} space-y-3 p-5`}>
@@ -331,6 +331,10 @@ function SsoTab({ demo }: { demo: boolean }) {
         </div>
         <Field label="Identifier (Entity ID)">{ro(sp.entityId)}</Field>
         <Field label="Reply URL (Assertion Consumer Service)">{ro(sp.acsUrl)}</Field>
+        <p className="text-xs text-ink-soft">{t(
+          'ב-Entra הגדירו את Name ID או את מאפיין email/UPN לכתובת שבה המשתמש רשום ב-SmartQ. אין צורך בדומיין @IEC; הערכים חייבים להיות זהים.',
+          'In Entra, set Name ID or the email/UPN claim to the address provisioned for the user in SmartQ. No @IEC domain is required; the values must match.'
+        )}</p>
         <Field label={t('כתובת כניסה של ספק הזהויות', 'Identity provider sign-in URL')}><input type="url" dir="ltr" className={inputCls} value={s.saml_login_url} onChange={(e) => setS({ ...s, saml_login_url: e.target.value })} placeholder="https://idp.example.com/saml2" /></Field>
         <Field label={t('תעודת החתימה (Base64 / PEM)', 'Signing certificate (Base64 / PEM)')} hint={t('נדרשת לאימות החתימה. בלעדיה הכניסה עם SSO חסומה.', 'Required to verify signatures. Without it SSO sign-in stays disabled.')}><textarea rows={4} dir="ltr" className={`${inputCls} font-mono text-xs`} value={s.saml_idp_cert} onChange={(e) => setS({ ...s, saml_idp_cert: e.target.value })} /></Field>
       </section>

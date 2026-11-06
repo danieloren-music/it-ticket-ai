@@ -75,7 +75,7 @@ export function AppShell({ tenant, tenantName, session, active, managementItems,
         onLogout={onLogout}
         suffix={<span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-medium text-white">IT</span>}
       />
-      <main id="main" className="min-h-screen pt-14 lg:ml-14 lg:pt-0">
+      <main id="main" className={`min-h-screen pt-14 lg:pt-0 ${lang === 'he' ? 'lg:mr-14' : 'lg:ml-14'}`}>
         {session.demo && (
           <div className="bg-ink px-4 py-1.5 text-center text-xs text-white">
             {t('סביבת הדגמה ציבורית – הנתונים מתאפסים כל 24 שעות ופעולות ניהול משתמשים מושבתות. ', 'Public demo – data resets every 24 hours and user administration is disabled. ')}

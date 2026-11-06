@@ -37,10 +37,11 @@ interface Props {
 }
 
 export function ConsoleSidebar({ workspace, identity, secondaryIdentity, groups, onProfile, onChangePassword, onLogout, suffix }: Props) {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const isRtl = lang === 'he';
   const closeMobile = () => setMobileOpen(false);
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -107,7 +108,7 @@ export function ConsoleSidebar({ workspace, identity, secondaryIdentity, groups,
         <span className="w-9" />
       </header>
 
-      <aside aria-label={t('תפריט ראשי', 'Main menu')} className="fixed inset-y-0 left-0 z-40 hidden w-14 flex-col items-center bg-[#173b5b] text-white shadow-lg lg:flex">
+      <aside aria-label={t('תפריט ראשי', 'Main menu')} className={`fixed inset-y-0 z-40 hidden w-14 flex-col items-center bg-[#173b5b] text-white shadow-lg lg:flex ${isRtl ? 'right-0' : 'left-0'}`}>
         <Link href="/home" aria-label={workspace} title={workspace} className="grid h-14 w-full shrink-0 place-items-center border-b border-white/10">
           <Image src="/smartq-brand-mark.png" alt="" width={30} height={30} className="rounded-md bg-white p-0.5" />
         </Link>
@@ -135,7 +136,7 @@ export function ConsoleSidebar({ workspace, identity, secondaryIdentity, groups,
                 >
                   <Icon className="h-5 w-5" />
                 </button>
-                <div className={`invisible absolute left-full top-0 z-50 w-56 -translate-x-1 rounded-xl border border-line bg-white p-2 text-ink opacity-0 shadow-xl transition duration-150 group-hover/nav:visible group-hover/nav:translate-x-0 group-hover/nav:opacity-100 group-focus-within/nav:visible group-focus-within/nav:translate-x-0 group-focus-within/nav:opacity-100 ${expanded ? '!visible !translate-x-0 !opacity-100' : ''}`}>
+                <div className={`invisible absolute top-0 z-50 w-56 rounded-xl border border-line bg-white p-2 text-ink opacity-0 shadow-xl transition duration-150 group-hover/nav:visible group-hover/nav:translate-x-0 group-hover/nav:opacity-100 group-focus-within/nav:visible group-focus-within/nav:translate-x-0 group-focus-within/nav:opacity-100 ${isRtl ? 'right-full translate-x-1' : 'left-full -translate-x-1'} ${expanded ? '!visible !translate-x-0 !opacity-100' : ''}`}>
                   <p className="px-3 pb-2 pt-1 text-xs font-semibold uppercase tracking-wide text-ink-soft">{group.label}</p>
                   <div className="space-y-1">{group.items.map((item) => renderItem(item))}</div>
                 </div>
@@ -146,7 +147,7 @@ export function ConsoleSidebar({ workspace, identity, secondaryIdentity, groups,
         <div className="flex w-full flex-col items-center gap-2 border-t border-white/10 py-3">
           <div className="group/lang relative">
             <button type="button" title={t('שפה', 'Language')} aria-label={t('שפה', 'Language')} className="grid h-10 w-10 place-items-center rounded-xl text-white/75 hover:bg-white/10 hover:text-white"><Languages className="h-4 w-4" /></button>
-            <div className="invisible absolute bottom-0 left-full z-50 translate-x-1 rounded-xl border border-line bg-white p-2 opacity-0 shadow-xl transition group-hover/lang:visible group-hover/lang:translate-x-0 group-hover/lang:opacity-100 group-focus-within/lang:visible group-focus-within/lang:translate-x-0 group-focus-within/lang:opacity-100">
+            <div className={`invisible absolute bottom-0 z-50 rounded-xl border border-line bg-white p-2 opacity-0 shadow-xl transition group-hover/lang:visible group-hover/lang:translate-x-0 group-hover/lang:opacity-100 group-focus-within/lang:visible group-focus-within/lang:translate-x-0 group-focus-within/lang:opacity-100 ${isRtl ? 'right-full translate-x-1' : 'left-full -translate-x-1'}`}>
               <LangSwitch />
             </div>
           </div>
@@ -158,7 +159,7 @@ export function ConsoleSidebar({ workspace, identity, secondaryIdentity, groups,
       </aside>
 
       {mobileOpen && <button type="button" aria-label={t('סגירת תפריט', 'Close menu')} onClick={closeMobile} className="fixed inset-0 z-40 bg-ink/40 lg:hidden" />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-line bg-white shadow-xl transition-transform duration-200 lg:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 z-50 flex w-72 flex-col border-line bg-white shadow-xl transition-transform duration-200 lg:hidden ${isRtl ? 'right-0 border-l' : 'left-0 border-r'} ${mobileOpen ? 'translate-x-0' : isRtl ? 'translate-x-full' : '-translate-x-full'}`}>
         <div className="flex h-16 items-center justify-between border-b border-line px-5">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft">{t('סביבת עבודה', 'WORKSPACE')}</p>

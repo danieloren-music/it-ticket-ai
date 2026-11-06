@@ -22,7 +22,7 @@ interface Me { email: string; name: string; role: string; department: string }
 const statusTone = (s: string) => s.toLowerCase() === 'active' ? 'bg-emerald-50 text-emerald-700 ring-emerald-200' : s.toLowerCase() === 'trial' ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-amber-50 text-amber-700 ring-amber-200';
 
 export default function PlatformConsole() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const { toast } = useToast();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('overview');
@@ -81,7 +81,7 @@ export default function PlatformConsole() {
         onLogout={logout}
         suffix={<span className="rounded-md bg-ink px-1.5 py-0.5 text-[10px] font-medium text-white">PLATFORM</span>}
       />
-      <main className="min-h-screen pt-14 lg:ml-14 lg:pt-0">
+      <main className={`min-h-screen pt-14 lg:pt-0 ${lang === 'he' ? 'lg:mr-14' : 'lg:ml-14'}`}>
         <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 sm:py-8">
           {readOnly && <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800">{t('התפקיד שלכם הוא לקריאה בלבד.', 'Your role is read-only.')}</p>}
           {tab === 'overview' && <OverviewTab me={me} onNavigate={setTab} />}

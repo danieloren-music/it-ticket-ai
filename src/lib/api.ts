@@ -36,7 +36,7 @@ const MESSAGES: Record<string, { he: string; en: string }> = {
   AI_UNAVAILABLE: { he: 'עוזר ה-AI אינו זמין כרגע', en: 'The AI assistant is currently unavailable' },
   AI_FAILED: { he: 'Tony לא הצליח לעבד את הבקשה. נסו שוב.', en: 'Tony could not process the request. Please try again.' },
   CONTACT_EMAIL_NOT_CONFIGURED: { he: 'טופס יצירת הקשר אינו מוגדר כרגע. אפשר לנסות שוב מאוחר יותר.', en: 'The contact form is not configured right now. Please try again later.' },
-  CONTACT_NOTIFICATION_FAILED: { he: 'הפנייה נשמרה, אך שליחת הודעת הדוא״ל נכשלה. נסו שוב מאוחר יותר.', en: 'Your request was saved, but its email notification failed. Please try again later.' },
+  CONTACT_NOTIFICATION_FAILED: { he: 'הפנייה נשמרה במערכת, אבל הודעת ההתראה לא נשלחה. אין צורך לשלוח שוב — צוות SmartQ יבדוק את הפנייה דרך לוח הניהול.', en: 'Your request was saved, but the notification email failed. Please do not submit again; the SmartQ team can review it in the admin console.' },
   PASSWORD_RESET_EMAIL_FAILED: { he: 'שליחת הודעת איפוס הסיסמה נכשלה. נסו שוב מאוחר יותר.', en: 'Could not send the password reset email. Please try again later.' },
   INVALID_RESET_TOKEN: { he: 'קישור האיפוס אינו תקף או שפג תוקפו. בקשו קישור חדש.', en: 'This reset link is invalid or expired. Request a new one.' },
   DEMO_BUSY: { he: 'ההדגמה עמוסה כרגע, נסו שוב מאוחר יותר', en: 'The live demo is busy, please try again later' },

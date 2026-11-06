@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { ArrowLeft, ArrowRight, Check, Clock3, Menu, MessageSquare, RotateCcw, Route, Send, Sparkles, X } from 'lucide-react';
-import { api, errorText } from '@/lib/api';
+import { ApiError, api, errorText } from '@/lib/api';
 import { useLang } from '@/lib/i18n';
 import { A11yWidget } from '@/components/A11yWidget';
 import { Badge, Brand, Field, LangSwitch, Spinner, btnPrimary, inputCls, urgencyTone } from '@/components/ui';
@@ -148,6 +148,9 @@ export default function HomeClient() {
       setContactSent(true);
     } catch (error) {
       setContactError(errorText(error, lang));
+      if (error instanceof ApiError && error.code === 'CONTACT_NOTIFICATION_FAILED') {
+        setContactSent(true);
+      }
     } finally {
       setContactBusy(false);
     }
@@ -457,7 +460,10 @@ export default function HomeClient() {
                 <p className="mt-1 text-sm text-ink-soft">{t('השאירו פרטים ונחזור אליכם.', 'Leave your details and we will be in touch.')}</p>
               </div>
               {contactSent ? (
-                <p role="status" className="flex items-center gap-2 font-semibold text-emerald-700"><Check className="h-5 w-5" />{t('הפנייה התקבלה.', 'Request received.')}</p>
+                <div role="status" className="space-y-2">
+                  <p className="flex items-center gap-2 font-semibold text-emerald-700"><Check className="h-5 w-5" />{t('הפנייה נשמרה במערכת.', 'Your request was saved.')}</p>
+                  {contactError && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">{contactError}</p>}
+                </div>
               ) : (
                 <form onSubmit={sendContact} className="space-y-3">
                   <div className="grid gap-3 sm:grid-cols-3">

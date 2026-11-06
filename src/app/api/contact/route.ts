@@ -3,6 +3,17 @@ import { Resend } from 'resend';
 import { db } from '@/lib/db';
 import { HttpError, route, readJson, str, email, rateLimit, clientIp } from '@/lib/http';
 
+function resendErrorDetails(error: unknown): Record<string, unknown> {
+  if (!error || typeof error !== 'object') return { message: String(error) };
+  const detail = error as { name?: unknown; message?: unknown; statusCode?: unknown; code?: unknown };
+  return {
+    ...(typeof detail.name === 'string' ? { name: detail.name } : {}),
+    ...(typeof detail.statusCode === 'number' ? { statusCode: detail.statusCode } : {}),
+    ...(typeof detail.code === 'string' ? { code: detail.code } : {}),
+    ...(typeof detail.message === 'string' ? { message: detail.message } : {}),
+  };
+}
+
 export const POST = route(async (req: NextRequest) => {
   const ip = clientIp(req);
   rateLimit(`contact:${ip}`, 5, 60 * 60_000);
@@ -47,9 +58,9 @@ export const POST = route(async (req: NextRequest) => {
         row.message ? `Message: ${row.message}` : '',
       ].filter(Boolean).join('\n'),
     });
-    if (sendError) throw new Error(sendError.message);
+    if (sendError) throw sendError;
   } catch (error) {
-    console.error('[contact] Resend notification failed:', error instanceof Error ? error.message : 'Unknown error');
+    console.error('[contact] Resend notification failed:', resendErrorDetails(error));
     throw new HttpError(502, 'CONTACT_NOTIFICATION_FAILED', 'Your request was saved, but its email notification could not be sent');
   }
 

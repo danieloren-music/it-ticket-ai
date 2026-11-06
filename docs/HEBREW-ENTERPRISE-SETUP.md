@@ -48,10 +48,12 @@
 <tr><td><code dir="ltr">SESSION_SECRET</code></td><td>מפתח אקראי לחתימת session</td></tr>
 <tr><td><code dir="ltr">NEXT_PUBLIC_APP_URL</code></td><td><code dir="ltr">https://smartq-ai.com</code> (ללא לוכסן בסוף)</td></tr>
 <tr><td><code dir="ltr">RESEND_API_KEY</code></td><td>מפתח Resend לטופס יצירת קשר</td></tr>
-<tr><td><code dir="ltr">RESEND_FROM_EMAIL</code></td><td>כתובת שולח מאומתת, למשל <code dir="ltr">SmartQ &lt;contact@example.com&gt;</code></td></tr>
-<tr><td><code dir="ltr">CONTACT_TO_EMAIL</code></td><td>כתובת לקבלת פניות מהאתר</td></tr>
+<tr><td><code dir="ltr">RESEND_FROM_EMAIL</code></td><td>כתובת שולח מהדומיין שאומת ב-Resend, למשל <code dir="ltr">SmartQ &lt;contact@smartq-ai.com&gt;</code></td></tr>
+<tr><td><code dir="ltr">CONTACT_TO_EMAIL</code></td><td>כתובת קיימת לקבלת פניות מהאתר</td></tr>
 </tbody>
 </table>
+
+<p dir="rtl" align="right">לפני שליחת טופס יצירת הקשר, הוסיפו ואמתו ב-Resend את הדומיין שממנו תשלחו (למשל <code dir="ltr">smartq-ai.com</code>), והגדירו את רשומות ה-DNS ש-Resend מציג. לאחר מכן הגדירו ב-Vercel את <code dir="ltr">RESEND_API_KEY</code>, את <code dir="ltr">RESEND_FROM_EMAIL</code> עם כתובת מאותו דומיין מאומת, ואת <code dir="ltr">CONTACT_TO_EMAIL</code> ככתובת היעד. אם ההודעה עדיין נכשלת, בדקו את פרטי השגיאה ב-Vercel → Logs ואת האירוע המתאים ב-Resend → Emails/Logs. הבקשה עצמה נשמרת גם אם שליחת ההתראה נכשלת.</p>
 
 <p dir="rtl" align="right">צרו <code dir="ltr">SESSION_SECRET</code> ב-PowerShell והריצו:</p>
 

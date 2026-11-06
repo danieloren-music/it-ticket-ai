@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Check, Copy, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { Activity, Cable, Check, Copy, KeyRound, Pencil, Plus, ScrollText, Search, Shield, Trash2, Users, UsersRound, Workflow, type LucideIcon } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { fmtDateTime, fmtDuration, useLang } from '@/lib/i18n';
 import { useSession } from '@/hooks/useSession';
 import { AppShell } from '@/components/AppShell';
+import type { ConsoleNavItem } from '@/components/ConsoleSidebar';
 import { DailyBars, Distribution } from '@/components/Charts';
 import { Badge, EmptyState, Field, Modal, Spinner, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
 import { CATEGORY_LABELS, ROLES, ROLE_LABELS, TEAM_LABELS, URGENCY_LABELS, label, type DbRole } from '@/lib/constants';
@@ -40,6 +41,16 @@ interface Sso {
 interface AuditEntry { id: string; actor_email: string; actor_role: string | null; action: string; target: string | null; ip: string | null; created_at: string }
 
 const roleTone = (r: string) => r === 'Manager' ? 'bg-violet-50 text-violet-700 ring-violet-200' : r === 'Admin' ? 'bg-blue-50 text-blue-700 ring-blue-200' : 'bg-slate-100 text-slate-700 ring-slate-200';
+const tabIcons: Record<Tab, LucideIcon> = {
+  overview: Activity,
+  users: UsersRound,
+  roles: Shield,
+  sso: KeyRound,
+  audit: ScrollText,
+  groups: Users,
+  automations: Workflow,
+  api: Cable,
+};
 
 export default function ManagePage() {
   const { t } = useLang();
@@ -59,14 +70,18 @@ export default function ManagePage() {
   ];
   const tabs = available.filter(([, , permission]) => session?.permissions.includes(permission));
   const activeTab = tabs.some(([key]) => key === tab) ? tab : tabs[0]?.[0];
+  const managementItems: ConsoleNavItem[] = tabs.map(([key, title]) => ({
+    key,
+    label: title,
+    icon: tabIcons[key],
+    active: activeTab === key,
+    onClick: () => setTab(key),
+  }));
 
   return (
-    <AppShell tenant={tenantSlug} tenantName={tenant?.name ?? tenantSlug} session={session} active="manage" onLogout={logout} onReload={reload}>
+    <AppShell tenant={tenantSlug} tenantName={tenant?.name ?? tenantSlug} session={session} active="manage" managementItems={managementItems} onLogout={logout} onReload={reload}>
       <div className="space-y-5">
         <div><h1 className="text-2xl font-bold">{t('ניהול הארגון', 'Organization administration')}</h1><p className="text-ink-soft">{tenant?.name} · {tenant?.domain}</p></div>
-        <div role="tablist" className="flex flex-wrap gap-1 border-b border-line">
-          {tabs.map(([k, l]) => <button key={k} role="tab" aria-selected={activeTab === k} type="button" onClick={() => setTab(k)} className={`-mb-px border-b-2 px-4 py-2 text-sm font-semibold ${activeTab === k ? 'border-brand text-brand' : 'border-transparent text-ink-soft hover:text-ink'}`}>{l}</button>)}
-        </div>
         {session && !session.mustChangePassword && (
           <>
             {activeTab === 'overview' && <Overview />}

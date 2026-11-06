@@ -6,7 +6,7 @@ import { ExternalLink, Inbox, MessageSquare, Settings2 } from 'lucide-react';
 import { useLang } from '@/lib/i18n';
 import { ROLE_LABELS, label } from '@/lib/constants';
 import type { SessionInfo } from '@/hooks/useSession';
-import { ConsoleSidebar, type ConsoleNavGroup } from './ConsoleSidebar';
+import { ConsoleSidebar, type ConsoleNavGroup, type ConsoleNavItem } from './ConsoleSidebar';
 import { A11yWidget } from './A11yWidget';
 import { TenantProfileDialog } from './TenantProfileDialog';
 import { ChangePasswordDialog } from './ChangePasswordDialog';
@@ -19,19 +19,23 @@ interface Props {
   tenantName: string;
   session: SessionInfo | null;
   active: NavKey;
+  managementItems?: ConsoleNavItem[];
   onLogout: () => void;
   onReload: () => void;
   actions?: ReactNode;
   children: ReactNode;
 }
 
-export function AppShell({ tenant, tenantName, session, active, onLogout, onReload, actions, children }: Props) {
+export function AppShell({ tenant, tenantName, session, active, managementItems, onLogout, onReload, actions, children }: Props) {
   const { t, lang } = useLang();
   const [pwOpen, setPwOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const canManage = ['directory:manage', 'settings:manage', 'audit:read', 'groups:manage', 'automations:manage', 'api_keys:manage']
+  const canManage = ['tickets:read_all', 'directory:manage', 'settings:manage', 'audit:read', 'groups:manage', 'automations:manage', 'api_keys:manage']
     .some((permission) => session?.permissions.includes(permission));
+  const defaultManagementItems: ConsoleNavItem[] = [
+    { key: 'manage', href: `/${tenant}/manage`, label: t('ניהול הארגון', 'Organization administration'), icon: Settings2, active: active === 'manage' },
+  ];
   const groups: ConsoleNavGroup[] = [
     {
       key: 'requests',
@@ -46,7 +50,7 @@ export function AppShell({ tenant, tenantName, session, active, onLogout, onRelo
       key: 'administration',
       label: t('ניהול', 'Administration'),
       icon: Settings2,
-      items: [{ key: 'manage', href: `/${tenant}/manage`, label: t('ניהול הארגון', 'Organization administration'), icon: Settings2, active: active === 'manage' }],
+      items: managementItems ?? defaultManagementItems,
     }] : []),
     {
       key: 'website',

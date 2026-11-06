@@ -127,12 +127,7 @@ export async function requirePlatform(req: NextRequest, opts: { write?: boolean 
     session.role = admin.role;
   } else {
     const bootstrapEmail = process.env.PLATFORM_BOOTSTRAP_EMAIL?.trim().toLowerCase();
-    const { count, error: countError } = await client
-      .from('platform_admins')
-      .select('id', { count: 'exact', head: true })
-      .eq('role', 'Super Admin');
-    if (countError) throw new Error(`Could not validate bootstrap access: ${countError.message}`);
-    if (session.sub.toLowerCase() !== bootstrapEmail || (count ?? 0) > 0) throw unauthorized();
+    if (session.sub.toLowerCase() !== bootstrapEmail) throw unauthorized();
   }
   if (opts.write && PLATFORM_READONLY_ROLES.has(session.role)) {
     throw forbidden('READ_ONLY_ROLE', 'Your platform role is read-only');

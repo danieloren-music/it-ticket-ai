@@ -46,7 +46,7 @@
 <tr><td><code dir="ltr">NEXT_PUBLIC_SUPABASE_ANON_KEY</code></td><td>מפתח <code dir="ltr">anon</code> של Supabase</td></tr>
 <tr><td><code dir="ltr">SUPABASE_SERVICE_ROLE_KEY</code></td><td>מפתח <code dir="ltr">service_role</code> — סוד שרת</td></tr>
 <tr><td><code dir="ltr">SESSION_SECRET</code></td><td>מפתח אקראי לחתימת session</td></tr>
-<tr><td><code dir="ltr">NEXT_PUBLIC_APP_URL</code></td><td>כתובת האתר, למשל <code dir="ltr">https://support.example.com</code></td></tr>
+<tr><td><code dir="ltr">NEXT_PUBLIC_APP_URL</code></td><td><code dir="ltr">https://smartq-ai.com</code> (ללא לוכסן בסוף)</td></tr>
 <tr><td><code dir="ltr">RESEND_API_KEY</code></td><td>מפתח Resend לטופס יצירת קשר</td></tr>
 <tr><td><code dir="ltr">RESEND_FROM_EMAIL</code></td><td>כתובת שולח מאומתת, למשל <code dir="ltr">SmartQ &lt;contact@example.com&gt;</code></td></tr>
 <tr><td><code dir="ltr">CONTACT_TO_EMAIL</code></td><td>כתובת לקבלת פניות מהאתר</td></tr>
@@ -62,7 +62,7 @@
 <h3 dir="rtl" align="right">משתנים נוספים — רק אם צריך</h3>
 
 <ul dir="rtl" align="right">
-<li><code dir="ltr">PLATFORM_BOOTSTRAP_EMAIL</code> ו-<code dir="ltr">PLATFORM_BOOTSTRAP_PASSWORD</code> — רק בהקמה הראשונה, אם עדיין אין מנהל SmartQ. אחרי יצירת מנהל קבוע ב-<code dir="ltr">/platform</code>, הסירו את שניהם מ-Vercel.</li>
+<li><code dir="ltr">PLATFORM_BOOTSTRAP_EMAIL</code> ו-<code dir="ltr">PLATFORM_BOOTSTRAP_PASSWORD</code> — בכניסה הראשונה עם זוג זה נוצר מנהל Super Admin קבוע, גם אם כבר קיימים מנהלים אחרים. אחרי הכניסה, הסירו את שניהם מ-Vercel ובצעו Redeploy.</li>
 <li><code dir="ltr">GEMINI_API_KEY</code> — לסיווג קריאות AI בארגונים. ההדגמה הציבורית אינה זקוקה לו.</li>
 <li><code dir="ltr">OIDC_CLIENT_ID</code> ו-<code dir="ltr">OIDC_CLIENT_SECRET</code> — צמד אופציונלי לאפליקציית OIDC משותפת של SmartQ. הגדירו את שניהם יחד או השאירו את שניהם ריקים.</li>
 <li><code dir="ltr">IDP_ENCRYPTION_KEY</code> — נדרש אם ארגון שומר ב-SmartQ סוד OIDC משלו או מפעיל webhook חתום. צרו מפתח base64 אקראי של 32 bytes:</li>
@@ -93,9 +93,9 @@ Copy-Item .env.example .env.local</code></pre>
 <h2 dir="rtl" align="right">4. פריסה ובדיקת המערכת</h2>
 
 <ol dir="rtl" align="right">
-<li>פרסו ל-Vercel. ודאו ש-<code dir="ltr">NEXT_PUBLIC_APP_URL</code> מכיל את כתובת ה-HTTPS שבה תשתמשו.</li>
+<li>הוסיפו ב-Vercel את הדומיין <code dir="ltr">smartq-ai.com</code>, השלימו את רשומות ה-DNS ש-Vercel מציג, והגדירו <code dir="ltr">NEXT_PUBLIC_APP_URL=https://smartq-ai.com</code> בסביבת Production. לאחר שהדומיין אומת וה-DNS פעיל, פרסו מחדש.</li>
 <li>פתחו <code dir="ltr">https://&lt;הדומיין&gt;/api/health</code>. בדיקה תקינה מחזירה HTTP <code dir="ltr">200</code>, עם <code dir="ltr">status: "ok"</code> ו-<code dir="ltr">database: "ok"</code>.</li>
-<li>בהקמה הראשונה, היכנסו אל <code dir="ltr">/platform/login</code> עם פרטי ה-bootstrap רק אם עדיין אין Super Admin, צרו מנהל SmartQ קבוע, הסירו את משתני ה-bootstrap ובצעו Redeploy. לאיפוס סיסמה, השתמשו בכתובת המדויקת שרשומה ב-<code dir="ltr">platform_admins</code> (שאינה בהכרח כתובת ה-bootstrap). מנהלי SmartQ יכולים לבקש קישור איפוס חד-פעמי בדף הכניסה; נדרשים משתני Resend שמוגדרים למעלה.</li>
+<li>בהקמה הראשונה, היכנסו אל <code dir="ltr">/platform/login</code> עם פרטי ה-bootstrap. בכניסה הראשונה נוצר חשבון מנהל קבוע לאימייל שבמשתנים גם אם קיימים מנהלים אחרים. לאחר אימות הכניסה הסירו את משתני ה-bootstrap ובצעו Redeploy. לאיפוס סיסמה, השתמשו בכתובת המדויקת שרשומה ב-<code dir="ltr">platform_admins</code>. מנהלי SmartQ יכולים לבקש קישור איפוס חד-פעמי בדף הכניסה; נדרשים משתני Resend שמוגדרים למעלה.</li>
 <li>ב-<code dir="ltr">/platform</code> צרו ארגון ומנהל ארגון. המנהל מקבל סיסמה זמנית ומחליף אותה בכניסה הראשונה.</li>
 <li>בדקו כניסה, שינוי סיסמה, פתיחת קריאה ותור טיפול עבור עובד, טכנאי ומנהל.</li>
 <li>בכל ארגון ניתן לנהל בנפרד קבוצות הרשאה, צוותי IT, אוטומציות ומפתחות API. מסמכי ה-API נמצאים ב-<code dir="ltr">/api/v1/openapi</code>; צרו מפתח מוגבל הרשאות באזור ניהול הארגון ושמרו את ערכו בזמן היצירה בלבד.</li>

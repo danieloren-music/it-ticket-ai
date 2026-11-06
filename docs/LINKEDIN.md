@@ -13,7 +13,7 @@
 • עברית/אנגלית (RTL/LTR) ותפריט נגישות
 
 אפשר לנסות את המוצר המלא, בלי הרשמה, כעובד, כטכנאי או כמנהל:
-https://smartq-ai.vercel.app/home
+https://smartq-ai.com/home
 
 Next.js · TypeScript · Supabase · Google Gemini · Vercel
 אשמח לפידבק.
@@ -26,6 +26,6 @@ An employee describes the problem in plain language; SmartQ classifies it, sets 
 Under the hood: multi-tenant isolation with server-enforced RBAC, SAML 2.0 / Entra ID SSO with signature validation, an SLA-aware service queue, audit log, account lockout and hashed credentials, Hebrew/English (RTL/LTR) and an accessibility menu.
 
 Try the full product, no sign-up, as an employee, a technician or an admin:
-https://smartq-ai.vercel.app/home
+https://smartq-ai.com/home
 
 Next.js · TypeScript · Supabase · Google Gemini · Vercel

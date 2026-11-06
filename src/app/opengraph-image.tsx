@@ -23,7 +23,7 @@ export default function OpenGraphImage() {
           <div style={{ fontSize: 76, fontWeight: 700, lineHeight: 1.05, color: '#8fa0ff' }}>made easier.</div>
           <div style={{ fontSize: 30, color: '#b6c0e6', marginTop: 28 }}>Describe the issue. SmartQ helps route it to the right team.</div>
         </div>
-        <div style={{ fontSize: 26, color: '#8a96c4' }}>smartq-ai.vercel.app</div>
+        <div style={{ fontSize: 26, color: '#8a96c4' }}>smartq-ai.com</div>
       </div>
     ),
     size

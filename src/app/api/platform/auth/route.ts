@@ -29,7 +29,7 @@ export const POST = route(async (req: NextRequest) => {
   rateLimit(`platform:login:ip:${ip}`, 15, 10 * 60_000);
   rateLimit(`platform:login:acct:${userEmail}`, 6, 10 * 60_000);
 
-  const admin = must(await db().from('platform_admins').select('*').eq('email', userEmail).maybeSingle());
+  let admin = must(await db().from('platform_admins').select('*').eq('email', userEmail).maybeSingle());
 
   let identity: { email: string; name: string; role: string } | null = null;
 
@@ -54,13 +54,10 @@ export const POST = route(async (req: NextRequest) => {
     must(await db().from('platform_admins').update(update).eq('id', admin.id));
     identity = { email: admin.email, name: admin.full_name, role: admin.role };
   } else {
-    // Bootstrap operator defined in environment variables (first-run access).
+    // Create a persistent admin row for the configured bootstrap identity on first login.
     const bootEmail = process.env.PLATFORM_BOOTSTRAP_EMAIL?.trim().toLowerCase();
     const bootPass = process.env.PLATFORM_BOOTSTRAP_PASSWORD;
-    const { count, error } = await db().from('platform_admins').select('id', { count: 'exact', head: true }).eq('role', 'Super Admin');
-    if (error) throw new Error(`Could not validate bootstrap access: ${error.message}`);
     const ok = Boolean(
-      (count ?? 0) === 0 &&
       bootEmail &&
       bootPass &&
       bootEmail === userEmail &&
@@ -71,7 +68,28 @@ export const POST = route(async (req: NextRequest) => {
       await audit({ actor: userEmail, action: 'platform.login_failed', meta: { reason: 'unknown_user' }, ip });
       throw invalid();
     }
-    identity = { email: userEmail, name: userEmail.split('@')[0], role: 'Super Admin' };
+
+    const { data: created, error } = await db().from('platform_admins').insert({
+      email: userEmail,
+      password_hash: await hashPassword(password),
+      full_name: userEmail.split('@')[0],
+      role: 'Super Admin',
+      department: 'Cloud Operations',
+    }).select('*').single();
+
+    if (error?.code === '23505') {
+      // Another first-login request may have created the same bootstrap admin concurrently.
+      admin = must(await db().from('platform_admins').select('*').eq('email', userEmail).maybeSingle());
+      if (!admin || !(await verifyPassword(password, admin.password_hash)).ok || admin.role !== 'Super Admin') {
+        throw invalid();
+      }
+    } else if (error) {
+      throw new Error(`Could not create bootstrap admin: ${error.message}`);
+    } else {
+      admin = created;
+    }
+
+    identity = { email: admin.email, name: admin.full_name, role: admin.role };
   }
 
   const res = NextResponse.json({ success: true, admin: identity });

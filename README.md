@@ -2,7 +2,7 @@
 
 Multi-tenant IT service desk. An employee describes a problem in plain language, **Tony** (Google Gemini) turns it into a classified, prioritized and routed ticket, and IT staff work it from a live queue with SLA tracking.
 
-**Live:** https://smartq-ai.vercel.app/home  ·  Try the full product without signing up from the home page ("Try SmartQ").
+**Live:** https://smartq-ai.com/home  ·  Try the full product without signing up from the home page ("Try SmartQ").
 
 ## Stack
 Next.js (App Router) · React · TypeScript · Tailwind CSS v4 · Supabase (Postgres) · Google Gemini · OIDC (`openid-client`) · SAML 2.0 (`@node-saml/node-saml`) · Vercel
@@ -48,7 +48,7 @@ The root domain (`/`) opens the SmartQ vendor sign-in. The marketing site remain
 3. Run the read-only inventory `supabase/maintenance/001_review_database.sql`; confirm the base tables exist (`001_enterprise.sql` does not create a fresh database schema).
 4. Take a restorable backup, then run `supabase/migrations/001_enterprise.sql`, `supabase/migrations/003_oidc_sso.sql`, `supabase/migrations/004_saas_platform.sql`, and `supabase/migrations/005_platform_password_reset.sql` in Supabase SQL Editor, in that order.
 5. Copy `.env.example`, replace its example values, and bulk-add the completed `.env` file in Vercel **Environment Variables**. At minimum, configure the Supabase URL and keys, `SESSION_SECRET`, `NEXT_PUBLIC_APP_URL`, and the Resend values for the contact form. Keep `SUPABASE_SERVICE_ROLE_KEY` server-only. Set `IDP_ENCRYPTION_KEY` before enabling tenant-owned OIDC secrets or webhook automations; redeploy after changing variables.
-6. Sign in at `/platform/login` with `PLATFORM_BOOTSTRAP_EMAIL/PASSWORD` only if no Super Admin exists yet; create a permanent platform user, then remove the bootstrap variables. Platform admins can request a one-time password reset link from the sign-in page (requires the Resend email settings).
+6. Sign in at `/platform/login` using `PLATFORM_BOOTSTRAP_EMAIL/PASSWORD`. On first use, SmartQ creates a permanent Super Admin account for that email, even if other Super Admins already exist. After confirming access, remove the bootstrap variables from Vercel and redeploy. Platform admins can request a one-time password reset link from the sign-in page (requires the Resend email settings).
 7. After verifying sign-in works, run `supabase/migrations/002_enable_rls.sql`.
 8. For database inventory and explicitly approved, guarded cleanup, see `supabase/maintenance/`. Review and back up before dropping any table.
 

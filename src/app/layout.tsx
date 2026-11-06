@@ -7,7 +7,7 @@ import './globals.css';
 const heebo = Heebo({ variable: '--font-heebo', subsets: ['hebrew', 'latin'], display: 'swap' });
 const mono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
-const site = process.env.NEXT_PUBLIC_APP_URL || 'https://smartq-ai.vercel.app';
+const site = process.env.NEXT_PUBLIC_APP_URL || 'https://smartq-ai.com';
 
 export const metadata: Metadata = {
   metadataBase: new URL(site),

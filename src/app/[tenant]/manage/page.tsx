@@ -209,9 +209,9 @@ function UsersTab({ domain, selfEmail, demo }: { domain: string; selfEmail: stri
             <Field label={t('שם משפחה', 'Last name')}><input required className={inputCls} value={f.lastName} onChange={(e) => setF({ ...f, lastName: e.target.value })} /></Field>
           </div>
           <Field label={t('שם משתמש', 'Username')}>
-            <div className="flex items-center overflow-hidden rounded-lg border border-line focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20" dir="ltr">
-              <input required disabled={modal === 'edit'} className="w-full bg-transparent px-3 py-2 text-sm outline-none disabled:text-slate-500" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '') })} />
-              <span className="whitespace-nowrap bg-canvas px-3 py-2 text-sm text-ink-soft">@{domain}</span>
+            <div className="flex min-w-0 items-center overflow-hidden rounded-lg border border-line focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20" dir="ltr">
+              <input required disabled={modal === 'edit'} className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none disabled:text-slate-500" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '') })} />
+              <span className="max-w-[55%] shrink-0 overflow-x-auto whitespace-nowrap border-s border-line bg-canvas px-3 py-2 text-sm text-ink-soft">@{domain}</span>
             </div>
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">

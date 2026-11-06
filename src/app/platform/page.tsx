@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Activity, ArrowUpLeft, ArrowUpRight, Building2, Check, Copy, ExternalLink, KeyRound, MessageCircle, Pencil, Plus, RefreshCw, Search, Sparkles, TicketCheck, Trash2, UsersRound } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { fmtDate, fmtDateTime, useLang } from '@/lib/i18n';
-import { Badge, EmptyState, Field, Modal, Spinner, btnDanger, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
+import { Badge, EmptyState, Field, Modal, Spinner, SuccessDialog, btnDanger, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
 import { A11yWidget } from '@/components/A11yWidget';
 import { DailyBars } from '@/components/Charts';
 import { ConsoleSidebar, type ConsoleNavItem } from '@/components/ConsoleSidebar';
@@ -443,7 +443,7 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
         <form onSubmit={save} className="space-y-3">
           <Field label={t('שם מלא', 'Full name')}><input required className={inputCls} value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></Field>
           {editing ? <Field label={t('אימייל', 'Email')}><input disabled dir="ltr" className={inputCls} value={editing.email} /></Field>
-            : <Field label={t('שם משתמש', 'Username')}><div className="flex items-center overflow-hidden rounded-lg border border-line" dir="ltr"><input required className="w-full bg-transparent px-3 py-2 text-sm outline-none" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} /><span className="bg-canvas px-3 py-2 text-sm text-ink-soft">@{PLATFORM_EMAIL_DOMAIN}</span></div></Field>}
+            : <Field label={t('שם משתמש', 'Username')}><div className="flex min-w-0 items-center overflow-hidden rounded-lg border border-line" dir="ltr"><input required className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} /><span className="max-w-[55%] shrink-0 overflow-x-auto whitespace-nowrap border-s border-line bg-canvas px-3 py-2 text-sm text-ink-soft">@{PLATFORM_EMAIL_DOMAIN}</span></div></Field>}
           <Field label={t('תפקיד', 'Role')}><select className={inputCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{PLATFORM_ROLES.map((r) => <option key={r}>{r}</option>)}</select></Field>
           <Field label={t('מחלקה', 'Department')}><input className={inputCls} value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })} /></Field>
           <div className="flex justify-end gap-2 pt-2"><button type="button" className={btnSecondary} onClick={() => { setOpen(false); setEditing(null); }}>{t('ביטול', 'Cancel')}</button><button type="submit" disabled={saving} className={btnPrimary}>{saving && <Spinner />}{t(editing ? 'שמירה' : 'יצירה', editing ? 'Save' : 'Create')}</button></div>
@@ -484,22 +484,35 @@ function ProfileModal({ open, me, onClose, onSaved }: { open: boolean; me: Me; o
   const [cur, setCur] = useState('');
   const [next, setNext] = useState('');
   const [busy, setBusy] = useState(false);
+  const [passwordChanged, setPasswordChanged] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true);
+    const changingPassword = Boolean(next);
     try {
       await api('/api/platform/admins', { method: 'POST', json: { email: me.email, fullName: name, role: me.role, department: me.department || 'Cloud Operations', password: next || undefined, currentPassword: next ? cur : undefined } });
-      setCur(''); setNext(''); onSaved({ ...me, name }); onClose();
+      setCur(''); setNext(''); onSaved({ ...me, name });
+      if (changingPassword) setPasswordChanged(true);
+      else onClose();
     } catch (ex) { toast(errorText(ex, lang), 'error'); } finally { setBusy(false); }
   };
   return (
-    <Modal open={open} onClose={onClose} title={t('הפרופיל שלי', 'My profile')}>
-      <form onSubmit={submit} className="space-y-3">
-        <p className="text-sm text-ink-soft" dir="ltr">{me.email}</p>
-        <Field label={t('שם מלא', 'Full name')}><input required className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
-        <Field label={t('סיסמה נוכחית (לשינוי סיסמה)', 'Current password (to change it)')}><input type="password" autoComplete="current-password" className={inputCls} value={cur} onChange={(e) => setCur(e.target.value)} /></Field>
-        <Field label={t('סיסמה חדשה', 'New password')} hint={t('לפחות 10 תווים, אותיות וספרות', 'At least 10 characters, letters and digits')}><input type="password" autoComplete="new-password" minLength={next ? 10 : undefined} className={inputCls} value={next} onChange={(e) => setNext(e.target.value)} /></Field>
-        <div className="flex justify-end gap-2 pt-2"><button type="button" className={btnSecondary} onClick={onClose}>{t('ביטול', 'Cancel')}</button><button type="submit" disabled={busy} className={btnPrimary}>{busy && <Spinner />}{t('שמירה', 'Save')}</button></div>
-      </form>
-    </Modal>
+    <>
+      <Modal open={open && !passwordChanged} onClose={onClose} title={t('הפרופיל שלי', 'My profile')}>
+        <form onSubmit={submit} className="space-y-3">
+          <p className="text-sm text-ink-soft" dir="ltr">{me.email}</p>
+          <Field label={t('שם מלא', 'Full name')}><input required className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label={t('סיסמה נוכחית (לשינוי סיסמה)', 'Current password (to change it)')}><input type="password" autoComplete="current-password" className={inputCls} value={cur} onChange={(e) => setCur(e.target.value)} /></Field>
+          <Field label={t('סיסמה חדשה', 'New password')} hint={t('לפחות 10 תווים, אותיות וספרות', 'At least 10 characters, letters and digits')}><input type="password" autoComplete="new-password" minLength={next ? 10 : undefined} className={inputCls} value={next} onChange={(e) => setNext(e.target.value)} /></Field>
+          <div className="flex justify-end gap-2 pt-2"><button type="button" className={btnSecondary} onClick={onClose}>{t('ביטול', 'Cancel')}</button><button type="submit" disabled={busy} className={btnPrimary}>{busy && <Spinner />}{t('שמירה', 'Save')}</button></div>
+        </form>
+      </Modal>
+      <SuccessDialog
+        open={open && passwordChanged}
+        title={t('הסיסמה שונתה בהצלחה', 'Password changed successfully')}
+        message={t('הסיסמה החדשה שלך נשמרה. אפשר להמשיך לעבוד ב-SmartQ.', 'Your new password is saved. You can continue using SmartQ.')}
+        actionLabel={t('המשך', 'Continue')}
+        onClose={() => { setPasswordChanged(false); onClose(); }}
+      />
+    </>
   );
 }

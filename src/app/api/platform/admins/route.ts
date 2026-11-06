@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, must } from '@/lib/db';
 import { route, readJson, str, email, bad, HttpError, clientIp } from '@/lib/http';
-import { requirePlatform } from '@/lib/auth';
+import { attachPlatformSession, requirePlatform } from '@/lib/auth';
 import { generateTempPassword, hashPassword, passwordPolicyError, verifyPassword } from '@/lib/password';
 import { audit } from '@/lib/audit';
 import { PLATFORM_ROLES, isOneOf } from '@/lib/constants';
@@ -70,11 +70,16 @@ export const POST = route(async (req: NextRequest) => {
       patch.locked_until = null;
     }
     const admin = must(await db().from('platform_admins').update(patch).eq('id', existing.id).select(COLS).single());
+    if (!admin) throw new Error('Platform user update returned no user');
     if (passwordHash) {
       must(await db().from('platform_password_resets').delete().eq('admin_email', target));
     }
     await audit({ actor: session.sub, role: session.role, action: 'platform.user_updated', target, meta: { role }, ip: clientIp(req) });
-    return NextResponse.json({ success: true, admin });
+    const res = NextResponse.json({ success: true, admin });
+    if (self && passwordHash) {
+      await attachPlatformSession(res, { sub: admin.email, name: admin.full_name, role: admin.role });
+    }
+    return res;
   }
 
   const admin = must(

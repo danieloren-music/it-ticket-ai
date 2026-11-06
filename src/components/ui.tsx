@@ -100,6 +100,26 @@ export function Modal({ open, onClose, title, children, wide }: { open: boolean;
   );
 }
 
+export function SuccessDialog({ open, title, message, actionLabel, onClose }: {
+  open: boolean;
+  title: string;
+  message: string;
+  actionLabel: string;
+  onClose: () => void;
+}) {
+  return (
+    <Modal open={open} onClose={onClose} title={title}>
+      <div className="py-2 text-center">
+        <div className="rise mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-emerald-50 text-emerald-600 ring-8 ring-emerald-50/60">
+          <CheckCircle2 className="h-10 w-10" strokeWidth={1.8} />
+        </div>
+        <p className="text-sm leading-relaxed text-ink-soft">{message}</p>
+        <button type="button" className={`${btnPrimary} mt-6 w-full`} onClick={onClose}>{actionLabel}</button>
+      </div>
+    </Modal>
+  );
+}
+
 /* ───────── toasts + confirm ───────── */
 interface ToastApi {
   toast: (message: string, type?: 'success' | 'error') => void;

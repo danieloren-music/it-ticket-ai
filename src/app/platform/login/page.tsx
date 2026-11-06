@@ -30,8 +30,8 @@ export default function PlatformLoginPage() {
   return (
     <div className="grid min-h-screen place-items-center bg-canvas p-4">
       <div className="absolute end-4 top-4"><LangSwitch /></div>
-      <div className="w-full max-w-2xl">
-        <div className="mb-8 flex justify-center"><Brand size={44} /></div>
+      <div className="w-full max-w-lg">
+        <div className="mb-8 flex justify-center"><Brand size={56} /></div>
         <div className="rounded-2xl border border-line bg-white p-8 shadow-sm sm:p-12">
           <h1 className="text-2xl font-bold">SmartQ Platform</h1>
           <p className="mt-1 text-sm text-ink-soft">{t('גישה לצוות SmartQ בלבד.', 'SmartQ staff only.')}</p>

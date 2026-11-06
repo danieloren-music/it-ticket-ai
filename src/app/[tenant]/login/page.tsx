@@ -16,7 +16,7 @@ export default async function TenantLoginPage({
   const { returnTo, error } = await searchParams;
   const slug = raw.toLowerCase();
 
-  const tenant = must(await db().from('tenants').select('id, name, status').eq('id', slug).maybeSingle());
+  const tenant = must(await db().from('tenants').select('id, name, domain, status').eq('id', slug).maybeSingle());
   if (!tenant || String(tenant.status).toLowerCase() === 'suspended') notFound();
 
   const ssoSettings = slug === DEMO_TENANT
@@ -49,6 +49,7 @@ export default async function TenantLoginPage({
     <LoginForm
       tenant={slug}
       tenantName={tenant.name}
+      tenantDomain={tenant.domain}
       returnTo={safeReturnTo(returnTo, '')}
       initialError={initialError}
       isDemo={slug === DEMO_TENANT}

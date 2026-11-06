@@ -17,9 +17,10 @@ const SSO_ERRORS: Record<string, [string, string]> = {
   account_not_provisioned: ['החשבון אינו מוגדר בארגון. פנו למנהל המערכת.', 'Your account is not provisioned for this organization. Contact your administrator.'],
 };
 
-export default function LoginForm({ tenant, tenantName, returnTo, initialError, isDemo, ssoProviders }: {
+export default function LoginForm({ tenant, tenantName, tenantDomain, returnTo, initialError, isDemo, ssoProviders }: {
   tenant: string;
   tenantName: string;
+  tenantDomain: string;
   returnTo: string;
   initialError?: string;
   isDemo: boolean;
@@ -27,7 +28,7 @@ export default function LoginForm({ tenant, tenantName, returnTo, initialError, 
 }) {
   const { t, lang } = useLang();
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const sso = initialError ? SSO_ERRORS[initialError] : undefined;
@@ -37,7 +38,7 @@ export default function LoginForm({ tenant, tenantName, returnTo, initialError, 
     e.preventDefault();
     setBusy(true); setError('');
     try {
-      await api('/api/auth/local-login', { method: 'POST', json: { tenantSlug: tenant, email, password } });
+      await api('/api/auth/local-login', { method: 'POST', json: { tenantSlug: tenant, email: `${username.trim()}@${tenantDomain}`, password } });
       router.replace(returnTo || `/${tenant}`);
       router.refresh();
     } catch (ex) { setError(errorText(ex, lang)); setBusy(false); }
@@ -60,9 +61,11 @@ export default function LoginForm({ tenant, tenantName, returnTo, initialError, 
             <p className="text-sm text-ink-soft">{t('סביבת ההדגמה נפתחת מהאתר הראשי, בלי סיסמה.', 'The demo organization opens from the main site, no password needed.')}</p>
           ) : (
             <form onSubmit={submit} className="space-y-5">
-              <Field label={t('אימייל ארגוני', 'Work email')}>
-                <div className="relative"><Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input type="email" required dir="ltr" autoComplete="username" className={`${inputCls} ps-9`} value={email} onChange={(e) => setEmail(e.target.value)} placeholder={`name@${tenant}.com`} /></div>
+              <Field label={t('שם משתמש', 'Username')}>
+                <div className="relative flex" dir="ltr"><Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <input type="text" required pattern="[^@\s]+" maxLength={64} dir="ltr" autoComplete="username" autoCapitalize="none" spellCheck={false} className={`${inputCls} rounded-e-none border-e-0 ps-9`} value={username} onChange={(e) => setUsername(e.target.value)} />
+                  <span className="inline-flex items-center rounded-e-lg border border-line bg-slate-50 px-3 text-sm text-ink-soft">@{tenantDomain}</span>
+                </div>
               </Field>
               <Field label={t('סיסמה', 'Password')}>
                 <div className="relative"><Lock className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />

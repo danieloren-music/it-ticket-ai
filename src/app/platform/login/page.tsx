@@ -11,7 +11,7 @@ import { Brand, Field, LangSwitch, Spinner, btnPrimary, inputCls } from '@/compo
 export default function PlatformLoginPage() {
   const { t, lang } = useLang();
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -20,7 +20,7 @@ export default function PlatformLoginPage() {
     e.preventDefault();
     setBusy(true); setError('');
     try {
-      await api('/api/platform/auth', { method: 'POST', json: { email, password } });
+      await api('/api/platform/auth', { method: 'POST', json: { email: `${username.trim()}@smartq-ai.com`, password } });
       router.replace('/platform');
       router.refresh();
     } catch (ex) { setError(errorText(ex, lang)); setBusy(false); }
@@ -35,9 +35,11 @@ export default function PlatformLoginPage() {
           <h1 className="text-2xl font-bold">SmartQ Platform</h1>
           <p className="mt-1 text-sm text-ink-soft">{t('גישה לצוות SmartQ בלבד.', 'SmartQ staff only.')}</p>
           <form onSubmit={submit} className="mt-7 space-y-5">
-            <Field label={t('אימייל', 'Email')}>
-              <div className="relative"><Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
-                <input type="email" required dir="ltr" autoComplete="username" className={`${inputCls} ps-9`} value={email} onChange={(e) => setEmail(e.target.value)} /></div>
+            <Field label={t('שם משתמש', 'Username')}>
+              <div className="relative flex" dir="ltr"><Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input type="text" required pattern="[^@\s]+" maxLength={64} dir="ltr" autoComplete="username" autoCapitalize="none" spellCheck={false} className={`${inputCls} rounded-e-none border-e-0 ps-9`} value={username} onChange={(e) => setUsername(e.target.value)} />
+                <span className="inline-flex items-center rounded-e-lg border border-line bg-slate-50 px-3 text-sm text-ink-soft">@smartq-ai.com</span>
+              </div>
             </Field>
             <Field label={t('סיסמה', 'Password')}>
               <div className="relative"><Lock className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />

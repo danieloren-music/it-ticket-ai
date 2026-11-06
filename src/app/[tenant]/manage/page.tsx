@@ -162,14 +162,15 @@ function UsersTab({ domain, selfEmail, demo }: { domain: string; selfEmail: stri
   const openCreate = () => { setF(blankUser); setModal('create'); };
   const openEdit = (u: DirUser) => {
     const [first, ...rest] = u.full_name.split(' ');
-    setF({ firstName: first, lastName: rest.join(' '), username: u.email.split('@')[0], password: '', role: u.role, jobTitle: u.job_title ?? '', department: u.department ?? '', siteLocation: u.site_location ?? '', phoneNumber: u.phone_number ?? '', isActive: u.is_active });
+    setF({ firstName: first, lastName: rest.join(' '), username: u.email, password: '', role: u.role, jobTitle: u.job_title ?? '', department: u.department ?? '', siteLocation: u.site_location ?? '', phoneNumber: u.phone_number ?? '', isActive: u.is_active });
     setModal('edit');
   };
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const email = `${f.username.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '')}@${domain}`;
+    const enteredUsername = f.username.trim().toLowerCase();
+    const email = enteredUsername.includes('@') ? enteredUsername : `${enteredUsername}@${domain}`;
     try {
       const d = await api<{ tempPassword?: string }>('/api/directory', { method: 'POST', json: { email, fullName: `${f.firstName} ${f.lastName}`.trim(), password: f.password || undefined, role: f.role, jobTitle: f.jobTitle, department: f.department, siteLocation: f.siteLocation, phoneNumber: f.phoneNumber, isActive: f.isActive } });
       setModal(null);
@@ -223,10 +224,10 @@ function UsersTab({ domain, selfEmail, demo }: { domain: string; selfEmail: stri
             <Field label={t('שם פרטי', 'First name')}><input required className={inputCls} value={f.firstName} onChange={(e) => setF({ ...f, firstName: e.target.value })} /></Field>
             <Field label={t('שם משפחה', 'Last name')}><input required className={inputCls} value={f.lastName} onChange={(e) => setF({ ...f, lastName: e.target.value })} /></Field>
           </div>
-          <Field label={t('שם משתמש', 'Username')}>
+          <Field label={t('אימייל / שם משתמש', 'Email / username')} hint={t(`אפשר להזין כתובת מלאה לכניסת SSO, או שם משתמש בלבד כדי להשתמש בדומיין ${domain}.`, `Enter a full email for SSO, or just a username to use the ${domain} domain.`)}>
             <div className="flex min-w-0 items-center overflow-hidden rounded-lg border border-line focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20" dir="ltr">
-              <input required disabled={modal === 'edit'} className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none disabled:text-slate-500" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, '') })} />
-              <span className="max-w-[55%] shrink-0 overflow-x-auto whitespace-nowrap border-s border-line bg-canvas px-3 py-2 text-sm text-ink-soft">@{domain}</span>
+              <input type="text" required disabled={modal === 'edit'} autoComplete="email" placeholder={`user@${domain}`} className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none disabled:text-slate-500" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} />
+              {!f.username.includes('@') && <span className="max-w-[55%] shrink-0 overflow-x-auto whitespace-nowrap border-s border-line bg-canvas px-3 py-2 text-sm text-ink-soft">@{domain}</span>}
             </div>
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">

@@ -14,12 +14,15 @@ export function buildSaml(origin: string, settings: SamlSettings): SAML {
   if (!settings.saml_login_url || !settings.saml_idp_cert) {
     throw new Error('SAML is not fully configured for this organization');
   }
+  const pemCertificates = [...settings.saml_idp_cert.matchAll(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g)]
+    .map(([certificate]) => certificate);
+  const idpCert = pemCertificates.length ? pemCertificates : settings.saml_idp_cert;
   return new SAML({
     callbackUrl: spAcsUrl(origin),
     entryPoint: settings.saml_login_url,
     issuer: spEntityId(origin),
     audience: spEntityId(origin),
-    idpCert: settings.saml_idp_cert,
+    idpCert,
     identifierFormat: 'urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress',
     // Entra ID signs the assertion (default), not the outer response.
     wantAssertionsSigned: true,

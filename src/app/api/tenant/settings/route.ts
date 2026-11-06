@@ -35,10 +35,15 @@ export const GET = route(async (req: NextRequest) => {
 });
 
 function normalizeCert(raw: string): string {
-  const body = raw.replace(/-----(BEGIN|END) CERTIFICATE-----/g, '').replace(/\s+/g, '');
-  if (!body) return '';
-  if (!/^[A-Za-z0-9+/=]+$/.test(body) || body.length < 200) throw bad('VALIDATION', 'Certificate is not valid base64 / PEM');
-  return body;
+  const blocks = [...raw.matchAll(/-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/g)];
+  const bodies = blocks.length
+    ? blocks.map((block) => block[1].replace(/\s+/g, ''))
+    : [raw.replace(/\s+/g, '')];
+  if (!bodies[0]) return '';
+  if (bodies.some((body) => !/^[A-Za-z0-9+/=]+$/.test(body) || body.length < 200)) {
+    throw bad('VALIDATION', 'Certificate is not valid base64 / PEM');
+  }
+  return bodies.map((body) => `-----BEGIN CERTIFICATE-----\n${body}\n-----END CERTIFICATE-----`).join('\n');
 }
 
 export const PUT = route(async (req: NextRequest) => {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Activity, Cable, Check, Copy, KeyRound, Pencil, Plus, ScrollText, Search, Shield, Trash2, Users, UsersRound, Workflow, type LucideIcon } from 'lucide-react';
+import { Activity, Cable, Check, Copy, FileUp, KeyRound, Pencil, Plus, ScrollText, Search, Shield, Trash2, Users, UsersRound, Workflow, type LucideIcon } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { fmtDateTime, fmtDuration, useLang } from '@/lib/i18n';
 import { useSession } from '@/hooks/useSession';
@@ -279,6 +279,9 @@ function SsoTab({ demo }: { demo: boolean }) {
   const [s, setS] = useState<Sso | null>(null);
   const [sp, setSp] = useState<{ entityId: string; acsUrl: string; oidcCallbackUrl: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const [samlFileName, setSamlFileName] = useState('');
+  const [samlFileError, setSamlFileError] = useState('');
+  const [draggingSamlFile, setDraggingSamlFile] = useState(false);
 
   useEffect(() => {
     api<{ settings: Omit<Sso, 'oidc_client_secret'>; sp: { entityId: string; acsUrl: string; oidcCallbackUrl: string } }>('/api/tenant/settings')
@@ -315,6 +318,77 @@ function SsoTab({ demo }: { demo: boolean }) {
     } catch (error) { toast(errorText(error, lang), 'error'); }
   };
   const ro = (v: string) => <input readOnly dir="ltr" className={`${inputCls} bg-canvas font-mono text-xs`} value={v} onFocus={(e) => e.currentTarget.select()} />;
+  const processSamlFile = async (file: File) => {
+    setSamlFileError('');
+    if (file.size > 1_000_000) {
+      setSamlFileError(t('הקובץ גדול מדי (מקסימום 1MB).', 'File is too large (maximum 1 MB).'));
+      return;
+    }
+
+    try {
+      const contents = await file.text();
+      if (file.name.toLowerCase().endsWith('.xml')) {
+        if (/<!DOCTYPE/i.test(contents)) throw new Error(t('קובץ XML עם DOCTYPE אינו נתמך.', 'XML files containing a DOCTYPE are not supported.'));
+        const document = new DOMParser().parseFromString(contents, 'application/xml');
+        if (document.getElementsByTagName('parsererror').length) {
+          throw new Error(t('קובץ ה-XML אינו תקין.', 'The XML file is not valid.'));
+        }
+
+        const descriptors = Array.from(document.getElementsByTagNameNS('*', 'IdPSSODescriptor'));
+        const metadata = descriptors.map((descriptor) => {
+          const services = Array.from(descriptor.getElementsByTagNameNS('*', 'SingleSignOnService'));
+          const signIn = services.find((service) => service.getAttribute('Binding')?.endsWith(':HTTP-Redirect'))
+            ?? services.find((service) => service.getAttribute('Binding')?.endsWith(':HTTP-POST'));
+          const keys = Array.from(descriptor.getElementsByTagNameNS('*', 'KeyDescriptor'))
+            .filter((key) => !key.getAttribute('use') || key.getAttribute('use') === 'signing');
+          const certificates = keys
+            .flatMap((key) => Array.from(key.getElementsByTagNameNS('*', 'X509Certificate')))
+            .map((node) => node.textContent?.replace(/\s+/g, '') ?? '')
+            .filter(Boolean);
+          return { loginUrl: signIn?.getAttribute('Location') ?? '', certificates };
+        }).find((entry) => entry.loginUrl && entry.certificates.length);
+
+        if (!metadata) {
+          throw new Error(t('לא נמצאו בקובץ metadata כתובת כניסה ותעודת חתימה של IdP.', 'No IdP sign-in URL and signing certificate were found in the metadata file.'));
+        }
+        const loginUrl = new URL(metadata.loginUrl);
+        if (loginUrl.protocol !== 'https:' || metadata.certificates.some((certificate) => !/^[A-Za-z0-9+/=]+$/.test(certificate) || certificate.length < 200)) {
+          throw new Error(t('הכתובת או תעודת החתימה בקובץ metadata אינן תקינות.', 'The sign-in URL or signing certificate in the metadata file is invalid.'));
+        }
+        const certificates = metadata.certificates
+          .map((certificate) => `-----BEGIN CERTIFICATE-----\n${certificate}\n-----END CERTIFICATE-----`)
+          .join('\n');
+        setS((current) => current ? { ...current, saml_login_url: loginUrl.toString(), saml_idp_cert: certificates } : current);
+        setSamlFileName(file.name);
+      } else {
+        const blocks = [...contents.matchAll(/-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/g)];
+        let certificates = blocks.length
+          ? blocks.map((block) => block[1].replace(/\s+/g, ''))
+          : [contents.replace(/\s+/g, '')];
+        if (certificates.some((certificate) => !/^[A-Za-z0-9+/=]+$/.test(certificate) || certificate.length < 200)) {
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          if (bytes[0] === 0x30) {
+            let binary = '';
+            for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+              binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+            }
+            certificates = [btoa(binary)];
+          }
+        }
+        if (certificates.some((certificate) => !/^[A-Za-z0-9+/=]+$/.test(certificate) || certificate.length < 200)) {
+          throw new Error(t('קובץ התעודה לא מכיל תעודת PEM או Base64 תקינה.', 'The certificate file does not contain a valid PEM or Base64 certificate.'));
+        }
+        const certText = certificates
+          .map((certificate) => `-----BEGIN CERTIFICATE-----\n${certificate}\n-----END CERTIFICATE-----`)
+          .join('\n');
+        setS((current) => current ? { ...current, saml_idp_cert: certText } : current);
+        setSamlFileName(file.name);
+      }
+    } catch (error) {
+      setSamlFileName('');
+      setSamlFileError(error instanceof Error ? error.message : t('לא ניתן לקרוא את הקובץ.', 'Could not read the file.'));
+    }
+  };
 
   return (
     <form onSubmit={save} className="space-y-5">
@@ -335,6 +409,42 @@ function SsoTab({ demo }: { demo: boolean }) {
           'ב-Entra הגדירו את Name ID או את מאפיין email/UPN לכתובת שבה המשתמש רשום ב-SmartQ. אין צורך בדומיין @IEC; הערכים חייבים להיות זהים.',
           'In Entra, set Name ID or the email/UPN claim to the address provisioned for the user in SmartQ. No @IEC domain is required; the values must match.'
         )}</p>
+        <div
+          onDragOver={(event) => { event.preventDefault(); setDraggingSamlFile(true); }}
+          onDragLeave={() => setDraggingSamlFile(false)}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDraggingSamlFile(false);
+            const file = event.dataTransfer.files[0];
+            if (file) void processSamlFile(file);
+          }}
+          className={`rounded-xl border-2 border-dashed p-4 text-sm transition ${draggingSamlFile ? 'border-brand bg-brand-soft' : 'border-line bg-canvas'}`}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <FileUp className="h-5 w-5 shrink-0 text-brand" />
+              <div>
+                <p className="font-semibold">{t('טעינת הגדרות מספק הזהויות', 'Import identity provider settings')}</p>
+                <p className="text-xs text-ink-soft">{t('גררו לכאן קובץ Azure metadata XML, או בחרו קובץ XML / PEM / CER / CRT (עד 1MB).', 'Drop an Azure metadata XML file here, or choose an XML / PEM / CER / CRT file (up to 1 MB).')}</p>
+              </div>
+            </div>
+            <label className={`${btnSecondary} cursor-pointer`}>
+              {t('בחירת קובץ', 'Choose file')}
+              <input
+                type="file"
+                accept=".xml,.pem,.cer,.crt,.cert"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) void processSamlFile(file);
+                  event.target.value = '';
+                }}
+              />
+            </label>
+          </div>
+          {samlFileName && <p className="mt-2 text-xs font-medium text-emerald-700">{t(`נטען: ${samlFileName} — יש לשמור את ההגדרות כדי להחילן.`, `Loaded: ${samlFileName} — save settings to apply them.`)}</p>}
+          {samlFileError && <p role="alert" className="mt-2 text-xs font-medium text-rose-700">{samlFileError}</p>}
+        </div>
         <Field label={t('כתובת כניסה של ספק הזהויות', 'Identity provider sign-in URL')}><input type="url" dir="ltr" className={inputCls} value={s.saml_login_url} onChange={(e) => setS({ ...s, saml_login_url: e.target.value })} placeholder="https://idp.example.com/saml2" /></Field>
         <Field label={t('תעודת החתימה (Base64 / PEM)', 'Signing certificate (Base64 / PEM)')} hint={t('נדרשת לאימות החתימה. בלעדיה הכניסה עם SSO חסומה.', 'Required to verify signatures. Without it SSO sign-in stays disabled.')}><textarea rows={4} dir="ltr" className={`${inputCls} font-mono text-xs`} value={s.saml_idp_cert} onChange={(e) => setS({ ...s, saml_idp_cert: e.target.value })} /></Field>
       </section>

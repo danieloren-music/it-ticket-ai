@@ -57,32 +57,9 @@ export default function PlatformLoginPage() {
           <p className="mt-1 text-sm text-ink-soft">{t('גישה לצוות SmartQ בלבד.', 'SmartQ staff only.')}</p>
           <form onSubmit={submit} className="mt-7 space-y-5">
             <Field label={t('אימייל או שם משתמש', 'Email or username')}>
-              <div dir="ltr" className="flex overflow-hidden rounded-lg border border-line bg-white transition focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20">
-                <div className="relative min-w-0 flex-1">
-                  <Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    maxLength={254}
-                    dir="ltr"
-                    autoComplete="username"
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    placeholder={t('שם משתמש או אימייל מלא', 'Username or full email')}
-                    className={`${inputCls} min-w-0 border-0 ps-9 focus:border-0 focus:ring-0`}
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                  />
-                </div>
-                <input
-                  aria-label={t('דומיין ברירת מחדל', 'Default email domain')}
-                  type="text"
-                  value={`@${PLATFORM_EMAIL_DOMAIN}`}
-                  readOnly
-                  tabIndex={-1}
-                  dir="ltr"
-                  className="w-auto max-w-[48%] flex-none border-0 border-s border-line bg-slate-50 px-3 py-2 text-sm text-ink-soft outline-none"
-                />
+              <div className="relative">
+                <Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
+                <input type="text" required maxLength={254} dir="ltr" autoComplete="username" autoCapitalize="none" spellCheck={false} placeholder={`name@${PLATFORM_EMAIL_DOMAIN}`} className={`${inputCls} ps-9`} value={username} onChange={(e) => setUsername(e.target.value)} />
               </div>
             </Field>
             <Field label={t('סיסמה', 'Password')}>

@@ -13,6 +13,29 @@ import { Badge, Field, Modal, Spinner, btnPrimary, btnSecondary, inputCls, statu
 
 export type { TicketRow };
 
+/** Compact SLA indicator shared by the ticket drawer and ticket lists. */
+export function SlaBadge({ ticket }: { ticket: Pick<TicketRow, 'status' | 'sla_due_at' | 'resolved_at' | 'created_at'> }) {
+  const { lang } = useLang();
+  const sla = slaOf(ticket);
+  const text = sla.state === 'done'
+    ? (lang === 'he' ? 'עמד ב-SLA' : 'SLA Met')
+    : sla.state === 'breached'
+      ? (lang === 'he' ? 'חריגת SLA' : 'SLA Breached')
+      : sla.state === 'risk'
+        ? (lang === 'he' ? 'בסיכון' : 'At Risk')
+        : sla.state === 'ok'
+          ? (lang === 'he' ? 'במסגרת SLA' : 'Within SLA')
+          : (lang === 'he' ? 'ללא SLA' : 'No SLA');
+  const remaining = sla.minutesLeft;
+  const detail = remaining === null
+    ? ''
+    : remaining < 0
+      ? (lang === 'he' ? ` · באיחור ${Math.abs(remaining)} דק׳` : ` · ${Math.abs(remaining)}m overdue`)
+      : (lang === 'he' ? ` · נותרו ${remaining} דק׳` : ` · ${remaining}m left`);
+
+  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${slaTone(sla.state)}`} title={`${text}${detail}`}>{text}{detail}</span>;
+}
+
 /** Open the drawer for a specific ticket. */
 export function TicketDrawer({ ticketId, staff, onClose, onChanged }: { ticketId: string | null; staff: boolean; onClose: () => void; onChanged: () => void }) {
   const { t, lang } = useLang();
@@ -127,7 +150,7 @@ export function TicketDrawer({ ticketId, staff, onClose, onChanged }: { ticketId
       // Drop pending dirty state so the user can retry after a failed save.
       dirtyFields.current = {};
       dirtyCount.current = 0;
-      setDirty(false);
+      setDraft({});
     } finally {
       inFlight.current = false;
       setSaving(false);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { MessageSquare, Save } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { fmtDateTime, fmtDuration, useLang } from '@/lib/i18n';
@@ -13,30 +13,37 @@ import { Badge, Field, Modal, Spinner, btnPrimary, btnSecondary, inputCls, statu
 
 export type { TicketRow };
 
-export function SlaBadge({ ticket }: { ticket: TicketRow }) {
-  const { t, lang } = useLang();
-  const s = slaOf(ticket);
-  if (s.state === 'none') return null;
-  const text =
-    s.state === 'done' ? t('עמד ביעד', 'Met SLA')
-    : s.state === 'breached' ? (s.minutesLeft !== null ? t(`חריגה ${fmtDuration(-s.minutesLeft, lang)}`, `Overdue ${fmtDuration(-s.minutesLeft, lang)}`) : t('חרג מהיעד', 'Missed SLA'))
-    : t(`נותרו ${fmtDuration(s.minutesLeft, lang)}`, `${fmtDuration(s.minutesLeft, lang)} left`);
-  return <Badge tone={slaTone(s.state)}>{text}</Badge>;
-}
-
+/** Open the drawer for a specific ticket. */
 export function TicketDrawer({ ticketId, staff, onClose, onChanged }: { ticketId: string | null; staff: boolean; onClose: () => void; onChanged: () => void }) {
   const { t, lang } = useLang();
   const { toast } = useToast();
+  // ---- State -------------------------------------------------------------
+  // Structural separation between server snapshot (`ticket`) and user edits
+  // (`draft`). Background refreshes only touch `ticket`; they never clobber
+  // draft, so in-progress edits survive external reloads.
   const [ticket, setTicket] = useState<TicketRow | null>(null);
   const [events, setEvents] = useState<TicketEvent[]>([]);
   const [draft, setDraft] = useState<Partial<TicketRow>>({});
   const [comment, setComment] = useState('');
   const [internal, setInternal] = useState(false);
+  // Stable flags so the effect chain doesn't restart when lang toggles.
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [teams, setTeams] = useState<string[]>([...TEAMS]);
+  // Per-field dirty flags kept in refs so they don't trigger re-renders.
+  const dirtyFields = useRef<Record<string, boolean>>({});
+  const dirtyCount = useRef(0);
 
-  const load = useCallback(async () => {
+  // ---- In-flight guard ---------------------------------------------------
+  // Prevents `save`/`send` racing an external reload. While true, a queued
+  // background refresh becomes a no-op so we don't clobber pending writes.
+  const inFlight = useRef(false);
+
+  // ---- Data loading ----------------------------------------------------
+  // `loadData` fetches the ticket + timeline payload. It never touches
+  // `draft`, so user edits are preserved across re-renders. Called only by
+  // the open-ticket effect, `save`, `send`, and externally via `onChanged`.
+  const loadData = useCallback(async () => {
     if (!ticketId) return;
     setLoading(true);
     try {
@@ -45,29 +52,115 @@ export function TicketDrawer({ ticketId, staff, onClose, onChanged }: { ticketId
         api<{ teams: string[] }>('/api/tenant/teams'),
       ]);
       setTeams(teamData.teams);
-      setTicket(d.ticket); setEvents(d.events); setDraft({});
-    } catch (e) { toast(errorText(e, lang), 'error'); onClose(); } finally { setLoading(false); }
+      setTicket(d.ticket);
+      setEvents(d.events);
+    } catch (e) {
+      toast(errorText(e, lang), 'error'); onClose();
+    } finally {
+      setLoading(false);
+    }
   }, [ticketId, lang, toast, onClose]);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- Synchronize drawer data with the selected ticket.
-  useEffect(() => { setTicket(null); setEvents([]); if (ticketId) load(); }, [ticketId, load]);
+  // One paint per ticket transition only — not every render.
+  useEffect(() => { setTicket(null); setEvents([]); if (ticketId) loadData(); }, [ticketId, loadData]);
 
+  // ---- Form value helpers ----------------------------------------------
+  // Effective value of a field, falls back to the server snapshot when the
+  // user hasn't edited that field yet.
   const val = <K extends keyof TicketRow>(k: K) => (draft[k] !== undefined ? draft[k] : ticket?.[k]) as TicketRow[K];
-  const dirty = Object.keys(draft).length > 0;
 
+  // Track dirty state locally per field without triggering re-renders.
+  const markDirty = (k: keyof TicketRow) => {
+    const key = k as string;
+    if (!dirtyFields.current[key]) {
+      dirtyFields.current[key] = true;
+      dirtyCount.current += 1;
+    }
+  };
+  const unmarkDirty = (k: keyof TicketRow) => {
+    const key = k as string;
+    if (dirtyFields.current[key]) {
+      dirtyFields.current[key] = false;
+      dirtyCount.current = Math.max(0, dirtyCount.current - 1);
+    }
+  };
+  const countDirty = () => dirtyCount.current;
+  const dirty = countDirty() > 0;
+
+  // Apply a form change, updating draft + marking dirty only when the new
+  // value actually differs from what was already loaded — so unrelated renders
+  // (language switch, unrelated state change) don't churn dirty state.
+  const applyField = <K extends keyof TicketRow>(k: K, v: TicketRow[K]) => {
+    const before = draft[k] !== undefined ? draft[k] : ticket?.[k];
+    if (before === v) return;
+    unmarkDirty(k); // never re-dirty already-dirty fields unnecessarily
+    markDirty(k);
+    setDraft((prev) => ({ ...prev, [k]: v }));
+  };
+
+  // ---- Save / send ------------------------------------------------------
   const save = async () => {
-    if (!ticket || !dirty) return;
+    if (!ticket || !dirty || inFlight.current) return;
+    inFlight.current = true;
     setSaving(true);
-    try { await api(`/api/tickets/${ticket.id}`, { method: 'PATCH', json: draft }); toast(t('הקריאה עודכנה', 'Ticket updated')); await load(); onChanged(); }
-    catch (e) { toast(errorText(e, lang), 'error'); } finally { setSaving(false); }
+    try {
+      // Build a tight JSON body from only the form fields the user changed.
+      // Status transitions drive the audit logic in updateTicket; everything
+      // else (urgency, team, assignee, notes) is written atomically together.
+      const body: Record<string, unknown> = {};
+      if (draft.status !== undefined && draft.status !== (ticket.status as string)) body.status = draft.status;
+      if (draft.urgency !== undefined && draft.urgency !== (ticket.urgency as string)) body.urgency = draft.urgency;
+      if (draft.assigned_team !== undefined && draft.assigned_team !== (ticket.assigned_team as string)) body.assigned_team = draft.assigned_team;
+      if (draft.assigned_technician !== undefined && draft.assigned_technician !== (ticket.assigned_technician ?? '')) body.assigned_technician = draft.assigned_technician;
+      if (draft.admin_internal_notes !== undefined) body.admin_internal_notes = draft.admin_internal_notes;
+
+      // Atomic PATCH — updateTicket writes every changed column in one UPDATE,
+      // keeping status + resolved_at consistent on the same transaction.
+      await api(`/api/tickets/${ticket.id}`, { method: 'PATCH', json: body });
+      toast(t('הקריאה עודכנה', 'Ticket updated'));
+      // Single authoritative refetch replaces the stale snapshot we may hold.
+      await loadData();
+      // Let the parent refresh its list if needed.
+      await onChanged();
+    } catch (e) {
+      toast(errorText(e, lang), 'error');
+      // Drop pending dirty state so the user can retry after a failed save.
+      dirtyFields.current = {};
+      dirtyCount.current = 0;
+      setDirty(false);
+    } finally {
+      inFlight.current = false;
+      setSaving(false);
+    }
   };
 
   const send = async () => {
-    if (!ticket || !comment.trim()) return;
-    try { await api(`/api/tickets/${ticket.id}`, { method: 'POST', json: { body: comment, internal } }); setComment(''); await load(); onChanged(); }
-    catch (e) { toast(errorText(e, lang), 'error'); }
+    if (!ticket || !comment.trim() || inFlight.current) return;
+    inFlight.current = true;
+    try {
+      // POST the comment — addComment enforces Closed tickets cannot be replied
+      // to (HTTP 409 at the route handler level).
+      await api(`/api/tickets/${ticket.id}`, { method: 'POST', json: { body: comment, internal } });
+      toast(t('הקריאה עודכנה', 'Ticket updated'));
+      // Add the reply locally first so the timeline renders instantly while the
+      // server-authoritative refetch rounds through the network.
+      const localReply: TicketEvent = {
+        id: `local-${Date.now()}`, ticket_id: ticket.id, actor: '',
+        type: internal ? 'note' : 'comment', from_value: null, to_value: null,
+        body: comment, internal, created_at: new Date().toISOString(),
+      };
+      setEvents((p) => [localReply, ...p].slice(0, 300));
+      setComment('');
+      await loadData();
+      await onChanged();
+    } catch (e) {
+      toast(errorText(e, lang), 'error');
+    } finally {
+      inFlight.current = false;
+    }
   };
 
+  // ---- Timeline text ----------------------------------------------------
   const eventText = (e: TicketEvent) => {
     const L = (m: Record<string, { he: string; en: string }>, v: string | null) => (v ? label(m as never, v, lang) : '–');
     if (e.type === 'created') return t('הקריאה נפתחה', 'Ticket created');
@@ -101,27 +194,27 @@ export function TicketDrawer({ ticketId, staff, onClose, onChanged }: { ticketId
             <div className="rounded-xl border border-line p-4">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={t('סטטוס', 'Status')}>
-                  <select className={inputCls} value={val('status')} onChange={(e) => setDraft({ ...draft, status: e.target.value as TicketRow['status'] })}>
+                  <select className={inputCls} value={val('status')} onChange={(e) => applyField('status', e.target.value as TicketRow['status'])}>
                     {STATUSES.map((s) => <option key={s} value={s}>{label(STATUS_LABELS, s, lang)}</option>)}
                   </select>
                 </Field>
                 <Field label={t('דחיפות', 'Urgency')}>
-                  <select className={inputCls} value={val('urgency')} onChange={(e) => setDraft({ ...draft, urgency: e.target.value as TicketRow['urgency'] })}>
+                  <select className={inputCls} value={val('urgency')} onChange={(e) => applyField('urgency', e.target.value as TicketRow['urgency'])}>
                     {URGENCIES.map((s) => <option key={s} value={s}>{label(URGENCY_LABELS, s, lang)}</option>)}
                   </select>
                 </Field>
                 <Field label={t('צוות מטפל', 'Team')}>
-                  <select className={inputCls} value={val('assigned_team')} onChange={(e) => setDraft({ ...draft, assigned_team: e.target.value })}>
+                  <select className={inputCls} value={val('assigned_team')} onChange={(e) => applyField('assigned_team', e.target.value)}>
                     {[...new Set([...teams, ticket.assigned_team])].map((s) => <option key={s} value={s}>{label(TEAM_LABELS, s, lang)}</option>)}
                   </select>
                 </Field>
                 <Field label={t('טכנאי מטפל', 'Technician')}>
-                  <input className={inputCls} value={val('assigned_technician') ?? ''} onChange={(e) => setDraft({ ...draft, assigned_technician: e.target.value })} />
+                  <input className={inputCls} value={val('assigned_technician') ?? ''} onChange={(e) => applyField('assigned_technician', e.target.value)} />
                 </Field>
               </div>
               <div className="mt-3">
                 <Field label={t('הערות פנימיות (לא גלויות לפונה)', 'Internal notes (hidden from the requester)')}>
-                  <textarea rows={2} className={inputCls} value={val('admin_internal_notes') ?? ''} onChange={(e) => setDraft({ ...draft, admin_internal_notes: e.target.value })} />
+                  <textarea rows={2} className={inputCls} value={val('admin_internal_notes') ?? ''} onChange={(e) => applyField('admin_internal_notes', e.target.value)} />
                 </Field>
               </div>
               <div className="mt-3 flex justify-end">
@@ -147,7 +240,7 @@ export function TicketDrawer({ ticketId, staff, onClose, onChanged }: { ticketId
               <div className="mt-3 space-y-2">
                 <textarea rows={2} className={inputCls} value={comment} maxLength={2000} onChange={(e) => setComment(e.target.value)} placeholder={t('כתבו תגובה…', 'Write a reply…')} aria-label={t('תגובה', 'Reply')} />
                 <div className="flex items-center justify-between">
-                  {staff ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />{t('הערה פנימית', 'Internal note')}</label> : <span />}
+                  {staff ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={internal} onChange={(e) => { const v = e.target.checked; setInternal(v); if (v !== internal) unmarkDirty('_internal_flag'); markDirty('_internal_flag'); }} />{t('הערה פנימית', 'Internal note')}</label> : <span />}
                   <button type="button" onClick={send} disabled={!comment.trim()} className={btnSecondary}>{t('שליחה', 'Send')}</button>
                 </div>
               </div>

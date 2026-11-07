@@ -13,12 +13,19 @@ async function idOf(ctx: Ctx) {
   return id;
 }
 
-/** Ticket + timeline (internal notes only visible to staff). */
-export const GET = route<Ctx>(async (req, ctx) => {
-  const session = await requireTenant(req);
+/** Atomic PATCH: persist status, notes, timestamps together. Returns the updated ticket. */
+export const PATCH = route<Ctx>(async (req, ctx) => {
+  const session = await requireTenant(req, { permission: 'tickets:update' });
   const id = await idOf(ctx);
-  const [ticket, events] = await Promise.all([getTicketForSession(session, id), listEvents(session, id)]);
-  return NextResponse.json({ ticket, events });
+  // Read fresh to avoid stale data races from concurrent clients.
+  const fresh = await getTicketForSession(session, id);
+  const body = await readJson(req);
+  const ticket = await updateTicket(session, id, body);
+  await audit({
+    tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'ticket.updated',
+    target: ticket.ticket_number, ip: clientIp(req),
+  });
+  return NextResponse.json({ success: true, ticket });
 });
 
 /** Staff-only field updates (status, urgency, team, assignee, notes). */

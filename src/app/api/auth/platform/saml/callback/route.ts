@@ -29,10 +29,17 @@ export const POST = route(async (req: NextRequest) => {
   };
   if (typeof samlResponse !== 'string' || !validRelay) return back('sso_failed');
 
-  const settings = must(await db().from('platform_auth_settings')
-    .select('saml_enabled, saml_login_url, saml_idp_cert')
-    .eq('id', 'default')
-    .maybeSingle());
+  let settings: unknown = null;
+  try {
+    settings = await db().from('platform_auth_settings')
+      .select('saml_enabled, saml_login_url, saml_idp_cert')
+      .eq('id', 'default')
+      .maybeSingle();
+  } catch {
+    // Defensive against a missing table during early bootstrap or partial migrations.
+    await audit({ actor: 'unknown', action: 'platform.auth.sso_rejected', ip });
+    return back('sso_not_configured');
+  }
   if (!settings?.saml_enabled || !settings.saml_login_url || !settings.saml_idp_cert) {
     return back('sso_not_configured');
   }

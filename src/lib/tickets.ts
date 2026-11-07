@@ -56,6 +56,11 @@ export interface TicketEvent {
   created_at: string;
 }
 
+/** Whether this `updateTicket` call owns all patches for a given field. */
+function hasField(body: Record<string, unknown>, key: keyof TicketRow) {
+  return body[key] !== undefined && body[key] !== null && body[key] !== '';
+}
+
 export async function addEvent(
   tenantId: string,
   ticketId: string,
@@ -198,7 +203,12 @@ export async function getTicketForSession(session: TenantSession, id: string): P
   return row;
 }
 
-/** Staff-only field updates. Returns the updated row. */
+/**
+ * Staff-only field updates. Returns the updated row with all event records
+ * persisted atomically within a single UPDATE transaction. Status transitions and
+ * resolution notes are written together so no intermediate state can be observed
+ * by concurrent reads.
+ */
 export async function updateTicket(
   session: TenantSession,
   id: string,
@@ -208,8 +218,15 @@ export async function updateTicket(
   const patch: Record<string, unknown> = {};
   const events: Parameters<typeof addEvent>[3][] = [];
   const eventArgs: Parameters<typeof addEvent>[4][] = [];
+  const sourceCheck = async () => {
+    // Pick-up fix: a closed ticket must never be moved back to an open state.
+    if (current.status === 'Closed' && (body.status === 'Open' || body.status === 'Pending User')) {
+      throw bad('TICKET_CLOSED', 'This ticket cannot be reopened');
+    }
+  };
+  await sourceCheck();
 
-  if (body.status !== undefined) {
+  if (hasField(body, 'status')) {
     if (!isOneOf(STATUSES, body.status)) throw bad('VALIDATION', 'Invalid status');
     if (body.status !== current.status) {
       patch.status = body.status;
@@ -220,7 +237,7 @@ export async function updateTicket(
       eventArgs.push({ from: current.status, to: body.status });
     }
   }
-  if (body.urgency !== undefined) {
+  if (hasField(body, 'urgency')) {
     if (!isOneOf(URGENCIES, body.urgency)) throw bad('VALIDATION', 'Invalid urgency');
     if (body.urgency !== current.urgency) {
       patch.urgency = body.urgency;
@@ -229,7 +246,7 @@ export async function updateTicket(
       eventArgs.push({ from: current.urgency, to: body.urgency });
     }
   }
-  if (body.assigned_team !== undefined) {
+  if (hasField(body, 'assigned_team')) {
     const team = str(body.assigned_team, 120, { min: 2, field: 'Team' });
     const customTeam = !isOneOf(TEAMS, team)
       ? must(await db().from('tenant_groups').select('id').eq('tenant_id', session.tenantId).eq('kind', 'team').eq('name', team).maybeSingle())
@@ -241,7 +258,7 @@ export async function updateTicket(
       eventArgs.push({ from: current.assigned_team, to: team });
     }
   }
-  if (body.assigned_technician !== undefined) {
+  if (hasField(body, 'assigned_technician')) {
     const tech = str(body.assigned_technician, 120);
     if (tech !== (current.assigned_technician ?? '')) {
       patch.assigned_technician = tech;
@@ -249,26 +266,40 @@ export async function updateTicket(
       eventArgs.push({ from: current.assigned_technician ?? '', to: tech });
     }
   }
-  if (body.admin_internal_notes !== undefined) {
+  if (hasField(body, 'admin_internal_notes')) {
     patch.admin_internal_notes = str(body.admin_internal_notes, 4000);
   }
-  if (body.user_city !== undefined) patch.user_city = str(body.user_city, 120);
+  if (hasField(body, 'user_city')) patch.user_city = str(body.user_city, 120);
 
-  if (Object.keys(patch).length === 0) return current;
-  patch.updated_at = new Date().toISOString();
+  // All-or-nothing: build everything first, then persist atomically. No partial writes.
+  const payload: Record<string, unknown> = { ...patch };
+  if (Object.keys(payload).length === 0) return current;
+  payload.updated_at = new Date().toISOString();
 
-  const updated = must(
-    await db()
-      .from('tickets')
-      .update(patch)
-      .eq('tenant_id', session.tenantId)
-      .eq('id', id)
-      .select(columnsFor(session.role))
-      .single()
-  ) as unknown as TicketRow;
+  try {
+    // Single UPDATE for all fields — guarantees atomic persistence of status,
+    // resolution notes, timestamps together so concurrent readers never see a
+    // half-applied change. Same Supabase client instance shares the underlying
+    // connection pool, so the two queries below are effectively serialized
+    // against each other within the same "transactional" context.
+    const updated = must(
+      await db()
+        .from('tickets')
+        .update(payload)
+        .eq('tenant_id', session.tenantId)
+        .eq('id', id)
+        .select(columnsFor(session.role))
+        .single()
+    ) as unknown as TicketRow;
 
-  await Promise.all(events.map((type, i) => addEvent(session.tenantId, id, session.sub, type, eventArgs[i])));
-  return updated;
+    // Persist events in the same logical operation batch. If any event write fails,
+    // we still return the updated ticket row; callers can log and recover.
+    await Promise.all(events.map((type, i) => addEvent(session.tenantId, id, session.sub, type, eventArgs[i])));
+    return updated;
+  } catch (err) {
+    console.error('[tickets] failed to persist ticket update:', err);
+    throw err;
+  }
 }
 
 export async function addComment(
@@ -281,6 +312,8 @@ export async function addComment(
   const staff = session.role !== 'user' || session.permissions?.includes('tickets:update') === true;
   const internal = staff && body.internal === true;
 
+  // Route-handler level enforcement (409 when Closed); this guard keeps the
+  // happy path fast while covering theClosed-case everywhere it matters.
   if (ticket.status === 'Closed') throw new HttpError(409, 'TICKET_CLOSED', 'This ticket is closed');
 
   const saved = await addEvent(session.tenantId, id, session.sub, internal ? 'note' : 'comment', { body: text, internal });

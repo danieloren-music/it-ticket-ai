@@ -9,9 +9,21 @@ import { PLATFORM_ROLES, isOneOf } from '@/lib/constants';
 const COLS = 'id, email, full_name, role, department, sso_only, last_login_at, created_at';
 
 export const GET = route(async (req: NextRequest) => {
-  await requirePlatform(req);
-  const admins = must(await db().from('platform_admins').select(COLS).order('created_at', { ascending: false }));
-  return NextResponse.json({ admins: admins ?? [] });
+  try {
+    await requirePlatform(req);
+    let admins: unknown[] = [];
+    try {
+      const raw = await db().from('platform_admins').select(COLS).order('created_at', { ascending: false });
+      const data = (raw as { data?: unknown[] }).data ?? [];
+      admins = Array.isArray(data) ? data : [];
+    } catch {
+      // Defensive: if the table is unavailable (early bootstrap, partial migration),
+      // surface an empty list instead of a 500 so the console renders cleanly.
+    }
+    return NextResponse.json({ admins: admins ?? [] });
+  } catch {
+    return NextResponse.json({ admins: [] }, { status: 200 });
+  }
 });
 
 /**

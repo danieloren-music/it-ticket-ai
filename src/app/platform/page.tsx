@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Activity, ArrowUpLeft, ArrowUpRight, Building2, Check, Copy, ExternalLink, KeyRound, MessageCircle, Pencil, Plus, RefreshCw, Search, ShieldCheck, Sparkles, TicketCheck, Trash2, UsersRound } from 'lucide-react';
+import { Activity, ArrowUpLeft, ArrowUpRight, Building2, Check, Copy, ExternalLink, KeyRound, LayoutGrid, List, MessageCircle, Pencil, Plus, RefreshCw, Search, ShieldCheck, Sparkles, TicketCheck, Trash2, UsersRound } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { fmtDate, fmtDateTime, useLang } from '@/lib/i18n';
 import { Badge, EmptyState, Field, Modal, Spinner, SuccessDialog, btnDanger, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
@@ -340,6 +340,8 @@ function TenantsTab({ readOnly, me, onIssued }: { me: Me; readOnly: boolean; onI
   const [confirmText, setConfirmText] = useState('');
   const [query, setQuery] = useState('');
   const [apiKeysTenant, setApiKeysTenant] = useState<Tenant | null>(null);
+  // View mode for the organisations list: cards (default) or rows (table).
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const load = useCallback(async () => { try { setRows((await api<{ tenants: Tenant[] }>('/api/platform/tenants')).tenants); } catch (e) { toast(errorText(e, lang), 'error'); setRows([]); } }, [lang, toast]);
   useEffect(() => {

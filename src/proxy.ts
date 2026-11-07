@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { PLATFORM_COOKIE, TENANT_COOKIE, readPlatformSession, readTenantSession } from '@/lib/session';
+import { readTenantSession, TENANT_COOKIE } from '@/lib/session';
 
 /** Paths that never need a tenant/platform session. */
 const PUBLIC_PREFIXES = ['/home', '/_next', '/api', '/icon', '/apple-icon', '/opengraph-image', '/twitter-image', '/robots.txt', '/sitemap.xml', '/smartq-'];
@@ -44,6 +44,14 @@ export async function proxy(req: NextRequest) {
   const session = await readTenantSession(req.cookies.get(TENANT_COOKIE)?.value);
   const sameTenant = session?.tenantId.toLowerCase() === tenant;
 
+  // ✅ FIX: If the session belongs to a *different* tenant (global admin session bleed prevention),
+  //    clear the tenant cookie and redirect to the target tenant's dedicated login.
+  if (session && session.tenantId.toLowerCase() !== tenant) {
+    const res = NextResponse.redirect(new URL(`/${tenant}/login`, req.url));
+    res.cookies.set(TENANT_COOKIE, '', { path: '/', maxAge: 0 });
+    return res;
+  }
+
   const toLogin = (returnTo: string) => {
     const url = new URL(`/${tenant}/login`, req.url);
     url.searchParams.set('returnTo', returnTo);
@@ -57,7 +65,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.redirect(new URL(`/${tenant}/${target}`, req.url));
   }
 
-  // Role based page access
+  // Role based page access — enforce clean tenant isolation.
   if (!session || !sameTenant) return toLogin(pathname);
 
   // Page access is a shell only; tenant-scoped API handlers enforce roles and group permissions.

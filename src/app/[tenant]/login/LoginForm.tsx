@@ -85,7 +85,7 @@ export default function LoginForm({ tenant, tenantName, tenantDomain, returnTo, 
               <div className="space-y-2">
                 {ssoProviders.oidc && (
                   <a href={`/api/auth/oidc/login?${ssoQuery}`} className={`${btnSecondary} w-full`}>
-                    <KeyRound className="h-4 w-4 text-brand" />{t('כניסה עם OpenID Connect', 'Sign in with OpenID Connect')}
+                    <KeyRound className="h-4 w-4 text-brand" />{t('כניסה עם OpenID', 'Sign in with OpenID')}
                   </a>
                 )}
                 {ssoProviders.saml && (

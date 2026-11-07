@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { route, readJson, clientIp, rateLimit, notFoundErr } from '@/lib/http';
 import { requireTenant } from '@/lib/auth';
-import { addComment, assertStaff, getTicketForSession, listEvents, updateTicket } from '@/lib/tickets';
+import { addComment, assertStaff, updateTicket } from '@/lib/tickets';
 import { audit } from '@/lib/audit';
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -17,8 +17,6 @@ async function idOf(ctx: Ctx) {
 export const PATCH = route<Ctx>(async (req, ctx) => {
   const session = await requireTenant(req, { permission: 'tickets:update' });
   const id = await idOf(ctx);
-  // Read fresh to avoid stale data races from concurrent clients.
-  const fresh = await getTicketForSession(session, id);
   const body = await readJson(req);
   const ticket = await updateTicket(session, id, body);
   await audit({
@@ -28,17 +26,6 @@ export const PATCH = route<Ctx>(async (req, ctx) => {
   return NextResponse.json({ success: true, ticket });
 });
 
-/** Staff-only field updates (status, urgency, team, assignee, notes). */
-export const PATCH = route<Ctx>(async (req: NextRequest, ctx) => {
-  const session = await requireTenant(req, { permission: 'tickets:update' });
-  const id = await idOf(ctx);
-  const ticket = await updateTicket(session, id, await readJson(req));
-  await audit({
-    tenantId: session.tenantId, actor: session.sub, role: session.role, action: 'ticket.updated',
-    target: ticket.ticket_number, ip: clientIp(req),
-  });
-  return NextResponse.json({ success: true, ticket });
-});
 
 /** Add a public reply or (staff only) an internal note. */
 export const POST = route<Ctx>(async (req: NextRequest, ctx) => {

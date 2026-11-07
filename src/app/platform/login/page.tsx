@@ -19,9 +19,11 @@ export default function PlatformLoginPage() {
   const [samlEnabled, setSamlEnabled] = useState(false);
 
   useEffect(() => {
+    // SAML is optional. A status-check failure must never display a login
+    // error or interfere with the standard email/password sign-in flow.
     api<{ samlEnabled: boolean }>('/api/auth/platform/saml/status')
       .then((result) => setSamlEnabled(result.samlEnabled))
-      .catch((ex) => setError(errorText(ex, lang)));
+      .catch(() => setSamlEnabled(false));
 
     const code = new URLSearchParams(window.location.search).get('error');
     const errors: Record<string, [string, string]> = {

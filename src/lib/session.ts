@@ -134,11 +134,16 @@ export async function readPlatformSession(token: string | undefined | null): Pro
   return s && s.typ === 'platform' ? s : null;
 }
 
-export function cookieOptions(maxAge: number) {
+export function cookieOptions(maxAge: number, domain?: string) {
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax' as const,
+    // `domain` is opt-in via process.env to allow strict host-bound cookie
+    // partitioning across multiple deployments (e.g. one cookie per tenant host).
+    // When unset, the cookie is scoped to the issuing host only — the default
+    // already prevents cross-tenant token leakage in a single deployment.
+    domain,
     path: '/',
     maxAge,
   };

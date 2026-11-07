@@ -67,7 +67,15 @@ export default function LoginForm({ tenant, tenantName, tenantDomain, returnTo, 
                     <Mail className="pointer-events-none absolute start-3 top-2.5 h-4 w-4 text-slate-400" />
                     <input type="text" required pattern="[^@\s]+" maxLength={64} dir="ltr" autoComplete="username" autoCapitalize="none" spellCheck={false} className={`${inputCls} min-w-0 border-0 ps-9 focus:border-0 focus:ring-0`} value={username} onChange={(e) => setUsername(e.target.value)} />
                   </div>
-                  <div title={`@${tenantDomain}`} className="max-w-[55%] flex-none overflow-x-auto whitespace-nowrap border-s border-line bg-slate-50 px-3 py-2 text-sm text-ink-soft">@{tenantDomain}</div>
+                  <input
+                    aria-label={t('דומיין ארגוני', 'Organization domain')}
+                    type="text"
+                    value={`@${tenantDomain}`}
+                    readOnly
+                    tabIndex={-1}
+                    dir="ltr"
+                    className="w-auto max-w-[55%] flex-none border-0 border-s border-line bg-slate-50 px-3 py-2 text-sm text-ink-soft outline-none"
+                  />
                 </div>
               </Field>
               <Field label={t('סיסמה', 'Password')}>
@@ -85,7 +93,7 @@ export default function LoginForm({ tenant, tenantName, tenantDomain, returnTo, 
               <div className="space-y-2">
                 {ssoProviders.oidc && (
                   <a href={`/api/auth/oidc/login?${ssoQuery}`} className={`${btnSecondary} w-full`}>
-                    <KeyRound className="h-4 w-4 text-brand" />{t('כניסה עם OpenID', 'Sign in with OpenID')}
+                    <KeyRound className="h-4 w-4 text-brand" />{t('כניסה עם OpenID Connect', 'Sign in with OpenID Connect')}
                   </a>
                 )}
                 {ssoProviders.saml && (

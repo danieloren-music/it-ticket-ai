@@ -10,7 +10,7 @@ const KEY = 'smartq_a11y';
 
 /** Accessibility menu. Preferences are stored on <html> so they apply to every page. */
 export function A11yWidget() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [open, setOpen] = useState(false);
   const [p, setP] = useState<Prefs>(DEFAULTS);
 
@@ -33,7 +33,7 @@ export function A11yWidget() {
   ];
 
   return (
-    <div className="fixed bottom-4 start-4 z-40">
+    <div className={`fixed bottom-4 z-40 ${lang === 'he' ? 'left-4' : 'right-4'}`}>
       {!open ? (
         <button type="button" onClick={() => setOpen(true)} aria-label={t('תפריט נגישות', 'Accessibility menu')} className="grid h-11 w-11 place-items-center rounded-full bg-ink text-white shadow-lg ring-2 ring-white hover:bg-brand">
           <Accessibility className="h-5 w-5" />

@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, must } from '@/lib/db';
 import { route, readJson, str, email, bad, HttpError, clientIp } from '@/lib/http';
 import { attachPlatformSession, requirePlatform } from '@/lib/auth';
-import { generateTempPassword, hashPassword, passwordPolicyError, verifyPassword } from '@/lib/password';
+import { generateTempPassword, hashPassword, passwordPolicyError, randomToken, verifyPassword } from '@/lib/password';
 import { audit } from '@/lib/audit';
 import { PLATFORM_ROLES, isOneOf } from '@/lib/constants';
 
-const COLS = 'id, email, full_name, role, department, last_login_at, created_at';
+const COLS = 'id, email, full_name, role, department, sso_only, last_login_at, created_at';
 
 export const GET = route(async (req: NextRequest) => {
   await requirePlatform(req);
@@ -48,6 +48,7 @@ export const POST = route(async (req: NextRequest) => {
   let passwordHash: string | undefined;
   let tempPassword: string | undefined;
   const newPassword = typeof body.password === 'string' ? body.password : '';
+  const ssoOnly = body.ssoOnly === true;
 
   if (newPassword) {
     if (passwordPolicyError(newPassword)) throw bad('WEAK_PASSWORD', 'Password must be at least 10 characters and include letters and digits');
@@ -57,8 +58,8 @@ export const POST = route(async (req: NextRequest) => {
     }
     passwordHash = await hashPassword(newPassword);
   } else if (!existing) {
-    tempPassword = generateTempPassword();
-    passwordHash = await hashPassword(tempPassword);
+    if (!ssoOnly) tempPassword = generateTempPassword();
+    passwordHash = await hashPassword(tempPassword ?? randomToken(32));
   }
 
   if (existing) {
@@ -83,9 +84,9 @@ export const POST = route(async (req: NextRequest) => {
   }
 
   const admin = must(
-    await db().from('platform_admins').insert({ email: target, password_hash: passwordHash, full_name: fullName, role, department }).select(COLS).single()
+    await db().from('platform_admins').insert({ email: target, password_hash: passwordHash, full_name: fullName, role, department, sso_only: ssoOnly }).select(COLS).single()
   );
-  await audit({ actor: session.sub, role: session.role, action: 'platform.user_created', target, meta: { role }, ip: clientIp(req) });
+  await audit({ actor: session.sub, role: session.role, action: 'platform.user_created', target, meta: { role, ssoOnly }, ip: clientIp(req) });
   return NextResponse.json({ success: true, admin, tempPassword }, { status: 201 });
 });
 

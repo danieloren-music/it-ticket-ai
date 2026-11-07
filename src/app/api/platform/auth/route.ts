@@ -34,6 +34,10 @@ export const POST = route(async (req: NextRequest) => {
   let identity: { email: string; name: string; role: string } | null = null;
 
   if (admin) {
+    if (admin.sso_only) {
+      await audit({ actor: userEmail, action: 'platform.login_blocked', meta: { reason: 'sso_only' }, ip });
+      throw new HttpError(403, 'SSO_REQUIRED', 'This account must sign in through the configured identity provider');
+    }
     if (admin.locked_until && new Date(admin.locked_until).getTime() > Date.now()) {
       throw new HttpError(423, 'ACCOUNT_LOCKED', 'Account temporarily locked. Try again later.');
     }

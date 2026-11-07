@@ -2,19 +2,19 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Activity, ArrowUpLeft, ArrowUpRight, Building2, Check, Copy, ExternalLink, KeyRound, MessageCircle, Pencil, Plus, RefreshCw, Search, Sparkles, TicketCheck, Trash2, UsersRound } from 'lucide-react';
+import { Activity, ArrowUpLeft, ArrowUpRight, Building2, Check, Copy, ExternalLink, KeyRound, MessageCircle, Pencil, Plus, RefreshCw, Search, ShieldCheck, Sparkles, TicketCheck, Trash2, UsersRound } from 'lucide-react';
 import { api, errorText } from '@/lib/api';
 import { fmtDate, fmtDateTime, useLang } from '@/lib/i18n';
 import { Badge, EmptyState, Field, Modal, Spinner, SuccessDialog, btnDanger, btnPrimary, btnSecondary, cardCls, inputCls, useToast } from '@/components/ui';
 import { A11yWidget } from '@/components/A11yWidget';
 import { DailyBars } from '@/components/Charts';
 import { ConsoleSidebar, type ConsoleNavGroup } from '@/components/ConsoleSidebar';
-import { PLATFORM_EMAIL_DOMAIN, PLATFORM_READONLY_ROLES, PLATFORM_ROLES } from '@/lib/constants';
+import { PLATFORM_READONLY_ROLES, PLATFORM_ROLES } from '@/lib/constants';
 import { PlatformTenantApiKeysDialog } from './PlatformTenantApiKeysDialog';
 
-type Tab = 'overview' | 'tenants' | 'users' | 'leads' | 'audit';
+type Tab = 'overview' | 'tenants' | 'users' | 'leads' | 'audit' | 'sso';
 interface Tenant { id: string; name: string; domain: string; admin_email: string; status: string; created_at: string; user_count: number; ticket_count: number; open_tickets: number }
-interface Admin { id: string; email: string; full_name: string; role: string; department: string; last_login_at: string | null }
+interface Admin { id: string; email: string; full_name: string; role: string; department: string; sso_only: boolean; last_login_at: string | null }
 interface Stats { tenants: { total: number; active: number; trial: number; suspended: number }; users: number; tickets: { total: number; open: number; ai_created: number }; daily: { date: string; count: number }[]; leads: Lead[] }
 interface Lead { id: string; name: string; email: string; company: string; phone: string | null; message: string | null; created_at: string }
 interface AuditRow { id: string; tenant_id: string | null; actor_email: string; action: string; target: string | null; ip: string | null; created_at: string }
@@ -50,6 +50,7 @@ export default function PlatformConsole() {
       items: [
         { key: 'tenants', label: t('ארגונים', 'Organizations'), icon: Building2, active: tab === 'tenants', onClick: () => setTab('tenants') },
         { key: 'users', label: t('צוות הפלטפורמה', 'Platform team'), icon: UsersRound, active: tab === 'users', onClick: () => setTab('users') },
+        ...(me?.role === 'Super Admin' ? [{ key: 'sso', label: t('כניסה אחידה (SSO)', 'Single sign-on'), icon: ShieldCheck, active: tab === 'sso', onClick: () => setTab('sso') }] : []),
       ],
     },
     {
@@ -90,6 +91,7 @@ export default function PlatformConsole() {
           {tab === 'users' && <UsersTab me={me} readOnly={readOnly} onIssued={setIssued} />}
           {tab === 'leads' && <LeadsTab />}
           {tab === 'audit' && <AuditTab />}
+          {tab === 'sso' && me.role === 'Super Admin' && <PlatformSsoTab />}
         </div>
       </main>
 
@@ -106,6 +108,82 @@ export default function PlatformConsole() {
       {profileOpen && <ProfileModal open me={me} onClose={() => setProfileOpen(false)} onSaved={(m) => { setMe(m); toast(t('הפרופיל עודכן', 'Profile updated')); }} />}
       <A11yWidget />
     </div>
+  );
+}
+
+interface PlatformSamlSettings {
+  saml_enabled: boolean;
+  saml_login_url: string;
+  saml_idp_cert: string;
+}
+
+function PlatformSsoTab() {
+  const { t, lang } = useLang();
+  const { toast } = useToast();
+  const [settings, setSettings] = useState<PlatformSamlSettings | null>(null);
+  const [sp, setSp] = useState<{ entityId: string; acsUrl: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api<{ settings: PlatformSamlSettings; sp: { entityId: string; acsUrl: string } }>('/api/platform/sso')
+      .then((data) => { setSettings(data.settings); setSp(data.sp); })
+      .catch((error) => toast(errorText(error, lang), 'error'));
+  }, [lang, toast]);
+
+  if (!settings || !sp) return <div className="py-16 text-center text-brand"><Spinner className="h-6 w-6" /></div>;
+
+  const save = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await api('/api/platform/sso', { method: 'PUT', json: settings });
+      toast(t('הגדרות SAML נשמרו', 'SAML settings saved'));
+    } catch (error) {
+      toast(errorText(error, lang), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const readOnly = (value: string) => (
+    <input readOnly dir="ltr" className={`${inputCls} bg-canvas font-mono text-xs`} value={value} onFocus={(event) => event.currentTarget.select()} />
+  );
+
+  return (
+    <form onSubmit={save} className="space-y-5">
+      <section className={`${cardCls} space-y-4 p-5`}>
+        <div>
+          <h2 className="font-bold">SAML 2.0 · Microsoft Entra ID</h2>
+          <p className="mt-1 text-sm text-ink-soft">{t('התחברות לצוות הפלטפורמה דרך ספק הזהויות של הארגון.', 'Sign the platform team in through your organization’s identity provider.')}</p>
+        </div>
+        <ol className="list-inside list-decimal space-y-1 text-sm text-ink-soft">
+          <li>{t('ב-Entra צרו Enterprise Application ובחרו SAML.', 'In Entra, create an Enterprise Application and choose SAML.')}</li>
+          <li>{t('העתיקו אליו את ה-Identifier ואת Reply URL שמופיעים כאן.', 'Copy the Identifier and Reply URL below into Entra.')}</li>
+          <li>{t('הגדירו את Name ID ככתובת UPN או email של המשתמש, והקצו את המשתמשים לאפליקציה ב-Entra.', 'Set Name ID to the user’s UPN or email, and assign users to the Entra application.')}</li>
+          <li>{t('הזינו כאן את Login URL ואת תעודת החתימה של Entra ושמרו.', 'Enter Entra’s Login URL and signing certificate here, then save.')}</li>
+          <li>{t('ב״צוות הפלטפורמה״ הוסיפו מראש כל משתמש והקצו לו תפקיד. הכניסה עצמה תתבצע מול Entra.', 'In “Platform team,” pre-create each user and assign a role. Authentication itself is handled by Entra.')}</li>
+        </ol>
+        <Field label="Identifier (Entity ID)">{readOnly(sp.entityId)}</Field>
+        <Field label="Reply URL (Assertion Consumer Service)">{readOnly(sp.acsUrl)}</Field>
+        <Field label={t('כתובת כניסה (Login URL) של Entra', 'Entra sign-in URL (Login URL)')}>
+          <input type="url" dir="ltr" className={inputCls} value={settings.saml_login_url} onChange={(event) => setSettings({ ...settings, saml_login_url: event.target.value })} placeholder="https://login.microsoftonline.com/..." />
+        </Field>
+        <Field label={t('תעודת החתימה של Entra (PEM / Base64)', 'Entra signing certificate (PEM / Base64)')}>
+          <textarea rows={5} dir="ltr" className={`${inputCls} font-mono text-xs`} value={settings.saml_idp_cert} onChange={(event) => setSettings({ ...settings, saml_idp_cert: event.target.value })} />
+        </Field>
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input type="checkbox" checked={settings.saml_enabled} onChange={(event) => setSettings({ ...settings, saml_enabled: event.target.checked })} />
+          {t('הפעלת כניסה עם SAML', 'Enable SAML sign-in')}
+        </label>
+        <p className="text-xs text-ink-soft">{t(
+          'רשומת המשתמש ב-SmartQ Platform משמשת רק למיפוי תפקיד והרשאות; סיסמת SmartQ אינה משמשת בכניסת SAML. משתמש שלא הוגדר לו תפקיד Platform ייחסם.',
+          'The SmartQ Platform user record maps the Entra identity to a role and permissions only; its SmartQ password is not used for SAML sign-in. Users without a provisioned Platform role are denied.'
+        )}</p>
+      </section>
+      <div className="flex justify-end">
+        <button type="submit" disabled={saving} className={btnPrimary}>{saving && <Spinner />}{t('שמירת הגדרות', 'Save settings')}</button>
+      </div>
+    </form>
   );
 }
 
@@ -423,7 +501,7 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
   const [rows, setRows] = useState<Admin[] | null>(null);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Admin | null>(null);
-  const [f, setF] = useState({ username: '', fullName: '', role: 'Lead Support Engineer', department: 'Cloud Operations' });
+  const [f, setF] = useState({ email: '', fullName: '', role: 'Lead Support Engineer', department: 'Cloud Operations', ssoOnly: false });
   const [saving, setSaving] = useState(false);
   const isSuper = me.role === 'Super Admin';
 
@@ -436,12 +514,13 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setSaving(true);
-    const email = editing?.email ?? `${f.username.replace(/[^a-z0-9._-]/g, '')}@${PLATFORM_EMAIL_DOMAIN}`;
+    const email = editing?.email ?? f.email.trim().toLowerCase();
     try {
-      const d = await api<{ tempPassword?: string }>('/api/platform/admins', { method: 'POST', json: { email, fullName: f.fullName, role: f.role, department: f.department } });
+      const d = await api<{ tempPassword?: string }>('/api/platform/admins', { method: 'POST', json: { email, fullName: f.fullName, role: f.role, department: f.department, ssoOnly: f.ssoOnly } });
       setOpen(false);
       setEditing(null);
       if (d.tempPassword) onIssued({ title: t('סיסמה זמנית למשתמש פלטפורמה', 'Temporary password for the platform user'), email, password: d.tempPassword });
+      else if (!editing) toast(t('משתמש SSO נוסף לצוות הפלטפורמה', 'SSO user added to the platform team'));
       load();
     } catch (ex) { toast(errorText(ex, lang), 'error'); } finally { setSaving(false); }
   };
@@ -451,26 +530,31 @@ function UsersTab({ me, readOnly, onIssued }: { me: Me; readOnly: boolean; onIss
   };
   const edit = (a: Admin) => {
     setEditing(a);
-    setF({ username: a.email.split('@')[0], fullName: a.full_name, role: a.role, department: a.department });
+    setF({ email: a.email, fullName: a.full_name, role: a.role, department: a.department, ssoOnly: false });
     setOpen(true);
   };
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end"><button type="button" disabled={!isSuper} className={btnPrimary} onClick={() => { setEditing(null); setF({ username: '', fullName: '', role: 'Lead Support Engineer', department: 'Cloud Operations' }); setOpen(true); }}><Plus className="h-4 w-4" />{t('משתמש פלטפורמה חדש', 'New platform user')}</button></div>
+      <div className="flex justify-end"><button type="button" disabled={!isSuper} className={btnPrimary} onClick={() => { setEditing(null); setF({ email: '', fullName: '', role: 'Lead Support Engineer', department: 'Cloud Operations', ssoOnly: false }); setOpen(true); }}><Plus className="h-4 w-4" />{t('משתמש פלטפורמה חדש', 'New platform user')}</button></div>
       <div className={`${cardCls} overflow-hidden`}>
         {!rows ? <div className="py-12 text-center text-brand"><Spinner className="h-5 w-5" /></div> : rows.length === 0 ? <EmptyState title={t('אין משתמשים במסד הנתונים', 'No users in the database')} hint={t('כרגע נכנסים עם משתמש ה-Bootstrap ממשתני הסביבה. צרו משתמש קבוע.', 'You are signed in with the bootstrap user from environment variables. Create a permanent user.')} /> : (
           <table className="w-full text-sm"><thead className="border-b border-line bg-canvas text-xs text-ink-soft"><tr>{[t('שם', 'Name'), t('אימייל', 'Email'), t('תפקיד', 'Role'), t('כניסה אחרונה', 'Last sign-in'), ''].map((h, i) => <th key={i} className="px-4 py-2.5 text-start font-semibold">{h}</th>)}</tr></thead>
-            <tbody className="divide-y divide-line">{rows.map((a) => <tr key={a.id}><td className="px-4 py-3 font-medium">{a.full_name}</td><td className="px-4 py-3 text-ink-soft" dir="ltr">{a.email}</td><td className="px-4 py-3"><Badge tone="bg-slate-100 text-slate-700 ring-slate-200">{a.role}</Badge></td><td className="px-4 py-3 text-xs text-ink-soft tnum">{fmtDateTime(a.last_login_at, lang)}</td><td className="px-4 py-3 text-end"><div className="flex justify-end gap-1">{isSuper && a.email !== me.email && !readOnly && <><button type="button" aria-label={t('עריכה', 'Edit')} onClick={() => edit(a)} className="rounded-lg border border-line p-1.5 hover:bg-slate-50"><Pencil className="h-4 w-4" /></button><button type="button" aria-label={t('מחיקה', 'Delete')} onClick={() => remove(a)} className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"><Trash2 className="h-4 w-4" /></button></>}</div></td></tr>)}</tbody></table>
+            <tbody className="divide-y divide-line">{rows.map((a) => <tr key={a.id}><td className="px-4 py-3 font-medium">{a.full_name}</td><td className="px-4 py-3 text-ink-soft" dir="ltr">{a.email}</td><td className="px-4 py-3"><div className="flex flex-wrap items-center gap-1.5"><Badge tone="bg-slate-100 text-slate-700 ring-slate-200">{a.role}</Badge>{a.sso_only && <Badge tone="bg-blue-50 text-blue-700 ring-blue-200">SSO</Badge>}</div></td><td className="px-4 py-3 text-xs text-ink-soft tnum">{fmtDateTime(a.last_login_at, lang)}</td><td className="px-4 py-3 text-end"><div className="flex justify-end gap-1">{isSuper && a.email !== me.email && !readOnly && <><button type="button" aria-label={t('עריכה', 'Edit')} onClick={() => edit(a)} className="rounded-lg border border-line p-1.5 hover:bg-slate-50"><Pencil className="h-4 w-4" /></button><button type="button" aria-label={t('מחיקה', 'Delete')} onClick={() => remove(a)} className="rounded-lg border border-rose-200 p-1.5 text-rose-600 hover:bg-rose-50"><Trash2 className="h-4 w-4" /></button></>}</div></td></tr>)}</tbody></table>
         )}
       </div>
       <Modal open={open} onClose={() => { setOpen(false); setEditing(null); }} title={editing ? t('עריכת משתמש פלטפורמה', 'Edit platform user') : t('משתמש פלטפורמה חדש', 'New platform user')}>
         <form onSubmit={save} className="space-y-3">
           <Field label={t('שם מלא', 'Full name')}><input required className={inputCls} value={f.fullName} onChange={(e) => setF({ ...f, fullName: e.target.value })} /></Field>
-          {editing ? <Field label={t('אימייל', 'Email')}><input disabled dir="ltr" className={inputCls} value={editing.email} /></Field>
-            : <Field label={t('שם משתמש', 'Username')}><div className="flex min-w-0 items-center overflow-hidden rounded-lg border border-line" dir="ltr"><input required className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none" value={f.username} onChange={(e) => setF({ ...f, username: e.target.value.toLowerCase() })} /><span className="max-w-[55%] shrink-0 overflow-x-auto whitespace-nowrap border-s border-line bg-canvas px-3 py-2 text-sm text-ink-soft">@{PLATFORM_EMAIL_DOMAIN}</span></div></Field>}
+          <Field label={t('כתובת Entra / אימייל', 'Entra email address')} hint={t('הכתובת חייבת להיות זהה לכתובת שמתקבלת מ-Entra ב-SAML.', 'Must match the email address received from Entra in the SAML assertion.')}>
+            <input required disabled={Boolean(editing)} type="email" dir="ltr" className={inputCls} value={f.email} onChange={(e) => setF({ ...f, email: e.target.value.toLowerCase() })} />
+          </Field>
           <Field label={t('תפקיד', 'Role')}><select className={inputCls} value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })}>{PLATFORM_ROLES.map((r) => <option key={r}>{r}</option>)}</select></Field>
           <Field label={t('מחלקה', 'Department')}><input className={inputCls} value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })} /></Field>
+          {!editing && <label className="flex items-start gap-2 text-sm text-ink-soft">
+            <input type="checkbox" checked={f.ssoOnly} onChange={(e) => setF({ ...f, ssoOnly: e.target.checked })} />
+            <span>{t('כניסה דרך SSO בלבד (לא להציג סיסמה מקומית)', 'SSO-only sign-in (do not issue a local password)')}</span>
+          </label>}
           <div className="flex justify-end gap-2 pt-2"><button type="button" className={btnSecondary} onClick={() => { setOpen(false); setEditing(null); }}>{t('ביטול', 'Cancel')}</button><button type="submit" disabled={saving} className={btnPrimary}>{saving && <Spinner />}{t(editing ? 'שמירה' : 'יצירה', editing ? 'Save' : 'Create')}</button></div>
         </form>
       </Modal>

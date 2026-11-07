@@ -20,7 +20,7 @@
 <ol dir="rtl" align="right">
 <li>הריצו את <a href="../supabase/maintenance/001_review_database.sql">בדיקת המסד לקריאה בלבד</a> וודאו שטבלאות הבסיס קיימות.</li>
 <li>צרו גיבוי שניתן לשחזר.</li>
-<li>הריצו לפי הסדר את <a href="../supabase/migrations/001_enterprise.sql"><code dir="ltr">001_enterprise.sql</code></a>, את <a href="../supabase/migrations/003_oidc_sso.sql"><code dir="ltr">003_oidc_sso.sql</code></a>, את <a href="../supabase/migrations/004_saas_platform.sql"><code dir="ltr">004_saas_platform.sql</code></a>, ולבסוף את <a href="../supabase/migrations/005_platform_password_reset.sql"><code dir="ltr">005_platform_password_reset.sql</code></a>.</li>
+<li>הריצו לפי הסדר את <a href="../supabase/migrations/001_enterprise.sql"><code dir="ltr">001_enterprise.sql</code></a>, את <a href="../supabase/migrations/003_oidc_sso.sql"><code dir="ltr">003_oidc_sso.sql</code></a>, את <a href="../supabase/migrations/004_saas_platform.sql"><code dir="ltr">004_saas_platform.sql</code></a>, את <a href="../supabase/migrations/005_platform_password_reset.sql"><code dir="ltr">005_platform_password_reset.sql</code></a> ואת <a href="../supabase/migrations/006_platform_saml.sql"><code dir="ltr">006_platform_saml.sql</code></a>.</li>
 <li>שמרו את ה-<strong>Project URL</strong>, מפתח <code dir="ltr">anon</code> ומפתח <code dir="ltr">service_role</code> מתוך <strong dir="ltr">Project Settings → API</strong>.</li>
 </ol>
 
@@ -126,6 +126,17 @@ Copy-Item .env.example .env.local</code></pre>
 <li>הזינו ב-SmartQ את כתובת ה-Login ואת תעודת החתימה הציבורית.</li>
 <li>בדקו עם משתמש פעיל שהוקצה מראש, ורק אז הפעילו SAML למשתמשים.</li>
 </ol>
+
+<h3 dir="rtl" align="right">SAML ל-SmartQ Platform</h3>
+
+<ol dir="rtl" align="right">
+<li>היכנסו ל-<code dir="ltr">/platform</code> כמנהל <code dir="ltr">Super Admin</code>, פתחו את <strong>סביבות ומשתמשים → כניסה אחידה (SSO)</strong> והעתיקו את <code dir="ltr">Entity ID</code> ואת <code dir="ltr">Reply URL (ACS)</code>.</li>
+<li>ב-Entra צרו <strong>Enterprise Application</strong> מסוג SAML, הגדירו את שני הערכים האלה, הגדירו את <code dir="ltr">Name ID</code> כ-UPN או email, והקצו את המשתמשים המורשים לאפליקציה.</li>
+<li>הוסיפו ב-<strong>צוות הפלטפורמה</strong> כל משתמש עם אותה כתובת Entra ותפקיד מתאים. אפשר לבחור <strong>SSO בלבד</strong>; כך לא תוצג למשתמש סיסמה מקומית.</li>
+<li>הזינו במסך ה-SSO את ה-Login URL ואת תעודת החתימה של Entra, הפעילו SAML ושמרו. בדקו כניסה לפני שמסירים אפשרות כניסה אחרת.</li>
+</ol>
+
+<p dir="rtl" align="right">Entra מבצעת את האימות ומעבירה את זהות המשתמש. רשומת Platform מקומית נשארת רק כדי לקבוע את תפקידו והרשאותיו; היא אינה מחליפה את Entra כספק הזהויות. משתמש ללא תפקיד שהוגדר מראש נחסם.</p>
 
 <h2 dir="rtl" align="right">בדיקה מהירה לפני מסירה</h2>
 

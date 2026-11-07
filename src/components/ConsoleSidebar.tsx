@@ -100,18 +100,18 @@ export function ConsoleSidebar({ workspace, identity, secondaryIdentity, groups,
         <button type="button" aria-label={t('פתיחת תפריט', 'Open menu')} aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)} className="rounded-lg p-2 hover:bg-canvas">
           <Menu className="h-5 w-5" />
         </button>
-        <span className="inline-flex items-center gap-2">
+        <button type="button" onClick={() => window.location.reload()} aria-label={t('רענון הדף', 'Refresh page')} title={t('רענון הדף', 'Refresh page')} className="inline-flex items-center gap-2">
           <Image src="/smartq-brand-mark.png" alt="" width={28} height={28} className="rounded-md" />
           <span className="text-xl font-bold tracking-tight text-ink">SmartQ</span>
           {suffix}
-        </span>
+        </button>
         <span className="w-9" />
       </header>
 
       <aside aria-label={t('תפריט ראשי', 'Main menu')} className={`fixed inset-y-0 z-40 hidden w-14 flex-col items-center bg-[#173b5b] text-white shadow-lg lg:flex ${isRtl ? 'right-0' : 'left-0'}`}>
-        <Link href="/home" aria-label={workspace} title={workspace} className="grid h-14 w-full shrink-0 place-items-center border-b border-white/10">
+        <button type="button" onClick={() => window.location.reload()} aria-label={t('רענון הדף', 'Refresh page')} title={workspace} className="grid h-14 w-full shrink-0 place-items-center border-b border-white/10">
           <Image src="/smartq-brand-mark.png" alt="" width={30} height={30} className="rounded-md bg-white p-0.5" />
-        </Link>
+        </button>
         <nav className="flex w-full flex-1 flex-col items-center gap-2 py-3">
           {groups.map((group) => {
             const Icon = group.icon;

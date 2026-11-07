@@ -14,6 +14,31 @@ import type { TicketPage } from '@/lib/tickets';
 
 interface Msg { id: string; role: 'user' | 'assistant'; content: string }
 
+function TypingMessage({ text, onProgress }: { text: string; onProgress: () => void }) {
+  const [visibleChars, setVisibleChars] = useState(0);
+
+  useEffect(() => {
+    let position = 0;
+    const timer = window.setInterval(() => {
+      position = Math.min(position + 1, text.length);
+      setVisibleChars(position);
+      onProgress();
+      if (position === text.length) window.clearInterval(timer);
+    }, 22);
+    return () => window.clearInterval(timer);
+  }, [text, onProgress]);
+
+  return (
+    <>
+      <span className="sr-only">{text}</span>
+      <span aria-hidden="true">
+        {text.slice(0, visibleChars)}
+        {visibleChars < text.length && <span className="animate-pulse">▍</span>}
+      </span>
+    </>
+  );
+}
+
 const emptyForm = {
   title: '', description: '', category: 'General IT Request', urgency: 'Medium', system_impacted: '',
   assigned_team: 'Helpdesk Tier 1', user_city: '', user_phone: '',
@@ -44,6 +69,10 @@ export default function SelfServicePage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const chatRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
+  const keepChatAtBottom = useCallback(() => {
+    const chat = chatRef.current;
+    if (chat) chat.scrollTo({ top: chat.scrollHeight, behavior: 'auto' });
+  }, []);
 
   // The greeting follows the active language until the conversation starts.
   useEffect(() => { setMessages((m) => (m.some((x) => x.role === 'user') ? m : [{ id: 'welcome', role: 'assistant', content: welcome }])); }, [welcome]);
@@ -160,10 +189,21 @@ export default function SelfServicePage() {
           <div ref={chatRef} className="h-80 space-y-3 overflow-y-auto bg-canvas/60 p-4" aria-live="polite">
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <p className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'bg-brand text-white' : 'border border-line bg-white'}`}>{m.content}</p>
+                <p className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed ${m.role === 'user' ? 'bg-brand text-white' : 'border border-line bg-white'}`}>
+                  {m.role === 'assistant' ? <TypingMessage text={m.content} onProgress={keepChatAtBottom} /> : m.content}
+                </p>
               </div>
             ))}
-            {thinking && <div className="flex items-center gap-2 text-sm text-ink-soft"><Spinner />{t('מנתח את הבקשה…', 'Analyzing your request…')}</div>}
+            {thinking && (
+              <div className="flex items-center gap-2 text-sm text-ink-soft" aria-live="polite">
+                <span aria-hidden="true" className="flex gap-1">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:120ms]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-current [animation-delay:240ms]" />
+                </span>
+                {t('Tony מקליד…', 'Tony is typing…')}
+              </div>
+            )}
           </div>
           <div className="space-y-2 border-t border-line p-3">
             <div className="flex flex-wrap gap-2">

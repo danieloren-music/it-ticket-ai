@@ -3,7 +3,7 @@ import { db, must } from '@/lib/db';
 import { route, readJson, str, baseUrl, bad, clientIp } from '@/lib/http';
 import { requireTenant } from '@/lib/auth';
 import { audit } from '@/lib/audit';
-import { spAcsUrl, spEntityId } from '@/lib/saml';
+import { normalizeSamlCert, spAcsUrl, spEntityId } from '@/lib/saml';
 import { decryptIdpSecret, encryptIdpSecret } from '@/lib/idp-secrets';
 
 export const runtime = 'nodejs';
@@ -34,18 +34,6 @@ export const GET = route(async (req: NextRequest) => {
   });
 });
 
-function normalizeCert(raw: string): string {
-  const blocks = [...raw.matchAll(/-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/g)];
-  const bodies = blocks.length
-    ? blocks.map((block) => block[1].replace(/\s+/g, ''))
-    : [raw.replace(/\s+/g, '')];
-  if (!bodies[0]) return '';
-  if (bodies.some((body) => !/^[A-Za-z0-9+/=]+$/.test(body) || body.length < 200)) {
-    throw bad('VALIDATION', 'Certificate is not valid base64 / PEM');
-  }
-  return bodies.map((body) => `-----BEGIN CERTIFICATE-----\n${body}\n-----END CERTIFICATE-----`).join('\n');
-}
-
 export const PUT = route(async (req: NextRequest) => {
   const session = await requireTenant(req, { permission: 'settings:manage', blockDemo: true });
   const body = await readJson(req);
@@ -64,7 +52,12 @@ export const PUT = route(async (req: NextRequest) => {
   }
 
   const samlEnabled = body.saml_enabled === true;
-  const samlCert = normalizeCert(str(body.saml_idp_cert, 8000, { trim: false }));
+  let samlCert: string;
+  try {
+    samlCert = normalizeSamlCert(str(body.saml_idp_cert, 8000, { trim: false }));
+  } catch {
+    throw bad('VALIDATION', 'Certificate is not valid base64 / PEM');
+  }
   if (samlEnabled && (!loginUrl || !samlCert)) {
     throw bad('VALIDATION', 'SAML requires an HTTPS login URL and a signing certificate');
   }

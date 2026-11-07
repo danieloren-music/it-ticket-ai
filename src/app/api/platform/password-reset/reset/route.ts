@@ -31,6 +31,13 @@ export const POST = route(async (req: NextRequest) => {
       .maybeSingle()
   );
   if (!reset) throw new HttpError(400, 'INVALID_RESET_TOKEN', 'This reset link is invalid or expired.');
+  const adminAccount = must(await db().from('platform_admins')
+    .select('sso_only')
+    .eq('email', reset.admin_email)
+    .maybeSingle());
+  if (!adminAccount || adminAccount.sso_only) {
+    throw new HttpError(400, 'INVALID_RESET_TOKEN', 'This reset link is invalid or expired.');
+  }
 
   const passwordHash = await hashPassword(password);
   const consumed = must(

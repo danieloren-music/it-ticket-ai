@@ -26,11 +26,11 @@ export const POST = route(async (req: NextRequest) => {
 
   const admin = must(
     await db().from('platform_admins')
-      .select('email, full_name')
+      .select('email, full_name, sso_only')
       .eq('email', adminEmail)
       .maybeSingle()
   );
-  if (!admin) return NextResponse.json({ success: true, message: RESPONSE_MESSAGE });
+  if (!admin || admin.sso_only) return NextResponse.json({ success: true, message: RESPONSE_MESSAGE });
 
   const token = randomToken(32);
   const tokenHash = sha256(token);

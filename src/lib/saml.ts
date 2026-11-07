@@ -8,6 +8,7 @@ export interface SamlEndpoints {
 }
 
 export interface SamlSettings {
+  saml_enabled?: boolean | null;
   saml_login_url?: string | null;
   saml_idp_cert?: string | null;
 }

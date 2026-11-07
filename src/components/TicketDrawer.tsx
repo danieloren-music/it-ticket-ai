@@ -255,7 +255,7 @@ export function TicketDrawer({ ticketId, staff, onClose, onChanged }: { ticketId
               <div className="mt-3 space-y-2">
                 <textarea rows={2} className={inputCls} value={comment} maxLength={2000} onChange={(e) => setComment(e.target.value)} placeholder={t('כתבו תגובה…', 'Write a reply…')} aria-label={t('תגובה', 'Reply')} />
                 <div className="flex items-center justify-between">
-                  {staff ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={internal} onChange={(e) => { const v = e.target.checked; setInternal(v); if (v !== internal) unmarkDirty('_internal_flag'); markDirty('_internal_flag'); }} />{t('הערה פנימית', 'Internal note')}</label> : <span />}
+                  {staff ? <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />{t('הערה פנימית', 'Internal note')}</label> : <span />}
                   <button type="button" onClick={send} disabled={!comment.trim()} className={btnSecondary}>{t('שליחה', 'Send')}</button>
                 </div>
               </div>

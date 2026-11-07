@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { db, must } from '@/lib/db';
 import { route } from '@/lib/http';
+import type { SamlSettings } from '@/lib/saml';
 
 export const GET = route(async () => {
-  let data: unknown = null;
+  let data: SamlSettings | null = null;
   try {
-    data = await db().from('platform_auth_settings')
+    const result = await db().from('platform_auth_settings')
       .select('saml_enabled, saml_login_url, saml_idp_cert')
       .eq('id', 'default')
       .maybeSingle();
+    data = result.data as SamlSettings | null;
   } catch {
     // The SAML settings table may not exist yet during early bootstrap, or the
     // current deployment predates migration 006. Don't let a missing row abort

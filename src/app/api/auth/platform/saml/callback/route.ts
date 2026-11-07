@@ -9,6 +9,7 @@ import {
   platformSpAcsUrl,
   platformSpEntityId,
   readPlatformRelayState,
+  type SamlSettings,
 } from '@/lib/saml';
 import { isOneOf, PLATFORM_ROLES } from '@/lib/constants';
 
@@ -29,12 +30,13 @@ export const POST = route(async (req: NextRequest) => {
   };
   if (typeof samlResponse !== 'string' || !validRelay) return back('sso_failed');
 
-  let settings: unknown = null;
+  let settings: SamlSettings | null = null;
   try {
-    settings = await db().from('platform_auth_settings')
+    const result = await db().from('platform_auth_settings')
       .select('saml_enabled, saml_login_url, saml_idp_cert')
       .eq('id', 'default')
       .maybeSingle();
+    settings = result.data as SamlSettings | null;
   } catch {
     // Defensive against a missing table during early bootstrap or partial migrations.
     await audit({ actor: 'unknown', action: 'platform.auth.sso_rejected', ip });

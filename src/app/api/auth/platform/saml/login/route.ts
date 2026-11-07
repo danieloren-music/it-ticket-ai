@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, must } from '@/lib/db';
 import { baseUrl, clientIp, rateLimit, route } from '@/lib/http';
-import { buildSaml, createPlatformRelayState, platformSpAcsUrl, platformSpEntityId } from '@/lib/saml';
+import { buildSaml, createPlatformRelayState, platformSpAcsUrl, platformSpEntityId, type SamlSettings } from '@/lib/saml';
 
 export const runtime = 'nodejs';
 
@@ -14,12 +14,13 @@ export const GET = route(async (req: NextRequest) => {
     return NextResponse.redirect(loginPage);
   };
 
-  let settings: unknown = null;
+  let settings: SamlSettings | null = null;
   try {
-    settings = await db().from('platform_auth_settings')
+    const result = await db().from('platform_auth_settings')
       .select('saml_enabled, saml_login_url, saml_idp_cert')
       .eq('id', 'default')
       .maybeSingle();
+    settings = result.data as SamlSettings | null;
   } catch {
     // Defensive against a missing table during early bootstrap or partial migrations.
     return fail('sso_not_configured');

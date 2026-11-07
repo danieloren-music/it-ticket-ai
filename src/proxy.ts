@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { readTenantSession, TENANT_COOKIE } from '@/lib/session';
+import { readPlatformSession, readTenantSession, PLATFORM_COOKIE, TENANT_COOKIE } from '@/lib/session';
 
 /** Paths that never need a tenant/platform session. */
 const PUBLIC_PREFIXES = ['/home', '/_next', '/api', '/icon', '/apple-icon', '/opengraph-image', '/twitter-image', '/robots.txt', '/sitemap.xml', '/smartq-'];
